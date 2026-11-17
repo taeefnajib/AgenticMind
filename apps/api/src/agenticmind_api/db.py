@@ -79,6 +79,33 @@ class NodeOutputRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class RunCheckpointRow(Base):
+    """Exact state of a finished top-level node, used to resume a run (ADR-0013)."""
+
+    __tablename__ = "run_checkpoints"
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True)
+    node_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    payload: Mapped[dict[str, Any]]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RunWaitRow(Base):
+    """A pause point waiting for a person (e.g. Human Approval) and, once answered, the response."""
+
+    __tablename__ = "run_waits"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    node_id: Mapped[str] = mapped_column(String(64))
+    node_type: Mapped[str] = mapped_column(String(200))
+    request: Mapped[dict[str, Any]]
+    response_schema: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | answered | cancelled
+    response: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ConversationMessageRow(Base):
     """Short-term conversation state (ADR-0012). Deleted with the project or by retention."""
 

@@ -76,3 +76,21 @@ describe("chat memory inputs", () => {
     expect(newConversationId()).not.toEqual(newConversationId());
   });
 });
+
+describe("approval responses", () => {
+  it("builds responses and enforces comments / JSON edits", async () => {
+    const { buildResponse } = await import("./ApprovalsPanel");
+    const wait = (value: unknown, extra: Record<string, unknown> = {}) => ({
+      id: 1, run_id: "r", project_id: "p", node_id: "review", node_type: "t", status: "pending" as const,
+      response_schema: null, response: null, created_at: null, answered_at: null,
+      request: { value, allow_edit: true, require_comment_on_reject: true, ...extra } as never,
+    });
+    const form = { comment: "", reviewer: "", edited: "hello" };
+    expect(buildResponse(wait("hello"), "approved", form)).toEqual({ decision: "approved" });
+    expect(buildResponse(wait("hello"), "approved", { ...form, edited: "hi!" })).toEqual({ decision: "approved", value: "hi!" });
+    expect(buildResponse(wait("hello"), "rejected", form)).toBe("Please explain why you are rejecting.");
+    expect(buildResponse(wait("hello"), "rejected", { ...form, comment: " no " })).toEqual({ decision: "rejected", comment: "no" });
+    expect(buildResponse(wait({ a: 1 }), "approved", { ...form, edited: "{bad" })).toBe("The edited value is not valid JSON.");
+    expect(buildResponse(wait({ a: 1 }), "approved", { ...form, edited: '{"a": 2}' })).toEqual({ decision: "approved", value: { a: 2 } });
+  });
+});

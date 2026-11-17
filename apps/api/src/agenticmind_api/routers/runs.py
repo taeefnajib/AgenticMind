@@ -6,13 +6,13 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from agenticmind_ir import load_project
-from agenticmind_runtime import PlanError, RunStatus
+from agenticmind_runtime import EventType, PlanError, ResumeState, RunStatus, TraceEvent
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from ..db import RunRow
+from ..db import RunRow, RunWaitRow
 from ..deps import Services, services
-from ..schemas import RunCreate, RunOut
+from ..schemas import RunCreate, RunOut, RunResume, WaitOut
 from ..store import iso
 
 router = APIRouter(prefix="/api", tags=["runs"])
@@ -76,9 +76,130 @@ def cancel_run(run_id: str, svc: Services = Depends(services)) -> RunOut:
     row = _require_run(svc, run_id)
     if RunStatus(row.status).terminal:
         raise HTTPException(409, f"Run is already {row.status}")
+    if row.status == RunStatus.WAITING.value:
+        if not svc.store.cancel_waiting_run(run_id):
+            raise HTTPException(409, "Run is no longer waiting")
+        svc.store.add_event(
+            TraceEvent(
+                run_id=run_id,
+                project_id=row.project_id,
+                seq=svc.store.last_seq(run_id) + 1,
+                event_type=EventType.RUN_CANCELLED,
+                status=RunStatus.CANCELLED.value,
+                data={"reason": "cancelled_while_waiting"},
+            )
+        )
+        return _run_out(_require_run(svc, run_id))
     if not svc.runs.cancel(run_id):
         raise HTTPException(409, "Run is not active in this process")
     return _run_out(row)
+
+
+def _wait_out(w: RunWaitRow) -> WaitOut:
+    return WaitOut(
+        id=w.id,
+        run_id=w.run_id,
+        project_id=w.project_id,
+        node_id=w.node_id,
+        node_type=w.node_type,
+        request=w.request,
+        response_schema=w.response_schema,
+        status=w.status,
+        response=w.response,
+        created_at=iso(w.created_at),
+        answered_at=iso(w.answered_at),
+    )
+
+
+@router.get("/runs/{run_id}/waits", response_model=list[WaitOut])
+def run_waits(run_id: str, svc: Services = Depends(services)) -> list[WaitOut]:
+    _require_run(svc, run_id)
+    return [_wait_out(w) for w in svc.store.list_waits(run_id=run_id)]
+
+
+@router.get("/projects/{project_id}/approvals", response_model=list[WaitOut])
+def project_approvals(
+    project_id: str, status: str | None = "pending", svc: Services = Depends(services)
+) -> list[WaitOut]:
+    """The project's approval inbox (pending by default; ``status=answered|cancelled``, or empty for all)."""
+    if svc.store.get_project(project_id) is None:
+        raise HTTPException(404, f"Project {project_id!r} not found")
+    return [_wait_out(w) for w in svc.store.list_waits(project_id=project_id, status=status or None)]
+
+
+def _run_targets(svc: Services, run_id: str) -> list[str]:
+    first = svc.store.list_events(run_id, after=0, limit=1)
+    data = first[0].payload.get("data", {}) if first else {}
+    return list(data.get("targets") or [])
+
+
+def _unfinished_side_effects(svc: Services, run_id: str, plan: Any) -> list[str]:
+    """Non-idempotent nodes that started but never finished before an interruption."""
+    started: set[str] = set()
+    finished: set[str] = set()
+    for e in svc.store.list_events(run_id, after=0, limit=100_000):
+        if not e.node_id:
+            continue
+        if e.event_type == "node_started":
+            started.add(e.node_id)
+        elif e.event_type in ("node_succeeded", "node_failed", "node_skipped", "node_cancelled", "node_waiting"):
+            finished.add(e.node_id)
+    restored = {c.node_id for c in svc.store.list_checkpoints(run_id) if c.restorable}
+    return sorted(
+        n
+        for n in started - finished - restored
+        if n in plan.nodes and not plan.nodes[n].entry.definition.manifest.execution.idempotent
+    )
+
+
+@router.post("/runs/{run_id}/resume", response_model=RunOut, status_code=202)
+async def resume_run(run_id: str, body: RunResume, svc: Services = Depends(services)) -> RunOut:
+    """Continue a waiting run with responses, or an interrupted run from its last checkpoints (ADR-0013)."""
+    from jsonschema import Draft202012Validator
+
+    row = _require_run(svc, run_id)
+    interrupted = row.status == RunStatus.FAILED.value and (row.error or {}).get("code") == "RUN_INTERRUPTED"
+    if row.status != RunStatus.WAITING.value and not interrupted:
+        raise HTTPException(409, f"Only waiting or interrupted runs can be resumed (this run is {row.status})")
+    if svc.runs.is_active(run_id):
+        raise HTTPException(409, "Run is already executing")
+    pending = {w.node_id: w for w in svc.store.list_waits(run_id=run_id, status="pending")}
+    unknown = sorted(set(body.responses) - set(pending))
+    if unknown:
+        raise HTTPException(422, {"message": "These nodes are not waiting for a response", "nodes": unknown})
+    problems: dict[str, list[str]] = {}
+    for node_id, response in body.responses.items():
+        schema = pending[node_id].response_schema
+        if schema:
+            errs = sorted(Draft202012Validator(schema).iter_errors(response), key=lambda e: list(e.path))
+            if errs:
+                problems[node_id] = [f"{'/'.join(map(str, e.path)) or 'response'}: {e.message}" for e in errs[:5]]
+    if problems:
+        raise HTTPException(422, {"message": "Invalid response", "problems": problems})
+    try:
+        plan = svc.runs.plan(load_project(row.ir_snapshot), targets=_run_targets(svc, run_id) or None)
+    except PlanError as exc:
+        raise HTTPException(422, {"message": str(exc), **exc.report.to_public()}) from exc
+    if interrupted and not body.force:
+        unsafe = _unfinished_side_effects(svc, run_id, plan)
+        if unsafe:
+            raise HTTPException(
+                409,
+                {
+                    "message": "These nodes were running when the server stopped and may have side effects; "
+                    "resume with force=true to run them again",
+                    "nodes": unsafe,
+                },
+            )
+    if not svc.store.claim_for_resume(run_id, body.responses):
+        raise HTTPException(409, "Run was resumed or cancelled by someone else")
+    state = ResumeState(
+        checkpoints=svc.store.list_checkpoints(run_id),
+        responses=body.responses,
+        last_seq=svc.store.last_seq(run_id),
+    )
+    svc.runs.resume(run_id, plan, row.inputs, state)
+    return _run_out(_require_run(svc, run_id))
 
 
 @router.get("/runs/{run_id}/nodes/{node_id}/outputs")
@@ -122,7 +243,11 @@ async def run_events(
             if await request.is_disconnected():
                 return
             run = svc.store.get_run(run_id)
-            terminal = run is not None and RunStatus(run.status).terminal
+            # a waiting run has no more events until it is resumed (clients reconnect after resuming)
+            terminal = run is not None and (
+                RunStatus(run.status).terminal
+                or (run.status == RunStatus.WAITING.value and not svc.runs.is_active(run_id))
+            )
             events = svc.store.list_events(run_id, after=last)
             for e in events:
                 last = e.seq

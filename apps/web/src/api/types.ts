@@ -118,7 +118,7 @@ export interface ProjectOut extends ProjectSummary {
   document: ProjectDocument;
 }
 
-export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled" | "waiting";
 
 export interface RunError {
   code: string;
@@ -228,4 +228,27 @@ export interface ConversationTurn {
   run_id?: string | null;
 }
 
-export type NodeRunStatus = "pending" | "running" | "retrying" | "succeeded" | "failed" | "skipped" | "cancelled";
+export type NodeRunStatus =
+  | "pending"
+  | "running"
+  | "retrying"
+  | "succeeded"
+  | "failed"
+  | "skipped"
+  | "cancelled"
+  | "waiting";
+
+/** A run paused for a person (e.g. Human Approval), ADR-0013. */
+export interface WaitOut {
+  id: number;
+  run_id: string;
+  project_id: string;
+  node_id: string;
+  node_type: string;
+  request: Record<string, JsonValue>;
+  response_schema: Record<string, JsonValue> | null;
+  status: "pending" | "answered" | "cancelled";
+  response: Record<string, JsonValue> | null;
+  created_at: string | null;
+  answered_at: string | null;
+}

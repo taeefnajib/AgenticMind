@@ -36,6 +36,30 @@ class RunCreate(BaseModel):
     )
 
 
+class RunResume(BaseModel):
+    responses: dict[str, Any] = Field(
+        default_factory=dict, description="Response per waiting node id, e.g. {'review': {'decision': 'approved'}}"
+    )
+    force: bool = Field(
+        default=False,
+        description="Interrupted runs: re-execute unfinished nodes even if they are not idempotent",
+    )
+
+
+class WaitOut(BaseModel):
+    id: int
+    run_id: str
+    project_id: str
+    node_id: str
+    node_type: str
+    request: dict[str, Any]
+    response_schema: dict[str, Any] | None
+    status: str
+    response: dict[str, Any] | None
+    created_at: str | None
+    answered_at: str | None
+
+
 class ProjectSummary(BaseModel):
     id: str
     name: str

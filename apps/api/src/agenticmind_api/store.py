@@ -7,11 +7,20 @@ from datetime import datetime
 from typing import Any
 
 from agenticmind_ir import ProjectDocument, content_hash, to_canonical_dict
-from agenticmind_runtime import RunResult, RunStatus, TraceEvent
+from agenticmind_runtime import NodeCheckpoint, RunResult, RunStatus, TraceEvent
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import sessionmaker
 
-from .db import NodeOutputRow, ProjectRevisionRow, ProjectRow, RunEventRow, RunRow, utcnow
+from .db import (
+    NodeOutputRow,
+    ProjectRevisionRow,
+    ProjectRow,
+    RunCheckpointRow,
+    RunEventRow,
+    RunRow,
+    RunWaitRow,
+    utcnow,
+)
 
 
 class ConflictError(Exception):
@@ -143,7 +152,24 @@ class Store:
                 row.outputs = result.outputs
                 row.error = result.error.model_dump() if result.error else None
                 row.node_status = {k: v.value for k, v in result.node_status.items()}
-                row.finished_at = result.finished_at
+                row.finished_at = None if result.status == RunStatus.WAITING else result.finished_at
+                for w in result.waiting:
+                    pending = s.scalar(
+                        select(RunWaitRow).where(
+                            RunWaitRow.run_id == row.id, RunWaitRow.node_id == w.node_id, RunWaitRow.status == "pending"
+                        )
+                    )
+                    if pending is None:
+                        s.add(
+                            RunWaitRow(
+                                run_id=row.id,
+                                project_id=row.project_id,
+                                node_id=w.node_id,
+                                node_type=w.node_type,
+                                request=w.request,
+                                response_schema=w.response_schema,
+                            )
+                        )
 
     def fail_run(self, run_id: str, code: str, message: str) -> None:
         with self._sf.begin() as s:
@@ -154,7 +180,10 @@ class Store:
                 row.finished_at = utcnow()
 
     def fail_orphaned_runs(self) -> int:
-        """Runs left non-terminal by a previous process cannot resume yet (no durable checkpoints)."""
+        """Mark runs a previous process left active as interrupted; they can be resumed from checkpoints.
+
+        Waiting runs are durable and untouched.
+        """
         with self._sf.begin() as s:
             rows = s.scalars(
                 select(RunRow).where(RunRow.status.in_([RunStatus.QUEUED.value, RunStatus.RUNNING.value]))
@@ -163,7 +192,8 @@ class Store:
                 row.status = RunStatus.FAILED.value
                 row.error = {
                     "code": "RUN_INTERRUPTED",
-                    "message": "The server restarted while this run was active; durable resume is not yet supported",
+                    "message": "The server restarted while this run was active. Resume it to continue "
+                    "from its last checkpoint.",
                     "node_id": None,
                     "retryable": False,
                 }
@@ -184,6 +214,74 @@ class Store:
                     .limit(limit)
                 )
             )
+
+    # -- checkpoints & waits (ADR-0013) ---------------------------------------------------
+    def put_checkpoint(self, run_id: str, checkpoint: NodeCheckpoint) -> None:
+        payload = checkpoint.model_dump(mode="json")
+        with self._sf.begin() as s:
+            row = s.get(RunCheckpointRow, (run_id, checkpoint.node_id))
+            if row is None:
+                s.add(RunCheckpointRow(run_id=run_id, node_id=checkpoint.node_id, payload=payload))
+            else:
+                row.payload = payload
+                row.created_at = utcnow()
+
+    def list_checkpoints(self, run_id: str) -> list[NodeCheckpoint]:
+        with self._sf() as s:
+            rows = s.scalars(select(RunCheckpointRow).where(RunCheckpointRow.run_id == run_id))
+            return [NodeCheckpoint.model_validate(r.payload) for r in rows]
+
+    def list_waits(
+        self, *, run_id: str | None = None, project_id: str | None = None, status: str | None = None
+    ) -> list[RunWaitRow]:
+        with self._sf() as s:
+            stmt = select(RunWaitRow)
+            if run_id:
+                stmt = stmt.where(RunWaitRow.run_id == run_id)
+            if project_id:
+                stmt = stmt.where(RunWaitRow.project_id == project_id)
+            if status:
+                stmt = stmt.where(RunWaitRow.status == status)
+            return list(s.scalars(stmt.order_by(RunWaitRow.created_at.desc()).limit(500)))
+
+    def claim_for_resume(self, run_id: str, responses: Mapping[str, Any]) -> bool:
+        """Atomically move a waiting/interrupted run back to running and record the responses."""
+        with self._sf.begin() as s:
+            row = s.get(RunRow, run_id, with_for_update=True)
+            interrupted = (
+                row is not None
+                and row.status == RunStatus.FAILED.value
+                and (row.error or {}).get("code") == "RUN_INTERRUPTED"
+            )
+            if row is None or not (row.status == RunStatus.WAITING.value or interrupted):
+                return False
+            row.status = RunStatus.RUNNING.value
+            row.error = None
+            row.finished_at = None
+            now = utcnow()
+            for w in s.scalars(
+                select(RunWaitRow).where(RunWaitRow.run_id == run_id, RunWaitRow.status == "pending")
+            ):
+                if w.node_id in responses:
+                    w.status = "answered"
+                    w.response = responses[w.node_id]
+                    w.answered_at = now
+            return True
+
+    def cancel_waiting_run(self, run_id: str) -> bool:
+        with self._sf.begin() as s:
+            row = s.get(RunRow, run_id, with_for_update=True)
+            if row is None or row.status != RunStatus.WAITING.value:
+                return False
+            row.status = RunStatus.CANCELLED.value
+            row.finished_at = utcnow()
+            for w in s.scalars(select(RunWaitRow).where(RunWaitRow.run_id == run_id, RunWaitRow.status == "pending")):
+                w.status = "cancelled"
+            return True
+
+    def last_seq(self, run_id: str) -> int:
+        with self._sf() as s:
+            return s.scalar(select(func.max(RunEventRow.seq)).where(RunEventRow.run_id == run_id)) or 0
 
     # -- events & outputs ------------------------------------------------------------------
     def add_event(self, event: TraceEvent) -> None:

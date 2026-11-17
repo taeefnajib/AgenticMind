@@ -16,11 +16,15 @@ Semantics (see docs/architecture/runtime.md for the full description):
 * Loops: a loop end executes its body (``ExecutionPlan.regions``) once per iteration, each in a fresh
   scope seeded with the loop start's ``item``/``index``/``state``; events carry ``data.iteration``.
 * Cancellation is cooperative through ``CancelToken`` and is reflected in events.
+* Suspension: a ``can_suspend`` node raising ``SuspendNode`` becomes *waiting*; independent work
+  finishes, then the run ends with status ``waiting``. Every finished top-level node is checkpointed
+  (``observer.on_checkpoint``) so ``Engine.run(resume=...)`` can continue later (ADR-0013).
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from collections.abc import Mapping
@@ -34,6 +38,7 @@ from agenticmind_node_sdk import (
     NodeContext,
     NodeError,
     NodeResult,
+    SuspendNode,
     effective_branches,
     is_json_value,
     resolve_port_type,
@@ -41,7 +46,17 @@ from agenticmind_node_sdk import (
 )
 
 from .artifacts import ArtifactStore
-from .events import ErrorInfo, EventType, NodeStatus, RunObserver, RunStatus, TraceEvent
+from .events import (
+    ErrorInfo,
+    EventType,
+    NodeCheckpoint,
+    NodeStatus,
+    ResumeState,
+    RunObserver,
+    RunStatus,
+    TraceEvent,
+    WaitRequest,
+)
 from .loops import SCOPE_PORT
 from .memory import MemoryStore
 from .plan import ExecutionPlan, LoopRegion, PlannedNode
@@ -80,6 +95,7 @@ class RunResult:
     error: ErrorInfo | None
     started_at: datetime
     finished_at: datetime
+    waiting: list[WaitRequest] = field(default_factory=list)
 
 
 @dataclass
@@ -89,6 +105,7 @@ class _Outcome:
     branches: frozenset[str] = frozenset()
     run_outputs: dict[str, Any] = field(default_factory=dict)
     error: ErrorInfo | None = None
+    wait: WaitRequest | None = None
 
 
 @dataclass
@@ -100,6 +117,7 @@ class _Scope:
     activated: dict[str, frozenset[str]]
     run_outputs: dict[str, Any]
     iteration: tuple[int, ...] = ()
+    waiting: list[WaitRequest] = field(default_factory=list)
 
 
 class Engine:
@@ -131,21 +149,32 @@ class Engine:
         run_id: str | None = None,
         inputs: Mapping[str, Any] | None = None,
         cancel: CancelToken | None = None,
+        resume: ResumeState | None = None,
     ) -> RunResult:
-        execution = _RunExecution(self, plan, run_id or new_id("run"), dict(inputs or {}), cancel or CancelToken())
+        """Execute ``plan``; with ``resume``, continue an earlier run of the same plan from its checkpoints."""
+        execution = _RunExecution(
+            self, plan, run_id or new_id("run"), dict(inputs or {}), cancel or CancelToken(), resume
+        )
         return await execution.execute()
 
 
 class _RunExecution:
     def __init__(
-        self, engine: Engine, plan: ExecutionPlan, run_id: str, inputs: dict[str, Any], cancel: CancelToken
+        self,
+        engine: Engine,
+        plan: ExecutionPlan,
+        run_id: str,
+        inputs: dict[str, Any],
+        cancel: CancelToken,
+        resume: ResumeState | None = None,
     ) -> None:
         self.engine = engine
         self.plan = plan
         self.run_id = run_id
         self.inputs = inputs
         self.cancel = cancel
-        self.seq = 0
+        self.resume = resume
+        self.seq = resume.last_seq if resume else 0
         self.secret_values: list[str] = self._collect_secret_values()
 
     # -- helpers -----------------------------------------------------------------------------
@@ -182,23 +211,31 @@ class _RunExecution:
     async def execute(self) -> RunResult:
         started_at = datetime.now(UTC)
         t0 = time.perf_counter()
-        await self.emit(
-            EventType.RUN_STARTED,
-            status=RunStatus.RUNNING.value,
-            inputs_summary=self._summary(self.inputs),
-            data={
-                "node_count": len(self.plan.nodes),
-                "order": list(self.plan.order),
-                "targets": list(self.plan.targets),
-            },
-        )
         root = _Scope(
             status={nid: NodeStatus.PENDING for nid in self.plan.nodes},
             outputs={},
             activated={},
             run_outputs={},
         )
-        failure, cancelled = await self._drive(root, list(self.plan.order))
+        restored = self._restore(root) if self.resume else set()
+        if self.resume is None:
+            await self.emit(
+                EventType.RUN_STARTED,
+                status=RunStatus.RUNNING.value,
+                inputs_summary=self._summary(self.inputs),
+                data={
+                    "node_count": len(self.plan.nodes),
+                    "order": list(self.plan.order),
+                    "targets": list(self.plan.targets),
+                },
+            )
+        else:
+            await self.emit(
+                EventType.RUN_RESUMED,
+                status=RunStatus.RUNNING.value,
+                data={"restored": sorted(restored), "responses": sorted(self.resume.responses)},
+            )
+        failure, cancelled = await self._drive(root, [n for n in self.plan.order if n not in restored])
 
         duration_ms = (time.perf_counter() - t0) * 1000
         node_status = {k: v.value for k, v in root.status.items()}
@@ -215,6 +252,17 @@ class _RunExecution:
                 duration_ms=duration_ms,
                 error=failure,
                 data={"node_status": node_status},
+            )
+        elif root.waiting:
+            status = RunStatus.WAITING
+            await self.emit(
+                EventType.RUN_WAITING,
+                status=status.value,
+                duration_ms=duration_ms,
+                data={
+                    "node_status": node_status,
+                    "waiting": [self._summary(w.model_dump(mode="json")) for w in root.waiting],
+                },
             )
         else:
             status = RunStatus.SUCCEEDED
@@ -233,7 +281,56 @@ class _RunExecution:
             error=failure,
             started_at=started_at,
             finished_at=datetime.now(UTC),
+            waiting=list(root.waiting) if status == RunStatus.WAITING else [],
         )
+
+    def _restore(self, root: _Scope) -> set[str]:
+        """Load checkpointed top-level nodes into the root scope; returns the restored node ids."""
+        assert self.resume is not None
+        restored: set[str] = set()
+        for cp in self.resume.checkpoints:
+            if not cp.restorable or cp.node_id not in self.plan.nodes or cp.node_id not in self.plan.order:
+                continue
+            if cp.status not in (NodeStatus.SUCCEEDED, NodeStatus.SKIPPED):
+                continue
+            root.status[cp.node_id] = cp.status
+            if cp.status == NodeStatus.SUCCEEDED:
+                root.outputs[cp.node_id] = dict(cp.outputs)
+                root.activated[cp.node_id] = frozenset(cp.branches)
+                root.run_outputs.update(cp.run_outputs)
+            for body_id, st in cp.body_status.items():
+                if body_id in root.status:
+                    root.status[body_id] = st
+            restored.add(cp.node_id)
+        return restored
+
+    async def _checkpoint(self, scope: _Scope, node_id: str, run_outputs: dict[str, Any] | None = None) -> None:
+        """Persist the exact state of a finished top-level node (loop iterations are not checkpointed)."""
+        observer = self.engine.observer
+        if scope.iteration or observer is None or not hasattr(observer, "on_checkpoint"):
+            return
+        status = scope.status[node_id]
+        region = self.plan.regions.get(node_id)
+        cp = NodeCheckpoint(
+            node_id=node_id,
+            status=status,
+            outputs=scope.outputs.get(node_id, {}) if status == NodeStatus.SUCCEEDED else {},
+            branches=sorted(scope.activated.get(node_id, frozenset())),
+            run_outputs=dict(run_outputs or {}),
+            body_status={n: scope.status[n] for n in region.body} if region else {},
+        )
+        # Only exact, JSON-serialisable values without secret values are stored; anything else is
+        # re-executed on resume rather than persisted.
+        payload = {"outputs": cp.outputs, "run_outputs": cp.run_outputs}
+        if not is_json_value(payload) or self._contains_secret(payload):
+            cp = cp.model_copy(update={"outputs": {}, "run_outputs": {}, "restorable": False})
+        await observer.on_checkpoint(self.run_id, cp)
+
+    def _contains_secret(self, value: Any) -> bool:
+        if not self.secret_values:
+            return False
+        text = json.dumps(value, ensure_ascii=False, default=str)
+        return any(s in text for s in self.secret_values)
 
     async def _drive(self, scope: _Scope, order: list[str]) -> tuple[ErrorInfo | None, bool]:
         """Run ``order`` in ``scope`` to completion. Returns (first failure, cancelled)."""
@@ -259,6 +356,10 @@ class _RunExecution:
                         scope.outputs[node_id] = outcome.outputs
                         scope.activated[node_id] = outcome.branches
                         scope.run_outputs.update(outcome.run_outputs)
+                        await self._checkpoint(scope, node_id, outcome.run_outputs)
+                    elif outcome.wait is not None:
+                        scope.status[node_id] = NodeStatus.WAITING
+                        scope.waiting.append(outcome.wait)
                     else:
                         scope.status[node_id] = NodeStatus.FAILED
                         failure = failure or outcome.error
@@ -279,8 +380,13 @@ class _RunExecution:
                         status=NodeStatus.CANCELLED.value,
                         data=self._iter_data(scope, {"reason": "run_cancelled" if cancelled else "run_failed"}),
                     )
-            for node_id in pending:
-                scope.status[node_id] = NodeStatus.CANCELLED
+            if failure is not None or cancelled:
+                for node_id in pending:
+                    scope.status[node_id] = NodeStatus.CANCELLED
+                for w in scope.waiting:
+                    scope.status[w.node_id] = NodeStatus.CANCELLED
+                scope.waiting.clear()
+            # otherwise nodes still pending are blocked behind a waiting node and stay pending
         return failure, cancelled
 
     async def _schedule(self, scope: _Scope, pending: list[str], running: dict[asyncio.Task[_Outcome], str]) -> None:
@@ -313,6 +419,7 @@ class _RunExecution:
                         status=NodeStatus.SKIPPED.value,
                         data=self._iter_data(scope, {"reason": prepared}),
                     )
+                    await self._checkpoint(scope, node_id)
                     progressed = True
                     continue
                 scope.status[node_id] = NodeStatus.RUNNING
@@ -422,12 +529,36 @@ class _RunExecution:
                 _artifacts=artifacts,
                 _storage_root=self.engine.data_dir if manifest.permissions.filesystem else None,
                 _memory=memory,
+                resume_value=self.resume.responses.get(pn.id) if self.resume else None,
             )
             try:
                 result = await asyncio.wait_for(
                     pn.entry.definition.handler(ctx, inputs, pn.config), timeout=pn.timeout_seconds
                 )
                 branches = self._check_result(pn, result)
+            except SuspendNode as sus:
+                if not manifest.can_suspend:
+                    err = NodeError("NODE_SUSPEND_UNDECLARED", "Node paused the run but does not declare can_suspend")
+                elif scope.iteration:
+                    err = NodeError("SUSPEND_IN_LOOP", "Runs cannot pause inside a loop body yet")
+                elif not is_json_value({"r": sus.request, "s": sus.response_schema}):
+                    err = NodeError("NODE_INVALID_RESULT", "Suspension request must be JSON-serialisable")
+                else:
+                    wait = WaitRequest(
+                        node_id=pn.id,
+                        node_type=pn.node.type,
+                        request=sus.request,
+                        response_schema=sus.response_schema,
+                    )
+                    await self.emit(
+                        EventType.NODE_WAITING,
+                        **common,
+                        attempt=attempt,
+                        status=NodeStatus.WAITING.value,
+                        duration_ms=(time.perf_counter() - t0) * 1000,
+                        data={"request": self._summary(sus.request)},
+                    )
+                    return _Outcome(ok=False, wait=wait)
             except TimeoutError:
                 err = NodeError(
                     "NODE_TIMEOUT",

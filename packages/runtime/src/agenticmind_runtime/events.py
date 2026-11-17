@@ -17,6 +17,8 @@ class RunStatus(str, Enum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    #: Suspended at a human-approval point; resumable (ADR-0013).
+    WAITING = "waiting"
 
     @property
     def terminal(self) -> bool:
@@ -30,10 +32,11 @@ class NodeStatus(str, Enum):
     FAILED = "failed"
     SKIPPED = "skipped"
     CANCELLED = "cancelled"
+    WAITING = "waiting"
 
     @property
     def terminal(self) -> bool:
-        return self not in (NodeStatus.PENDING, NodeStatus.RUNNING)
+        return self not in (NodeStatus.PENDING, NodeStatus.RUNNING, NodeStatus.WAITING)
 
 
 class EventType(str, Enum):
@@ -41,12 +44,15 @@ class EventType(str, Enum):
     RUN_SUCCEEDED = "run_succeeded"
     RUN_FAILED = "run_failed"
     RUN_CANCELLED = "run_cancelled"
+    RUN_WAITING = "run_waiting"
+    RUN_RESUMED = "run_resumed"
     NODE_STARTED = "node_started"
     NODE_SUCCEEDED = "node_succeeded"
     NODE_FAILED = "node_failed"
     NODE_RETRYING = "node_retrying"
     NODE_SKIPPED = "node_skipped"
     NODE_CANCELLED = "node_cancelled"
+    NODE_WAITING = "node_waiting"
     NODE_EVENT = "node_event"
 
 
@@ -79,6 +85,34 @@ class TraceEvent(BaseModel):
     data: dict[str, Any] = Field(default_factory=dict)
 
 
+class NodeCheckpoint(BaseModel):
+    """Exact state of one finished top-level node, enough to restore it on resume (ADR-0013)."""
+
+    node_id: str
+    status: NodeStatus
+    outputs: dict[str, Any] = Field(default_factory=dict)
+    branches: list[str] = Field(default_factory=list)
+    run_outputs: dict[str, Any] = Field(default_factory=dict)
+    #: For a loop end: final statuses of its body nodes (they are not in the top-level order).
+    body_status: dict[str, NodeStatus] = Field(default_factory=dict)
+    restorable: bool = True
+
+
+class WaitRequest(BaseModel):
+    node_id: str
+    node_type: str
+    request: dict[str, Any]
+    response_schema: dict[str, Any] | None = None
+
+
+class ResumeState(BaseModel):
+    """What the engine needs to continue a run: checkpoints, responses and where ``seq`` left off."""
+
+    checkpoints: list[NodeCheckpoint] = Field(default_factory=list)
+    responses: dict[str, Any] = Field(default_factory=dict)
+    last_seq: int = 0
+
+
 class RunObserver(Protocol):
     async def on_event(self, event: TraceEvent) -> None: ...
 
@@ -93,12 +127,16 @@ class InMemoryObserver:
     def __init__(self) -> None:
         self.events: list[TraceEvent] = []
         self.outputs: dict[str, dict[str, Any]] = {}
+        self.checkpoints: dict[str, NodeCheckpoint] = {}
 
     async def on_event(self, event: TraceEvent) -> None:
         self.events.append(event)
 
     async def on_node_outputs(self, run_id: str, node_id: str, invocation_id: str, outputs: Mapping[str, Any]) -> None:
         self.outputs[node_id] = dict(outputs)
+
+    async def on_checkpoint(self, run_id: str, checkpoint: NodeCheckpoint) -> None:
+        self.checkpoints[checkpoint.node_id] = checkpoint
 
     def types(self, node_id: str | None = None) -> list[str]:
         return [e.event_type.value for e in self.events if node_id is None or e.node_id == node_id]

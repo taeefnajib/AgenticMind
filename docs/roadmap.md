@@ -10,7 +10,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M3 RAG vertical slice | **Core done**: ingestion, retrieval, cited answers with a real LLM; step 4 (hybrid search, reranking, query rewriting) pending |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
-| M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join) and 8c (memory) done; 8d–8e next |
+| M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join), 8c (memory) and 8d (checkpoints, approval, resume) done; 8e next |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
@@ -71,11 +71,18 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   consent wired in the graph (chat toggle, off by default); retention per entry; project + namespace
   isolation; keyword recall with recency fill; API and Memory tab to list and delete; multi-turn chat
   with "New chat"; *Assistant with memory* template; verified live with Gemini.
+- **8d – checkpoints, approval, resume**: exact per-node checkpoints; `can_suspend` nodes pause runs as
+  `waiting` (no worker held); Human Approval node (approve / reject with comment / edit); approval inbox
+  API and Approvals tab; `POST /runs/{id}/resume` with schema-validated responses and atomic claim; interrupted
+  runs resume from checkpoints (side-effect guard with `force`); cancel waiting runs; *Draft and approve*
+  template; verified live with Gemini, including an API restart while the run waited.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
 
-- Runs execute in the API process (ADR-0005); no durable checkpoints, resume or human-approval suspension.
+- Runs execute in the API process (ADR-0005). Waiting runs are durable and interrupted runs can be resumed
+  from checkpoints (ADR-0013), but there is no queue-backed worker, approval expiry or assignee yet; loop
+  iterations are not checkpointed and the Agent cannot pause before individual tool calls.
 - No process/container isolation: non-core nodes are refused (ADR-0004). Declared permissions other
   than `credentials` are not yet enforced at OS level.
 - Agent tools run in-process (core trust only); third-party tool isolation is future work. Web Fetch's
@@ -99,7 +106,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **Section 8 – Agents** (continuing): 8d durable checkpoints, Human Approval, resume; 8e planner/worker,
+1. **Section 8 – Agents** (continuing): 8e planner/worker,
    supervisor, reflection/critic, handoff; third-party tools via an entry-point group.
 2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,
    context compression.
@@ -107,6 +114,6 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
    build manifest; REST Trigger/Response nodes.
 4. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two
    revisions with per-case results.
-5. Durable run backend: checkpoint abstraction, queue-backed workers, resume endpoint, Human Approval.
+5. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
 6. AuthN/Z, workspaces, audit log; Alembic migrations.
 7. Revision history UI and diff view (canonical IR makes this straightforward).

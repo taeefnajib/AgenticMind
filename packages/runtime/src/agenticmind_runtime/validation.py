@@ -380,6 +380,19 @@ def validate_document(
                         message=f"Loops '{a}' and '{b}' overlap; loops must be separate or fully nested",
                     )
                 )
+            for pair in loops.pairs:
+                for node_id in sorted(pair.body):
+                    if entries[node_id].manifest.can_suspend:
+                        add(
+                            Diagnostic(
+                                code=Code.SUSPEND_IN_LOOP,
+                                node_id=node_id,
+                                related_node_ids=[pair.start, pair.end],
+                                message=f"'{node_id}' can pause the run, which is not supported inside "
+                                f"loop '{pair.start}'",
+                                hint="Move the approval before or after the loop (e.g. approve Loop End's results).",
+                            )
+                        )
     if len(nodes_by_id) > 1:
         for node_id in nodes_by_id:
             if node_id not in connected:

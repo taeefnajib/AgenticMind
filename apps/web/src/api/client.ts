@@ -13,6 +13,7 @@ import type {
   TemplateInfo,
   TraceEvent,
   ValidationResult,
+  WaitOut,
 } from "./types";
 
 export class ApiError extends Error {
@@ -116,6 +117,10 @@ export const api = {
   startRun: (id: string, inputs: Record<string, JsonValue>, targets?: string[]) =>
     request<RunOut>(`/projects/${id}/runs`, { method: "POST", ...json({ inputs, targets }) }),
   getRun: (runId: string) => request<RunOut>(`/runs/${runId}`),
+  resumeRun: (runId: string, body: { responses?: Record<string, JsonValue>; force?: boolean }) =>
+    request<RunOut>(`/runs/${runId}/resume`, { method: "POST", ...json(body) }),
+  approvals: (projectId: string, status = "pending") =>
+    request<WaitOut[]>(`/projects/${projectId}/approvals?status=${encodeURIComponent(status)}`),
   cancelRun: (runId: string) => request<RunOut>(`/runs/${runId}/cancel`, { method: "POST" }),
   events: (runId: string) => request<TraceEvent[]>(`/runs/${runId}/events`),
   nodeOutputs: (runId: string, nodeId: string) =>

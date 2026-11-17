@@ -1,0 +1,42 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Draft and approve (human in the loop)",
+    "description": "Gemini drafts a customer announcement, then the run pauses for a person. Open the Approvals tab to approve (optionally editing the text) or reject with a comment; the run continues from its checkpoint. Uses OPENROUTER_API_KEY."
+  },
+  "runtime": {"engine": "agenticmind", "profile": "development"},
+  "nodes": [
+    {"id": "topic", "type": "agenticmind.core.manual_input", "version": "1.0.0",
+     "config": {"key": "topic", "value_type": "String", "required": true, "default": "Our support hours change to 8am-8pm starting next Monday."},
+     "ui": {"position": {"x": 0, "y": 120}, "label": "Topic"}},
+    {"id": "prompt", "type": "agenticmind.core.text_template", "version": "1.0.0",
+     "config": {"template": "Write a short, friendly customer announcement (at most 80 words) about: {{ text }}", "strict": true},
+     "ui": {"position": {"x": 290, "y": 120}, "label": "Prompt"}},
+    {"id": "draft", "type": "agenticmind.models.llm", "version": "1.1.0",
+     "config": {"provider": "openrouter", "model": "google/gemini-3.8-flash", "api_key": {"$secret": "OPENROUTER_API_KEY"},
+                "system_prompt": "You write clear, warm customer communications. Output only the announcement text.",
+                "temperature": 0.4, "max_tokens": 400},
+     "ui": {"position": {"x": 580, "y": 120}, "label": "Draft (Gemini)"}},
+    {"id": "review", "type": "agenticmind.core.human_approval", "version": "1.0.0",
+     "config": {"title": "Approve the announcement", "instructions": "Check tone and facts. Edit the text if needed, then approve, or reject with a reason.",
+                "allow_edit": true, "require_comment_on_reject": true},
+     "ui": {"position": {"x": 880, "y": 120}, "label": "Review"}},
+    {"id": "published", "type": "agenticmind.core.output", "version": "1.0.0",
+     "config": {"key": "published"},
+     "ui": {"position": {"x": 1190, "y": 30}, "label": "Published"}},
+    {"id": "feedback", "type": "agenticmind.core.output", "version": "1.0.0",
+     "config": {"key": "rejected_because"},
+     "ui": {"position": {"x": 1190, "y": 230}, "label": "Rejection reason"}}
+  ],
+  "edges": [
+    {"id": "e1", "kind": "data", "source": {"node": "topic", "port": "value"}, "target": {"node": "prompt", "port": "text"}},
+    {"id": "e2", "kind": "data", "source": {"node": "prompt", "port": "text"}, "target": {"node": "draft", "port": "prompt"}},
+    {"id": "e3", "kind": "data", "source": {"node": "draft", "port": "text"}, "target": {"node": "review", "port": "value"}},
+    {"id": "e4", "kind": "data", "source": {"node": "review", "port": "value"}, "target": {"node": "published", "port": "value"}},
+    {"id": "e5", "kind": "data", "source": {"node": "review", "port": "comment"}, "target": {"node": "feedback", "port": "value"}},
+    {"id": "c1", "kind": "control", "source": {"node": "review", "port": "approved"}, "target": {"node": "published", "port": "trigger"}},
+    {"id": "c2", "kind": "control", "source": {"node": "review", "port": "rejected"}, "target": {"node": "feedback", "port": "trigger"}}
+  ],
+  "metadata": {}
+}

@@ -14,5 +14,6 @@
 | [0010](0010-tools-and-agent-node.md) | Tool handles, bounded Agent loop, starter tools | Accepted |
 | [0011](0011-loops-router-join.md) | Paired loop regions, Router with config-defined routes, AND Join | Accepted |
 | [0012](0012-memory.md) | Conversation state vs consented long-term memory, retention, deletion | Accepted |
+| [0013](0013-checkpoints-approval-resume.md) | Durable checkpoints, Human Approval suspension, resume | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

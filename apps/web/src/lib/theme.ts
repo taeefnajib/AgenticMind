@@ -9,6 +9,7 @@ export const CATEGORY_STYLE: Record<string, { color: string; label: string }> = 
   agents: { color: "#7f74d4", label: "Agents" },
   tools: { color: "#6aa39a", label: "Agent tools" },
   memory: { color: "#9a7fb8", label: "Memory" },
+  human: { color: "#c08a5a", label: "Human in the loop" },
   transform: { color: "#9b8cc9", label: "Transform" },
   convert: { color: "#8b909c", label: "Conversion" },
   control: { color: "#c4a165", label: "Control flow" },
@@ -20,7 +21,7 @@ export const categoryStyle = (category: string) => CATEGORY_STYLE[category] ?? {
 /** Soft tinted chip style for a category colour. */
 export const chipStyle = (color: string) => ({ color, backgroundColor: `${color}1f` });
 
-export const CATEGORY_ORDER = ["input", "data", "rag", "models", "agents", "tools", "memory", "transform", "convert", "control", "output"];
+export const CATEGORY_ORDER = ["input", "data", "rag", "models", "agents", "tools", "memory", "transform", "convert", "control", "human", "output"];
 
 const PORT_COLORS: Record<string, string> = {
   String: "#4f7fd0",
@@ -61,6 +62,7 @@ export const STATUS_STYLE: Record<NodeRunStatus, { ring: string; badge: string; 
   failed: { ring: "ring-2 ring-red-500", badge: "bg-red-100 text-red-700", text: "failed" },
   skipped: { ring: "ring-1 ring-slate-300 opacity-60", badge: "bg-slate-100 text-slate-500", text: "skipped" },
   cancelled: { ring: "ring-1 ring-slate-400 opacity-70", badge: "bg-slate-200 text-slate-600", text: "cancelled" },
+  waiting: { ring: "ring-2 ring-amber-400", badge: "bg-amber-100 text-amber-800", text: "waiting for you" },
 };
 
 export const MODE_LABEL = { no_code: "No-code", low_code: "Low-code", developer: "Developer" } as const;

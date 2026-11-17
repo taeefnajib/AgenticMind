@@ -55,6 +55,10 @@ To try memory: **New** → *Assistant with memory*, then chat in **Chat**. It re
 tick *Remember facts I share* to let it save facts for future chats (**New chat** starts fresh). Review
 and delete everything in the **Memory** tab.
 
+To try human-in-the-loop: **New** → *Draft and approve*, then **Run**. Gemini writes a draft and the run
+pauses (nothing keeps running, and it survives a server restart). Open **Approvals**, edit the text if you
+like and approve, or reject with a reason; the run continues from its checkpoint.
+
 ### API keys and settings (`.env`)
 
 The API loads a `.env` file from the directory it starts in (the repo root for `npm run dev:api`). Copy

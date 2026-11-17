@@ -77,6 +77,9 @@ export function toMessage(result: ChatResult, outputKey: string): Message {
   }
   const end = [...events].reverse().find((e) => e.event_type.startsWith("run_") && e.event_type !== "run_started");
   const meta = { ms: end?.duration_ms, tokens, cost };
+  if (run.status === "waiting") {
+    return { role: "assistant", text: "Paused for approval. Answer it in the **Approvals** tab to continue.", meta };
+  }
   if (run.status !== "succeeded") {
     return { role: "assistant", text: "", error: run.error ? `${run.error.code}: ${run.error.message}` : `Run ${run.status}`, meta };
   }

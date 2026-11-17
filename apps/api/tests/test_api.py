@@ -21,7 +21,7 @@ def wait_for_run(client, run_id, timeout=5.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         run = client.get(f"/api/runs/{run_id}").json()
-        if run["status"] in ("succeeded", "failed", "cancelled"):
+        if run["status"] in ("succeeded", "failed", "cancelled", "waiting"):
             return run
         time.sleep(0.05)
     raise AssertionError("run did not finish")
@@ -241,3 +241,86 @@ def test_memory_template_conversation_consent_and_deletion(client):
     assert client.delete(f"/api/projects/{pid}/conversations/chat-1").json() == {"deleted": 4}
     assert client.get(f"/api/projects/{pid}/conversations/bad%20id").status_code == 400
     assert client.delete(f"/api/projects/{pid}/memories/mem_missing").status_code == 404
+
+
+def _approval_project(client):
+    pid = client.post("/api/projects", json={"name": "Approve", "template": "content-approval"}).json()["id"]
+    doc = client.get(f"/api/projects/{pid}").json()["document"]
+    draft = next(n for n in doc["nodes"] if n["id"] == "draft")
+    draft["config"].update(provider="mock", model="mock-1")
+    draft["config"].pop("api_key")
+    assert client.put(f"/api/projects/{pid}", json={"document": doc}).status_code == 200
+    return pid
+
+
+def test_approval_pauses_and_resumes_durably(client):
+    pid = _approval_project(client)
+    run_id = client.post(f"/api/projects/{pid}/runs", json={"inputs": {"topic": "new hours"}}).json()["id"]
+    run = wait_for_run(client, run_id)
+    assert run["status"] == "waiting" and run["finished_at"] is None
+    inbox = client.get(f"/api/projects/{pid}/approvals").json()
+    assert [(w["run_id"], w["node_id"], w["status"]) for w in inbox] == [(run_id, "review", "pending")]
+    assert "new hours" in inbox[0]["request"]["value"]
+    # the SSE stream ends for a waiting run instead of hanging
+    with client.stream("GET", f"/api/runs/{run_id}/events", headers={"Accept": "text/event-stream"}) as r:
+        body = "".join(r.iter_text())
+    assert "event: end" in body and '"waiting"' in body
+
+    # responses are validated against the node's schema before anything runs
+    bad = client.post(f"/api/runs/{run_id}/resume", json={"responses": {"review": {"decision": "rejected"}}})
+    assert bad.status_code == 422 and "review" in bad.json()["detail"]["problems"]
+    assert client.post(f"/api/runs/{run_id}/resume", json={"responses": {"nope": {}}}).status_code == 422
+
+    ok = client.post(
+        f"/api/runs/{run_id}/resume",
+        json={"responses": {"review": {"decision": "approved", "value": "Edited text", "reviewer": "QA"}}},
+    )
+    assert ok.status_code == 202
+    final = wait_for_run(client, run_id)
+    assert final["status"] == "succeeded", final["error"]
+    assert final["outputs"] == {"published": "Edited text"}
+    assert final["node_status"]["feedback"] == "skipped"
+    events = client.get(f"/api/runs/{run_id}/events").json()
+    seqs = [e["seq"] for e in events]
+    assert seqs == sorted(seqs) and len(seqs) == len(set(seqs))
+    kinds = [e["event_type"] for e in events]
+    assert kinds.index("run_waiting") < kinds.index("run_resumed") < kinds.index("run_succeeded")
+    # the draft (an LLM call) ran once: it was restored from its checkpoint, not re-executed
+    assert sum(1 for e in events if e.get("node_id") == "draft" and e["event_type"] == "node_started") == 1
+    answered = client.get(f"/api/projects/{pid}/approvals?status=answered").json()
+    assert answered[0]["response"]["reviewer"] == "QA"
+    assert client.post(f"/api/runs/{run_id}/resume", json={}).status_code == 409
+
+
+def test_waiting_run_can_be_cancelled(client):
+    pid = _approval_project(client)
+    run_id = client.post(f"/api/projects/{pid}/runs", json={"inputs": {}}).json()["id"]
+    assert wait_for_run(client, run_id)["status"] == "waiting"
+    assert client.post(f"/api/runs/{run_id}/cancel").json()["status"] == "cancelled"
+    assert client.get(f"/api/projects/{pid}/approvals").json() == []
+    assert client.get(f"/api/runs/{run_id}/events").json()[-1]["event_type"] == "run_cancelled"
+
+
+def test_interrupted_run_resumes_from_checkpoint(client):
+    from agenticmind_runtime import RunStatus
+
+    pid = client.post("/api/projects", json={"name": "Hello", "template": "hello-pipeline"}).json()["id"]
+    run_id = client.post(f"/api/projects/{pid}/runs", json={"inputs": {"name": "Ada"}}).json()["id"]
+    done = wait_for_run(client, run_id)
+    assert done["status"] == "succeeded"
+    store = client.app.state.services.store
+    # simulate a crash after the first node: keep one checkpoint, mark the run interrupted
+    with store._sf.begin() as s:
+        from agenticmind_api.db import RunCheckpointRow, RunRow
+
+        row = s.get(RunRow, run_id)
+        row.status = RunStatus.RUNNING.value
+        keep = [c.node_id for c in store.list_checkpoints(run_id)][:1]
+        for c in s.query(RunCheckpointRow).filter(RunCheckpointRow.run_id == run_id):
+            if c.node_id not in keep:
+                s.delete(c)
+    assert store.fail_orphaned_runs() == 1
+    assert client.get(f"/api/runs/{run_id}").json()["error"]["code"] == "RUN_INTERRUPTED"
+    assert client.post(f"/api/runs/{run_id}/resume", json={}).status_code == 202
+    again = wait_for_run(client, run_id)
+    assert again["status"] == "succeeded" and again["outputs"] == done["outputs"]

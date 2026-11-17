@@ -55,6 +55,7 @@ class Code(str, Enum):
     LOOP_SCOPE_SHARED = "LOOP_SCOPE_SHARED"
     LOOP_REGION_LEAK = "LOOP_REGION_LEAK"
     LOOP_OVERLAP = "LOOP_OVERLAP"
+    SUSPEND_IN_LOOP = "SUSPEND_IN_LOOP"
 
 
 class Diagnostic(BaseModel):

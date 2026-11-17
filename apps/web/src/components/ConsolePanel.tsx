@@ -1,12 +1,13 @@
 import { useMemo } from "react";
 
 import type { Diagnostic, IRNode, JsonValue, Mode, ProjectDocument, RunOut, TraceEvent } from "../api/types";
+import { ApprovalsPanel } from "./ApprovalsPanel";
 import { ChatPanel, type ChatOutputOption, type ChatResult } from "./ChatPanel";
 import { DiagnosticList } from "./DiagnosticList";
 import { ValueView } from "./DocumentViewer";
 import { MemoryPanel } from "./MemoryPanel";
 
-export type ConsoleTab = "chat" | "problems" | "inputs" | "trace" | "output" | "memory" | "ir";
+export type ConsoleTab = "chat" | "problems" | "inputs" | "trace" | "output" | "approvals" | "memory" | "ir";
 
 const MANUAL_INPUT = "agenticmind.core.manual_input";
 
@@ -25,6 +26,10 @@ interface Props {
   document: () => ProjectDocument;
   chatKey: string;
   projectId?: string;
+  approvalsKey?: unknown;
+  approvalCount?: number;
+  onApprovalCount?: (n: number) => void;
+  onResume: (runId: string, body: { responses?: Record<string, JsonValue>; force?: boolean }) => Promise<void>;
   chatOutputs: ChatOutputOption[];
   chatDisabled: boolean;
   onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
@@ -42,6 +47,12 @@ export function ConsolePanel(props: Props) {
     { id: "problems", label: "Problems", badge: diagnostics.length || undefined, tone: errors ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800" },
     { id: "inputs", label: "Run inputs" },
     { id: "trace", label: "Trace", badge: events.length || undefined, tone: "bg-slate-200 text-slate-700" },
+    {
+      id: "approvals",
+      label: "Approvals",
+      badge: props.approvalCount || undefined,
+      tone: "bg-amber-100 text-amber-800",
+    },
     { id: "memory", label: "Memory" },
     { id: "output", label: "Output", badge: run?.status, tone: run?.status === "failed" ? "bg-red-100 text-red-700" : run?.status === "succeeded" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700" },
   ];
@@ -84,7 +95,15 @@ export function ConsolePanel(props: Props) {
           ))}
         {tab === "inputs" && <RunInputs {...props} />}
         {tab === "trace" && <TraceTable events={events} onSelectNode={props.onSelectNode} />}
-        {tab === "output" && <RunOutput run={run} events={events} />}
+        {tab === "output" && <RunOutput run={run} events={events} onResume={props.onResume} />}
+        {tab === "approvals" && (
+          <ApprovalsPanel
+            projectId={props.projectId}
+            refreshKey={props.approvalsKey}
+            onCount={props.onApprovalCount}
+            onResume={(runId, responses) => props.onResume(runId, { responses })}
+          />
+        )}
         {tab === "memory" && <MemoryPanel projectId={props.projectId} refreshKey={run?.status} />}
         {tab === "ir" && (
           <pre className="font-mono text-[11px] leading-relaxed text-slate-800">{JSON.stringify(props.document(), null, 2)}</pre>
@@ -216,7 +235,15 @@ function eventDetails(e: TraceEvent): string {
   return "";
 }
 
-function RunOutput({ run, events }: { run: RunOut | null; events: TraceEvent[] }) {
+function RunOutput({
+  run,
+  events,
+  onResume,
+}: {
+  run: RunOut | null;
+  events: TraceEvent[];
+  onResume: (runId: string, body: { force?: boolean }) => Promise<void>;
+}) {
   const totals = useMemo(() => {
     let input = 0;
     let output = 0;
@@ -239,7 +266,19 @@ function RunOutput({ run, events }: { run: RunOut | null; events: TraceEvent[] }
         <dt className="text-slate-500">Run</dt>
         <dd className="font-mono">{run.id}</dd>
         <dt className="text-slate-500">Status</dt>
-        <dd className="font-medium">{run.status}</dd>
+        <dd className="font-medium">
+          {run.status}
+          {run.error?.code === "RUN_INTERRUPTED" && (
+            <button
+              type="button"
+              className="am-btn ml-2 !px-2 !py-0.5 text-[11px]"
+              title="Continue from the last checkpoint: finished steps are not run again"
+              onClick={() => void onResume(run.id, {})}
+            >
+              Resume
+            </button>
+          )}
+        </dd>
         <dt className="text-slate-500">Revision</dt>
         <dd>{run.revision}</dd>
         <dt className="text-slate-500">Duration</dt>

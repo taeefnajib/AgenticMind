@@ -61,6 +61,14 @@ Values on `EmbeddingModel` / `VectorStoreHandle` ports are handles: descriptors 
 *references*. A node with the `credentials` permission may resolve the references carried by handles
 wired into it, in addition to those in its own config. Secret values never travel on edges.
 
+### Checkpoints, suspension and resume (ADR-0013)
+Every finished top-level node is checkpointed exactly (`observer.on_checkpoint`); values that are not JSON or
+that contain a secret value are marked non-restorable and re-run on resume. A `can_suspend` node raising
+`SuspendNode` becomes `waiting`; once independent work is done the run ends as `waiting` (`run_waiting`, with
+the requests). `Engine.run(plan, resume=ResumeState(checkpoints, responses, last_seq))` restores the root scope,
+passes each response as `ctx.resume_value`, emits `run_resumed` and continues numbering events. Suspension inside
+loop bodies is not supported (`SUSPEND_IN_LOOP`).
+
 ### Memory (ADR-0012)
 Nodes with the `memory` permission get `ctx.memory`, a project-scoped `MemoryAccess` for conversation
 turns and long-term memories. The engine takes a `MemoryStore` (`Engine(memory=...)`): the API passes its
@@ -71,9 +79,8 @@ Nodes with the `filesystem` permission get `ctx.storage_path(...)` under the run
 for embedded vector databases and the local model cache).
 
 ### Not yet implemented (documented, not faked)
-Durable checkpoints/resume (including per-iteration loop snapshots), human-approval suspension points,
-streaming mode, subgraphs, isolated (process/container) execution. The API marks runs interrupted by a restart as
-`RUN_INTERRUPTED` instead of pretending to resume.
+Per-iteration loop checkpoints, approval expiry and queue-backed workers, streaming mode, subgraphs, isolated (process/container) execution. The API marks runs interrupted by a restart as
+`RUN_INTERRUPTED`; such runs can be resumed explicitly from their checkpoints.
 
 ## Trace events (`events.py`)
 
@@ -108,7 +115,13 @@ GET|DELETE /api/projects/{id}/memories[/{memory_id}]                 long-term m
 GET|DELETE /api/projects/{id}/conversations[/{conversation_id}]      stored conversation turns
 ```
 
-`POST /runs/{id}/resume` from the blueprint arrives with durable checkpoints.
+```
+POST /api/runs/{run_id}/resume              continue a waiting run {responses} or an interrupted one {force}
+GET  /api/runs/{run_id}/waits               pause points of a run (pending / answered / cancelled)
+GET  /api/projects/{id}/approvals           approval inbox (?status=pending|answered|cancelled)
+```
+
+A waiting run's SSE stream ends with `event: end` (status `waiting`); clients reconnect after resuming.
 
 ## Diagnostic codes
 
@@ -142,6 +155,7 @@ GET|DELETE /api/projects/{id}/conversations[/{conversation_id}]      stored conv
 | `LOOP_SCOPE_SHARED` | error | One Loop's scope wired to several Loop Ends |
 | `LOOP_REGION_LEAK` | error | A body value goes to a node outside the loop (use Loop End) |
 | `LOOP_OVERLAP` | error | Two loops share nodes without nesting |
+| `SUSPEND_IN_LOOP` | error | A node that can pause the run (e.g. Human Approval) is inside a loop body |
 
 Runtime error codes (in `error.code` of events/runs) come from nodes (e.g. `INPUT_MISSING`,
 `TEMPLATE_MISSING_VARIABLE`, `NO_FILES`, `NO_TEXT_EXTRACTED`, `PARSE_FAILED`, `PARSE_ENCRYPTED`,
@@ -151,6 +165,6 @@ Runtime error codes (in `error.code` of events/runs) come from nodes (e.g. `INPU
 `AGENT_LIMIT_REACHED`, `DUPLICATE_TOOL_NAME`, `TOOL_UNKNOWN`, `TOOL_PERMISSION_DENIED`, `LOOP_ITEMS_MISSING`,
 `LOOP_ITEMS_INVALID`, `LOOP_TOO_MANY_ITEMS`, `LOOP_ITEM_TYPE_MISMATCH`, `LOOP_STATE_TYPE_MISMATCH`,
 `ROUTER_INVALID_REGEX`, `JOIN_INCOMPLETE`, `JOIN_MERGE_NOT_OBJECT`, `MEMORY_UNAVAILABLE`, `MEMORY_INVALID_KEY`,
-`MEMORY_EMPTY`, `MEMORY_TOO_LONG`, `AGENT_HISTORY_INVALID`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`, `LOOP_RESULT_NOT_JSON`,
+`MEMORY_EMPTY`, `MEMORY_TOO_LONG`, `AGENT_HISTORY_INVALID`, `APPROVAL_INVALID_RESPONSE`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`, `LOOP_RESULT_NOT_JSON`, `NODE_SUSPEND_UNDECLARED`, `SUSPEND_IN_LOOP`,
 `NODE_OUTPUT_MISSING`, `NODE_OUTPUT_UNDECLARED`, `NODE_OUTPUT_TYPE_MISMATCH`, `NODE_INVALID_BRANCH`,
 `SECRET_ACCESS_DENIED`, `ARTIFACT_ACCESS_DENIED`, `ARTIFACT_NOT_FOUND`, `STORAGE_UNAVAILABLE`) or the API (`RUN_INTERRUPTED`, `RUN_ABORTED`, `RUNTIME_INTERNAL_ERROR`).

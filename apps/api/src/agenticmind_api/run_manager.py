@@ -21,6 +21,8 @@ from agenticmind_runtime import (
     Engine,
     ExecutionPlan,
     MemoryStore,
+    NodeCheckpoint,
+    ResumeState,
     SecretResolver,
     TraceEvent,
     compile_plan,
@@ -39,6 +41,9 @@ class DbObserver:
 
     async def on_event(self, event: TraceEvent) -> None:
         self.store.add_event(event)
+
+    async def on_checkpoint(self, run_id: str, checkpoint: NodeCheckpoint) -> None:
+        self.store.put_checkpoint(run_id, checkpoint)
 
     async def on_node_outputs(self, run_id: str, node_id: str, invocation_id: str, outputs: Mapping[str, Any]) -> None:
         self.store.put_node_outputs(run_id, node_id, invocation_id, outputs)
@@ -84,9 +89,26 @@ class RunManager:
         task.add_done_callback(lambda _t: self._active.pop(run_id, None))
         return run_id
 
-    async def _execute(self, run_id: str, plan: ExecutionPlan, inputs: dict[str, Any], token: CancelToken) -> None:
+    def resume(self, run_id: str, plan: ExecutionPlan, inputs: Mapping[str, Any], state: ResumeState) -> None:
+        """Continue a run (already claimed via ``Store.claim_for_resume``) from its checkpoints."""
+        token = CancelToken()
+        task = asyncio.create_task(
+            self._execute(run_id, plan, dict(inputs), token, resume=state), name=f"resume:{run_id}"
+        )
+        self._active[run_id] = (task, token)
+        task.add_done_callback(lambda _t: self._active.pop(run_id, None))
+
+    async def _execute(
+        self,
+        run_id: str,
+        plan: ExecutionPlan,
+        inputs: dict[str, Any],
+        token: CancelToken,
+        resume: ResumeState | None = None,
+    ) -> None:
         try:
-            self.store.mark_run_started(run_id)
+            if resume is None:
+                self.store.mark_run_started(run_id)
             engine = Engine(
                 observer=DbObserver(self.store),
                 secrets=self.secrets,
@@ -95,7 +117,7 @@ class RunManager:
                 data_dir=self.data_dir,
                 memory=self.memory,
             )
-            result = await engine.run(plan, run_id=run_id, inputs=inputs, cancel=token)
+            result = await engine.run(plan, run_id=run_id, inputs=inputs, cancel=token, resume=resume)
             self.store.finish_run(result)
         except asyncio.CancelledError:
             self.store.fail_run(run_id, "RUN_ABORTED", "Run task was aborted (server shutdown)")

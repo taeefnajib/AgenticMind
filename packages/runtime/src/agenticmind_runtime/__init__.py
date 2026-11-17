@@ -7,10 +7,13 @@ from .events import (
     ErrorInfo,
     EventType,
     InMemoryObserver,
+    NodeCheckpoint,
     NodeStatus,
+    ResumeState,
     RunObserver,
     RunStatus,
     TraceEvent,
+    WaitRequest,
 )
 from .memory import InMemoryMemoryStore, MemoryStore
 from .plan import ExecutionPlan, PlanError, PlannedNode, compile_plan
@@ -19,6 +22,9 @@ from .secrets import EnvSecretResolver, MappingSecretResolver, SecretResolver
 from .validation import DEFAULT_IN_PROCESS_TRUST, parse_document, validate_document, validate_project
 
 __all__ = [
+    "NodeCheckpoint",
+    "ResumeState",
+    "WaitRequest",
     "InMemoryMemoryStore",
     "MemoryStore",
     "ALLOWED_TYPES",

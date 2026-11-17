@@ -56,6 +56,7 @@ def define_node(
     branches_from_config: str | None = None,
     control_join: str = "any",
     runtime_role: str | None = None,
+    can_suspend: bool = False,
 ) -> Callable[[Handler[C]], NodeDefinition[C]]:
     """Decorator turning an async handler into a registered-ready ``NodeDefinition``.
 
@@ -80,6 +81,7 @@ def define_node(
             branches_from_config=branches_from_config,
             control_join=control_join,
             runtime_role=runtime_role,
+            can_suspend=can_suspend,
         )
         if branches is not None:
             manifest_kwargs["branches"] = list(branches)

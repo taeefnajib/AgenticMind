@@ -44,6 +44,7 @@ async def reverse(ctx: NodeContext, inputs, config: ReverseConfig) -> NodeResult
 | Branches | Control outputs; default `["done"]`. Branching nodes return `NodeResult(branches=frozenset({...}))`. |
 | Dynamic branches | `branches_from_config="routes"` adds one branch per configured item name (Router); computed by `effective_branches(manifest, config)` everywhere. |
 | Control join | `control_join="any"` (default, OR) or `"all"` (run only if every incoming control edge was activated, e.g. Join). |
+| Can suspend | `can_suspend=True` lets a handler raise `SuspendNode(request, response_schema)` to pause the run for a person; on resume it is called again with `ctx.resume_value` (ADR-0013). |
 | Runtime role | `runtime_role="loop_start"` / `"loop_end"` marks the Loop / Loop End pair the runtime executes as a region (ADR-0011). |
 | Execution | `ExecutionPolicy(timeout_seconds, max_attempts, idempotent)` |
 | Permissions | `Permissions(network, filesystem, database, subprocess, credentials)`, declared up front |

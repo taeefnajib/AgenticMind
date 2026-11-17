@@ -63,6 +63,7 @@ const STATUS_BY_EVENT: Record<string, NodeRunStatus> = {
   node_failed: "failed",
   node_skipped: "skipped",
   node_cancelled: "cancelled",
+  node_waiting: "waiting",
 };
 
 const storage = {
@@ -103,6 +104,8 @@ export function App() {
   const [events, setEvents] = useState<TraceEvent[]>([]);
   const [nodeStatus, setNodeStatus] = useState<Record<string, NodeRunStatus>>({});
   const [iterations, setIterations] = useState<Record<string, number>>({});
+  const [approvalsKey, setApprovalsKey] = useState(0);
+  const [approvalCount, setApprovalCount] = useState(0);
   const [runInputs, setRunInputs] = useState<Record<string, JsonValue>>({});
   const [mode, setModeState] = useState<Mode>(() => (storage.get("am.mode") as Mode) || "low_code");
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>("problems");
@@ -317,6 +320,66 @@ export function App() {
    * Save if needed, start a run, stream its events onto the canvas and resolve with the finished run.
    * Shared by the Run button and the Chat panel. Resolves null if the run could not start.
    */
+  /** Stream a run's events (after ``startSeq``) into the canvas until it ends or starts waiting. */
+  const follow = useCallback(
+    (runId: string, opts: { switchTabs: boolean }, startSeq: number): Promise<ChatResult> => {
+      const collected: TraceEvent[] = [];
+      return new Promise<ChatResult>((resolve) => {
+        let lastSeq = startSeq;
+        unsubscribe.current?.();
+        unsubscribe.current = subscribeRunEvents(
+          runId,
+          (e) => {
+            if (e.seq <= lastSeq) return;
+            lastSeq = e.seq;
+            collected.push(e);
+            setEvents((prev) => [...prev, e]);
+            const st = STATUS_BY_EVENT[e.event_type];
+            if (st && e.node_id) setNodeStatus((prev) => ({ ...prev, [e.node_id!]: st }));
+            if (e.event_type === "node_succeeded" && e.node_id && e.data?.iteration) {
+              setIterations((prev) => ({ ...prev, [e.node_id!]: (prev[e.node_id!] ?? 0) + 1 }));
+            }
+          },
+          async () => {
+            const final = await api.getRun(runId);
+            setRun(final);
+            setApprovalsKey((k) => k + 1);
+            if (final.status === "waiting") {
+              setConsoleTab("approvals");
+              notify("Run paused: waiting for approval", "info");
+            } else {
+              if (opts.switchTabs) setConsoleTab("output");
+              notify(`Run ${final.status}`, final.status === "succeeded" ? "success" : final.status === "failed" ? "error" : "info");
+            }
+            resolve({ run: final, events: collected });
+          },
+        );
+      });
+    },
+    [notify],
+  );
+
+  /** Resume a waiting (or interrupted) run and follow it from where its trace left off. */
+  const resumeRun = useCallback(
+    async (runId: string, body: { responses?: Record<string, JsonValue>; force?: boolean }) => {
+      const resumed = await api.resumeRun(runId, body);
+      resetRunState();
+      const past = await api.events(runId);
+      const statuses: Record<string, NodeRunStatus> = {};
+      for (const e of past) {
+        const st = STATUS_BY_EVENT[e.event_type];
+        if (st && e.node_id) statuses[e.node_id] = st;
+      }
+      setRun(resumed);
+      setEvents(past);
+      setNodeStatus(statuses);
+      notify("Run resumed");
+      await follow(runId, { switchTabs: true }, past.reduce((m, e) => Math.max(m, e.seq), 0));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [follow, notify],
+  );
+
   const executeRun = useCallback(
     async (
       inputs: Record<string, JsonValue>,
@@ -331,31 +394,7 @@ export function App() {
         setRun(r);
         if (opts.switchTabs) setConsoleTab("trace");
         notify(`Run ${r.id} started`);
-        const collected: TraceEvent[] = [];
-        return await new Promise<ChatResult>((resolve) => {
-          let lastSeq = 0;
-          unsubscribe.current = subscribeRunEvents(
-            r.id,
-            (e) => {
-              if (e.seq <= lastSeq) return;
-              lastSeq = e.seq;
-              collected.push(e);
-              setEvents((prev) => [...prev, e]);
-              const st = STATUS_BY_EVENT[e.event_type];
-              if (st && e.node_id) setNodeStatus((prev) => ({ ...prev, [e.node_id!]: st }));
-              if (e.event_type === "node_succeeded" && e.node_id && e.data?.iteration) {
-                setIterations((prev) => ({ ...prev, [e.node_id!]: (prev[e.node_id!] ?? 0) + 1 }));
-              }
-            },
-            async () => {
-              const final = await api.getRun(r.id);
-              setRun(final);
-              if (opts.switchTabs) setConsoleTab("output");
-              notify(`Run ${final.status}`, final.status === "succeeded" ? "success" : final.status === "failed" ? "error" : "info");
-              resolve({ run: final, events: collected });
-            },
-          );
-        });
+        return await follow(r.id, opts, 0);
       } catch (err) {
         if (err instanceof ApiError && err.status === 422) {
           setDiagnostics(err.diagnostics);
@@ -367,7 +406,7 @@ export function App() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [project, dirty, save, notify, reportError],
+    [project, dirty, save, notify, reportError, follow],
   );
 
   const startRun = useCallback(async () => {
@@ -567,7 +606,12 @@ export function App() {
     .map((n) => n.data.ir)
     .filter((ir) => ir.type === "agenticmind.core.output")
     .map((ir) => ({ id: ir.id, label: ir.ui?.label || String(ir.config.key ?? ir.id) }));
-  const running = run !== null && (run.status === "queued" || run.status === "running") && !events.some((e) => e.event_type.startsWith("run_") && e.event_type !== "run_started");
+  // Active until the latest run-level event is an ending one (a resumed run has an earlier run_waiting).
+  const lastRunEvent = [...events].reverse().find((e) => e.event_type.startsWith("run_"));
+  const running =
+    run !== null &&
+    (run.status === "queued" || run.status === "running") &&
+    (!lastRunEvent || lastRunEvent.event_type === "run_started" || lastRunEvent.event_type === "run_resumed");
 
   const workbench = useMemo(
     () => ({ manifests, nodeStatus, iterations, diagnosticsByNode, mode, files: filesState, dark: theme.resolved === "dark" }),
@@ -641,6 +685,10 @@ export function App() {
               document={() => currentDocument() ?? ({} as ProjectDocument)}
               chatKey={project?.id ?? "none"}
               projectId={project?.id}
+              approvalsKey={`${project?.id}:${approvalsKey}`}
+              approvalCount={approvalCount}
+              onApprovalCount={setApprovalCount}
+              onResume={resumeRun}
               chatOutputs={runTargets.map((t) => ({ ...t, key: String(nodes.find((n) => n.id === t.id)?.data.ir.config.key ?? t.id) }))}
               chatDisabled={!project || Boolean(apiDown)}
               onAsk={askChat}

@@ -92,6 +92,10 @@ class NodeManifest(_Model):
     runtime_role: Literal["loop_start", "loop_end"] | None = Field(
         default=None, description="Control construct the runtime executes specially (loops)."
     )
+    can_suspend: bool = Field(
+        default=False,
+        description="May pause the run for a human response (raises SuspendNode); see ADR-0013.",
+    )
     config_schema: dict[str, Any] = Field(default_factory=dict)
     permissions: Permissions = Field(default_factory=Permissions)
     execution: ExecutionPolicy = Field(default_factory=ExecutionPolicy)

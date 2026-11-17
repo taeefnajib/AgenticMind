@@ -60,6 +60,8 @@ class NodeContext:
     _artifacts: ArtifactReader | None = None
     _storage_root: Path | None = None
     _memory: MemoryAccess | None = None
+    #: The response supplied when a suspended run is resumed (``None`` on a normal invocation).
+    resume_value: Any = None
 
     def secret(self, ref: SecretRef) -> str:
         """Resolve a secret referenced by this node's own config (requires ``credentials`` permission)."""
