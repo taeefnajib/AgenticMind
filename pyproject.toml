@@ -7,7 +7,8 @@ dependencies = [
     "agenticmind-ir",
     "agenticmind-node-sdk",
     "agenticmind-registry",
-    "agenticmind-providers",
+    "agenticmind-providers[local]",
+    "agenticmind-vectorstores[chroma,pgvector,pinecone]",
     "agenticmind-runtime",
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",
@@ -34,6 +35,7 @@ agenticmind-ir = { workspace = true }
 agenticmind-node-sdk = { workspace = true }
 agenticmind-registry = { workspace = true }
 agenticmind-providers = { workspace = true }
+agenticmind-vectorstores = { workspace = true }
 agenticmind-runtime = { workspace = true }
 agenticmind-nodes-core = { workspace = true }
 agenticmind-nodes-data = { workspace = true }

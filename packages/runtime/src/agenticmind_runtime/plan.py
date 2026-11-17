@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from agenticmind_ir import Edge, EdgeKind, Node, ProjectDocument, iter_secret_refs
-from agenticmind_node_sdk import NodeConfig
+from agenticmind_node_sdk import HANDLE_PORT_TYPES, NodeConfig, resolve_port_type
 from agenticmind_registry import NodeRegistry, RegistryEntry, TrustLevel
 
-from .diagnostics import ValidationReport
+from .diagnostics import Code, Diagnostic, ValidationReport
 from .secrets import SecretResolver
 from .validation import DEFAULT_IN_PROCESS_TRUST, validate_document
 
@@ -45,6 +46,8 @@ class ExecutionPlan:
     order: tuple[str, ...]
     """Deterministic topological order (ties broken by node ID)."""
     report: ValidationReport
+    targets: tuple[str, ...] = ()
+    """When non-empty, only these nodes and their upstream dependencies are executed."""
 
 
 def _topological_order(node_ids: list[str], edges: list[Edge]) -> list[str]:
@@ -73,10 +76,26 @@ def compile_plan(
     *,
     secrets: SecretResolver | None = None,
     in_process_trust: frozenset[TrustLevel] = DEFAULT_IN_PROCESS_TRUST,
+    targets: Sequence[str] | None = None,
 ) -> ExecutionPlan:
     report = validate_document(doc, registry, secrets=secrets, in_process_trust=in_process_trust)
     if not report.valid:
         raise PlanError(report)
+
+    included = {n.id for n in doc.nodes}
+    if targets:
+        unknown = [t for t in targets if t not in included]
+        if unknown:
+            raise PlanError(
+                ValidationReport(
+                    diagnostics=[
+                        Diagnostic(code=Code.RUN_TARGET_UNKNOWN, node_id=t, message=f"Run target '{t}' is not a node")
+                        for t in unknown
+                    ]
+                )
+            )
+        included = _ancestors(set(targets), list(doc.edges))
+    nodes_by_id = {n.id: n for n in doc.nodes}
 
     data_in: dict[str, list[Edge]] = defaultdict(list)
     control_in: dict[str, list[Edge]] = defaultdict(list)
@@ -85,13 +104,23 @@ def compile_plan(
 
     planned: dict[str, PlannedNode] = {}
     for node in doc.nodes:
+        if node.id not in included:
+            continue
         entry = registry.get(node.type, node.version)
         assert entry is not None  # guaranteed by validation
         manifest = entry.definition.manifest
         overrides = node.execution
         ins = tuple(data_in[node.id])
         ctrl = tuple(control_in[node.id])
-        refs: Any = frozenset(iter_secret_refs(node.config)) if manifest.permissions.credentials else frozenset()
+        refs: Any = frozenset()
+        if manifest.permissions.credentials:
+            refs = set(iter_secret_refs(node.config))
+            # handles delegate the secret references they carry to the nodes wired to them
+            for e in ins:
+                port = manifest.input(e.target.port)
+                if port is not None and resolve_port_type(port, node.config).value in HANDLE_PORT_TYPES:
+                    refs |= set(iter_secret_refs(nodes_by_id[e.source.node].config))
+            refs = frozenset(refs)
         planned[node.id] = PlannedNode(
             node=node,
             entry=entry,
@@ -105,5 +134,27 @@ def compile_plan(
             or manifest.execution.max_attempts,
             allowed_secrets=refs,
         )
-    order = _topological_order([n.id for n in doc.nodes], list(doc.edges))
-    return ExecutionPlan(project_id=doc.project.id, nodes=planned, order=tuple(order), report=report)
+    edges = [e for e in doc.edges if e.source.node in included and e.target.node in included]
+    order = _topological_order([n.id for n in doc.nodes if n.id in included], edges)
+    return ExecutionPlan(
+        project_id=doc.project.id,
+        nodes=planned,
+        order=tuple(order),
+        report=report,
+        targets=tuple(targets or ()),
+    )
+
+
+def _ancestors(targets: set[str], edges: list[Edge]) -> set[str]:
+    """``targets`` plus every node they depend on through data or control edges."""
+    upstream: dict[str, set[str]] = defaultdict(set)
+    for e in edges:
+        upstream[e.target.node].add(e.source.node)
+    seen = set(targets)
+    stack = list(targets)
+    while stack:
+        for parent in upstream[stack.pop()]:
+            if parent not in seen:
+                seen.add(parent)
+                stack.append(parent)
+    return seen

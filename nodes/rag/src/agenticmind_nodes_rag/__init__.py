@@ -7,8 +7,9 @@ from typing import Any
 from agenticmind_node_sdk import NodeDefinition
 
 from .chunker import chunker
+from .retrieval import embedding_model, index_documents, retriever, vector_store
 
-ALL_NODES: tuple[NodeDefinition[Any], ...] = (chunker,)
+ALL_NODES: tuple[NodeDefinition[Any], ...] = (chunker, embedding_model, vector_store, index_documents, retriever)
 
 
 def register(registrar: Any) -> None:

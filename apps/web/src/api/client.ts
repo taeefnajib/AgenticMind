@@ -70,8 +70,8 @@ export const api = {
     }),
   validate: (id: string, document?: ProjectDocument) =>
     request<ValidationResult>(`/projects/${id}/validate`, { method: "POST", ...json({ document }) }),
-  startRun: (id: string, inputs: Record<string, JsonValue>) =>
-    request<RunOut>(`/projects/${id}/runs`, { method: "POST", ...json({ inputs }) }),
+  startRun: (id: string, inputs: Record<string, JsonValue>, targets?: string[]) =>
+    request<RunOut>(`/projects/${id}/runs`, { method: "POST", ...json({ inputs, targets }) }),
   getRun: (runId: string) => request<RunOut>(`/runs/${runId}`),
   cancelRun: (runId: string) => request<RunOut>(`/runs/${runId}/cancel`, { method: "POST" }),
   events: (runId: string) => request<TraceEvent[]>(`/runs/${runId}/events`),

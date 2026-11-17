@@ -73,17 +73,28 @@ def parse_document(value: Any) -> Document:
 
 
 def parse_documents(value: Any) -> list[Document]:
+    """Parse a DocumentSet. Retrieval fields (score etc.) are dropped; use ``parse_retrieved`` to keep them."""
     if not isinstance(value, list):
         raise TypeError("DocumentSet must be a list")
-    return [Document.model_validate(v) for v in value]
+    keys = set(Document.model_fields)
+    return [Document.model_validate({k: v for k, v in item.items() if k in keys}) for item in value]
+
+
+def parse_retrieved(value: Any) -> list[RetrievedDocument]:
+    if not isinstance(value, list):
+        raise TypeError("DocumentSet must be a list")
+    return [RetrievedDocument.model_validate(v) for v in value]
 
 
 def is_document(value: Any) -> bool:
-    try:
-        Document.model_validate(value)
-        return True
-    except ValidationError:
-        return False
+    """A plain or retrieved document."""
+    for model in (Document, RetrievedDocument):
+        try:
+            model.model_validate(value)
+            return True
+        except ValidationError:
+            continue
+    return False
 
 
 def is_document_set(value: Any) -> bool:

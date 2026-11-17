@@ -23,6 +23,7 @@ class PortType(str, Enum):
     DOCUMENT_SET = "DocumentSet"
     EMBEDDING_VECTOR = "EmbeddingVector"
     VECTOR_STORE_HANDLE = "VectorStoreHandle"
+    EMBEDDING_MODEL = "EmbeddingModel"
     CHAT_MESSAGE = "ChatMessage"
     TOOL = "Tool"
     AGENT_STATE = "AgentState"
@@ -80,6 +81,14 @@ def value_matches_type(value: Any, port_type: PortType) -> bool:
             from .documents import is_document_set
 
             return is_document_set(value)
+        case PortType.EMBEDDING_MODEL:
+            from .handles import is_handle
+
+            return is_handle(value, "embedding_model")
+        case PortType.VECTOR_STORE_HANDLE:
+            from .handles import is_handle
+
+            return is_handle(value, "vector_store")
         case PortType.EMBEDDING_VECTOR:
             return isinstance(value, list) and all(
                 isinstance(v, (int, float)) and not isinstance(v, bool) for v in value

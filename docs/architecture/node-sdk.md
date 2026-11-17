@@ -69,6 +69,18 @@ use `parse_documents(...)` / `to_values(...)` to convert, and the runtime valida
 citations and evaluation datasets stay stable across runs. `offsets` are exact character spans in the
 parent's content; `ingestion_version` records the node chain that produced a document.
 
+## Handles
+
+Shared resources travel as *handles* (`EmbeddingModelHandle`, `VectorStoreHandle` in
+`agenticmind_node_sdk.handles`) on `EmbeddingModel` / `VectorStoreHandle` ports. A handle is plain
+config plus secret references. A consumer with `credentials` may call `ctx.secret(handle.api_key)`; the
+runtime delegates the handle's references along the edge. Never put secret values into outputs.
+
+## Local storage
+
+With `Permissions(filesystem=True)`, `ctx.storage_path("vectors", "qdrant")` returns a persistent
+directory under the runtime's data dir (`STORAGE_UNAVAILABLE` otherwise).
+
 ## Project files
 
 Declare `Permissions(artifacts=True)` to read uploaded project files:

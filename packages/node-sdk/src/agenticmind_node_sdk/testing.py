@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from agenticmind_ir import iter_secret_refs
@@ -25,6 +26,8 @@ async def invoke_node(
     secrets: Mapping[str, str] | None = None,
     check_outputs: bool = True,
     artifacts: ArtifactReader | None = None,
+    storage_root: Path | None = None,
+    allowed_secrets: frozenset[str] | None = None,
 ) -> NodeResult:
     raw_config = dict(config or {})
     parsed = definition.parse_config(raw_config)
@@ -38,9 +41,10 @@ async def invoke_node(
         invocation_id="inv-1",
         attempt=1,
         run_input=dict(run_input or {}),
-        allowed_secrets=allowed,
+        allowed_secrets=allowed | (allowed_secrets or frozenset()),
         _secret_lookup=(secrets or {}).get,
         _artifacts=artifacts if definition.manifest.permissions.artifacts else None,
+        _storage_root=storage_root if definition.manifest.permissions.filesystem else None,
     )
     result = await definition.handler(ctx, dict(inputs or {}), parsed)
     if check_outputs:

@@ -36,7 +36,7 @@ import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/Conso
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
 import { DRAG_MIME, NodeLibrary } from "./components/NodeLibrary";
-import { Toolbar } from "./components/Toolbar";
+import { Toolbar, type RunTargetOption } from "./components/Toolbar";
 import {
   checkConnection,
   defaultConfig,
@@ -111,6 +111,7 @@ export function App() {
   // Guards one-time startup work: StrictMode runs effects twice in development, which would
   // otherwise create two starter projects on first launch.
   const initialized = useRef(false);
+  const [runTarget, setRunTarget] = useState("");
 
   const setMode = (m: Mode) => {
     setModeState(m);
@@ -144,6 +145,7 @@ export function App() {
       setEdges(e);
       setDirty(false);
       setSelected({ node: null, edge: null });
+      setRunTarget("");
       storage.set("am.project", p.id);
       setChangeTick((t) => t + 1);
       window.setTimeout(() => flow.fitView({ padding: 0.2, duration: 200 }), 50);
@@ -289,7 +291,8 @@ export function App() {
     if (dirty && !(await save())) return;
     resetRunState();
     try {
-      const r = await api.startRun(project.id, runInputs);
+      const targets = runTarget && nodes.some((n) => n.id === runTarget) ? [runTarget] : undefined;
+      const r = await api.startRun(project.id, runInputs, targets);
       setRun(r);
       setConsoleTab("trace");
       notify(`Run ${r.id} started`);
@@ -319,7 +322,7 @@ export function App() {
       } else notify(`Run failed to start: ${(err as Error).message}`, "error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, dirty, save, runInputs, notify]);
+  }, [project, dirty, save, runInputs, notify, runTarget, nodes]);
 
   const cancelRun = useCallback(async () => {
     if (!run) return;
@@ -504,6 +507,10 @@ export function App() {
   const selectedNode = nodes.find((n) => n.id === selected.node) ?? null;
   const selectedEdge = edges.find((e) => e.id === selected.edge) ?? null;
   const inputNodes = nodes.map((n) => n.data.ir).filter(isManualInput);
+  const runTargets: RunTargetOption[] = nodes
+    .map((n) => n.data.ir)
+    .filter((ir) => ir.type === "agenticmind.core.output")
+    .map((ir) => ({ id: ir.id, label: ir.ui?.label || String(ir.config.key ?? ir.id) }));
   const running = run !== null && (run.status === "queued" || run.status === "running") && !events.some((e) => e.event_type.startsWith("run_") && e.event_type !== "run_started");
 
   const workbench = useMemo(
@@ -515,6 +522,9 @@ export function App() {
     <WorkbenchContext.Provider value={workbench}>
       <div className="flex h-full flex-col">
         <Toolbar
+          runTargets={runTargets}
+          runTarget={runTarget}
+          onRunTarget={setRunTarget}
           projects={projects}
           projectId={project?.id ?? null}
           revision={project?.revision ?? null}

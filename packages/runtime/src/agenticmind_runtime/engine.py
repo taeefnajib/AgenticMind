@@ -23,6 +23,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from agenticmind_node_sdk import (
@@ -90,6 +91,7 @@ class Engine:
         max_concurrency: int = 8,
         retry_backoff_seconds: float = 0.2,
         artifacts: ArtifactStore | None = None,
+        data_dir: Path | None = None,
     ) -> None:
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be >= 1")
@@ -98,6 +100,7 @@ class Engine:
         self.max_concurrency = max_concurrency
         self.retry_backoff_seconds = retry_backoff_seconds
         self.artifacts = artifacts
+        self.data_dir = data_dir
 
     async def run(
         self,
@@ -158,7 +161,11 @@ class _RunExecution:
             EventType.RUN_STARTED,
             status=RunStatus.RUNNING.value,
             inputs_summary=self._summary(self.inputs),
-            data={"node_count": len(self.plan.nodes), "order": list(self.plan.order)},
+            data={
+                "node_count": len(self.plan.nodes),
+                "order": list(self.plan.order),
+                "targets": list(self.plan.targets),
+            },
         )
         pending = list(self.plan.order)
         running: dict[asyncio.Task[_Outcome], str] = {}
@@ -349,6 +356,7 @@ class _RunExecution:
                 _secret_lookup=self.engine.secrets.get if self.engine.secrets else None,
                 _emitter=emit_custom,
                 _artifacts=artifacts,
+                _storage_root=self.engine.data_dir if manifest.permissions.filesystem else None,
             )
             try:
                 result = await asyncio.wait_for(

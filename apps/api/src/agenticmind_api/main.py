@@ -40,6 +40,7 @@ def create_app(
         in_process_trust=settings.in_process_trust,
         max_concurrency=settings.max_concurrency,
         artifacts=artifacts,
+        data_dir=settings.data_dir,
     )
 
     @asynccontextmanager

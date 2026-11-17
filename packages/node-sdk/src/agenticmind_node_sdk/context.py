@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -56,6 +57,7 @@ class NodeContext:
     _secret_lookup: SecretLookup | None = None
     _emitter: EventEmitter | None = None
     _artifacts: ArtifactReader | None = None
+    _storage_root: Path | None = None
 
     def secret(self, ref: SecretRef) -> str:
         """Resolve a secret referenced by this node's own config (requires ``credentials`` permission)."""
@@ -90,6 +92,24 @@ class NodeContext:
             return self._artifact_reader().read_bytes(artifact_id)
         except ArtifactNotFoundError as exc:
             raise NodeError("ARTIFACT_NOT_FOUND", f"File '{artifact_id}' does not exist in this project") from exc
+
+    def storage_path(self, *parts: str) -> Path:
+        """Persistent local directory for node-managed data (requires ``filesystem`` permission).
+
+        Used for embedded databases and model caches, e.g. ``ctx.storage_path("vectors", "qdrant")``.
+        """
+        if self._storage_root is None:
+            raise NodeError(
+                "STORAGE_UNAVAILABLE",
+                f"Node {self.node_id} has no local storage: it lacks the 'filesystem' permission "
+                "or the runtime has no data directory",
+            )
+        for part in parts:
+            if not part or part in (".", "..") or "/" in part or "\\" in part:
+                raise NodeError("STORAGE_INVALID_PATH", f"Invalid storage path segment {part!r}")
+        path = self._storage_root.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     async def emit(self, event_type: str, data: Mapping[str, Any]) -> None:
         """Emit a custom trace event (e.g. ``tool_call``). Data is redacted by the runtime."""

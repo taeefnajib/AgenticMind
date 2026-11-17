@@ -23,6 +23,8 @@ const PORT_COLORS: Record<string, string> = {
   JSON: "#0d9488",
   Document: "#7c3aed",
   DocumentSet: "#7c3aed",
+  EmbeddingModel: "#be185d",
+  VectorStoreHandle: "#0369a1",
   Any: "#64748b",
 };
 export const portColor = (type: string) => PORT_COLORS[type] ?? "#4f46e5";

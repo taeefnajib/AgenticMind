@@ -1,7 +1,15 @@
 import type { Mode, ProjectSummary } from "../api/types";
 import { MODE_LABEL } from "../lib/theme";
 
+export interface RunTargetOption {
+  id: string;
+  label: string;
+}
+
 interface Props {
+  runTargets: RunTargetOption[];
+  runTarget: string;
+  onRunTarget: (id: string) => void;
   projects: ProjectSummary[];
   projectId: string | null;
   revision: number | null;
@@ -62,6 +70,22 @@ export function Toolbar(p: Props) {
         Validate
         {p.valid !== null && <span className={`h-2 w-2 rounded-full ${p.valid ? "bg-emerald-500" : "bg-red-500"}`} />}
       </button>
+      {p.runTargets.length > 1 && !p.running && (
+        <select
+          className="am-input !w-44 shrink-0"
+          value={p.runTarget}
+          onChange={(e) => p.onRunTarget(e.target.value)}
+          aria-label="What to run"
+          title="Run the whole graph, or only what one output needs"
+        >
+          <option value="">Run everything</option>
+          {p.runTargets.map((t) => (
+            <option key={t.id} value={t.id}>
+              Run → {t.label}
+            </option>
+          ))}
+        </select>
+      )}
       {p.running ? (
         <button type="button" className="am-btn text-red-600" onClick={p.onCancel}>
           Cancel run

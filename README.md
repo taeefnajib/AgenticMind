@@ -31,6 +31,11 @@ To try document ingestion: **New** → *Document ingestion*, select the **Load d
 `examples/data/employee-handbook.md` (or any PDF/DOCX/TXT/MD/HTML/CSV), then **Run** and open the
 **Output** tab to browse the chunks with their sections and offsets.
 
+To try retrieval: **New** → *RAG retrieval*, upload a file in **Load documents**, pick **Run → Index report**
+in the toolbar and run (the first run downloads the local embedding model once, ~65 MB). Then pick
+**Run → Results**, type a question in **Run inputs** and run again to see the most relevant chunks with
+similarity scores.
+
 ### Self-hosted (Docker)
 
 ```bash
@@ -68,11 +73,12 @@ packages/
   node-sdk/       node contract: typed ports, manifests, config, handler/context, test helpers
   node-registry/  discovery via entry points, versions, trust levels
   runtime/        first-party engine: validation pipeline, execution planning, scheduler, traces, CLI
-  providers/      model provider adapter layer (mock provider today)
+  providers/      model + embedding provider adapters (mock LLM; fastembed, OpenAI-compatible, hash)
+  vectorstores/   vector store adapters (Qdrant default, Chroma, pgvector, Pinecone)
 nodes/
   core/           core node package (inputs, transforms, conversions, control flow, LLM, outputs)
   data/           data ingestion nodes (Document Loader, Document Cleaner)
-  rag/            RAG nodes (Chunker; embeddings/retrieval next)
+  rag/            RAG nodes (Chunker, Embedding Model, Vector Store, Index Documents, Retriever)
 examples/data/    sample documents for trying ingestion and retrieval
 docs/             architecture, roadmap, ADRs
 infra/docker/     container build

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 from agenticmind_ir import ProjectDocument
@@ -52,6 +53,7 @@ class RunManager:
         in_process_trust: frozenset[TrustLevel],
         max_concurrency: int = 8,
         artifacts: ArtifactStore | None = None,
+        data_dir: Path | None = None,
     ) -> None:
         self.store = store
         self.registry = registry
@@ -59,11 +61,14 @@ class RunManager:
         self.in_process_trust = in_process_trust
         self.max_concurrency = max_concurrency
         self.artifacts = artifacts
+        self.data_dir = data_dir
         self._active: dict[str, tuple[asyncio.Task[None], CancelToken]] = {}
 
-    def plan(self, doc: ProjectDocument) -> ExecutionPlan:
+    def plan(self, doc: ProjectDocument, targets: Sequence[str] | None = None) -> ExecutionPlan:
         """Raises ``PlanError`` with diagnostics if the graph is not executable."""
-        return compile_plan(doc, self.registry, secrets=self.secrets, in_process_trust=self.in_process_trust)
+        return compile_plan(
+            doc, self.registry, secrets=self.secrets, in_process_trust=self.in_process_trust, targets=targets
+        )
 
     def start(
         self, project_id: str, revision: ProjectRevisionRow, plan: ExecutionPlan, inputs: Mapping[str, Any]
@@ -84,6 +89,7 @@ class RunManager:
                 secrets=self.secrets,
                 max_concurrency=self.max_concurrency,
                 artifacts=self.artifacts,
+                data_dir=self.data_dir,
             )
             result = await engine.run(plan, run_id=run_id, inputs=inputs, cancel=token)
             self.store.finish_run(result)

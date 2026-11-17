@@ -113,6 +113,10 @@ def delete_project(project_id: str, svc: Services = Depends(services)) -> Respon
     if not svc.store.delete_project(project_id):
         raise HTTPException(404, f"Project {project_id!r} not found")
     svc.artifacts.delete_project(project_id)
+    # embedded vector collections created by this project (namespaced "<project>__<collection>")
+    from agenticmind_vectorstores import delete_local_collections
+
+    delete_local_collections(svc.settings.data_dir, f"{project_id}__")
     return Response(status_code=204)
 
 

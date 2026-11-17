@@ -30,6 +30,10 @@ class ValidateRequest(BaseModel):
 class RunCreate(BaseModel):
     inputs: dict[str, Any] = Field(default_factory=dict)
     revision: int | None = Field(default=None, description="Revision to run (default: latest)")
+    targets: list[str] | None = Field(
+        default=None,
+        description="Run only these nodes (usually Output nodes) and everything they depend on",
+    )
 
 
 class ProjectSummary(BaseModel):

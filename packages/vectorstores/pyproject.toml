@@ -1,0 +1,27 @@
+[project]
+name = "agenticmind-vectorstores"
+version = "0.1.0"
+description = "AgenticMind vector store adapter layer (Qdrant default; Chroma, pgvector, Pinecone optional)"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7,<3",
+    "qdrant-client>=1.20.0",
+]
+
+[project.optional-dependencies]
+chroma = [
+    "chromadb>=1.5.9",
+]
+pgvector = [
+    "psycopg[binary]>=3.3.9",
+]
+pinecone = [
+    "pinecone>=10.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agenticmind_vectorstores"]

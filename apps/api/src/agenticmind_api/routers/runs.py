@@ -54,7 +54,7 @@ async def start_run(project_id: str, body: RunCreate, svc: Services = Depends(se
     if rev is None:
         raise HTTPException(404, "Revision not found")
     try:
-        plan = svc.runs.plan(load_project(rev.document))
+        plan = svc.runs.plan(load_project(rev.document), targets=body.targets)
     except PlanError as exc:
         raise HTTPException(422, {"message": str(exc), **exc.report.to_public()}) from exc
     run_id = svc.runs.start(project_id, rev, plan, body.inputs)

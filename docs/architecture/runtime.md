@@ -41,6 +41,20 @@ the set of secrets the node may resolve are precomputed; order is a deterministi
 | Secrets | Nodes resolve only secrets referenced in their own config and only with the `credentials` permission. Values are scrubbed from traces, errors and stored outputs. |
 | Cycles | Rejected at validation. Iteration will use explicit Loop nodes. |
 
+### Run targets
+`compile_plan(..., targets=[...])` keeps only the targets and every node they depend on (through data
+and control edges). The API accepts `targets` on `POST /runs`; the IDE lists one "Run → …" entry per
+Output node. This is how ingestion and query flows in one project run independently.
+
+### Handles and secret delegation
+Values on `EmbeddingModel` / `VectorStoreHandle` ports are handles: descriptors that may contain secret
+*references*. A node with the `credentials` permission may resolve the references carried by handles
+wired into it, in addition to those in its own config. Secret values never travel on edges.
+
+### Node storage
+Nodes with the `filesystem` permission get `ctx.storage_path(...)` under the runtime data directory (used
+for embedded vector databases and the local model cache).
+
 ### Not yet implemented (documented, not faked)
 Durable checkpoints/resume, human-approval suspension points, streaming mode, explicit loop/parallel
 nodes, isolated (process/container) execution. The API marks runs interrupted by a restart as
@@ -106,8 +120,11 @@ GET  /api/runs/{run_id}/nodes/{node_id}/outputs
 | `SECRET_LITERAL_VALUE` | error | Literal value in a secret field |
 | `SECRET_NOT_PERMITTED` | error | Node references secrets without the `credentials` permission |
 | `SECRET_NOT_CONFIGURED` | warning | Referenced secret missing from the environment |
+| `RUN_TARGET_UNKNOWN` | error | A requested run target is not a node in the graph |
 
 Runtime error codes (in `error.code` of events/runs) come from nodes (e.g. `INPUT_MISSING`,
-`TEMPLATE_MISSING_VARIABLE`, `NO_FILES`, `NO_TEXT_EXTRACTED`, `PARSE_FAILED`, `PARSE_ENCRYPTED`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`,
+`TEMPLATE_MISSING_VARIABLE`, `NO_FILES`, `NO_TEXT_EXTRACTED`, `PARSE_FAILED`, `PARSE_ENCRYPTED`,
+`COLLECTION_NOT_FOUND`, `EMBEDDING_DIMENSION_MISMATCH`, `EMBEDDING_MODEL_MISMATCH`, `FILTER_INVALID`,
+`PROVIDER_AUTH_FAILED`, `PROVIDER_UNAVAILABLE`, `STORE_UNAVAILABLE`, `STORE_NOT_INSTALLED`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`,
 `NODE_OUTPUT_MISSING`, `NODE_OUTPUT_UNDECLARED`, `NODE_OUTPUT_TYPE_MISMATCH`, `NODE_INVALID_BRANCH`,
-`SECRET_ACCESS_DENIED`, `ARTIFACT_ACCESS_DENIED`, `ARTIFACT_NOT_FOUND`) or the API (`RUN_INTERRUPTED`, `RUN_ABORTED`, `RUNTIME_INTERNAL_ERROR`).
+`SECRET_ACCESS_DENIED`, `ARTIFACT_ACCESS_DENIED`, `ARTIFACT_NOT_FOUND`, `STORAGE_UNAVAILABLE`) or the API (`RUN_INTERRUPTED`, `RUN_ABORTED`, `RUNTIME_INTERNAL_ERROR`).

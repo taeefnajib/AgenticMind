@@ -7,7 +7,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M0 Foundation | **Done**: monorepo, local dev, IR v1 + JSON Schema, node contract, persistence |
 | M1 Visual architecture | **Done (core)**: canvas, library, typed ports, inspector, live validation |
 | M2 First-party runtime | **Done (core)**: plan, registry, handlers, traces, retries, timeouts, cancellation |
-| M3 RAG vertical slice | **In progress**: step 1 (ingestion) done; step 2 (embeddings + vector stores) next |
+| M3 RAG vertical slice | **In progress**: steps 1 (ingestion) and 2 (embeddings, vector stores, retrieval) done; step 3 (LLM answers with citations) next |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
 | M6 Agent Lab | Planned |
@@ -42,6 +42,12 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   Cleaner; Chunker (recursive / fixed / markdown, tokens or characters, exact offsets, section paths);
   file picker + Files panel + document viewer in the IDE; *Document ingestion* template;
   `examples/data/employee-handbook.md`; GitHub Actions CI.
+- **Step 2 – embeddings & retrieval**: embedding providers (fastembed local default, OpenAI-compatible
+  APIs with OpenRouter/Gemini default, hash for tests); vector store adapters (Qdrant embedded default,
+  Chroma, pgvector, Pinecone) with a shared contract test suite; Embedding Model, Vector Store, Index
+  Documents (skips unchanged chunks) and Retriever nodes; handles with secret delegation; run targets
+  (API + "Run → output" selector); node storage dirs; project deletion removes embedded collections;
+  *RAG retrieval* template; similarity scores in the document viewer.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -53,6 +59,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - No authentication, workspaces or roles yet; the API must not be exposed publicly.
 - Schema is created with `create_all`; Alembic migrations needed before production databases.
 - No subgraphs, loops, explicit parallel/join nodes, or streaming execution mode.
+- pgvector and Pinecone adapters share the contract tests but have not yet been run against live
+  services (set `AGENTICMIND_TEST_PGVECTOR_DSN` / `AGENTICMIND_TEST_PINECONE_API_KEY`).
+- Pure vector search with the small default model can rank a related-but-wrong section first
+  (e.g. "vacation" → Travel just above Annual leave); reranking and hybrid search arrive in step 4.
 - OCR for scanned PDFs is not supported yet (loader reports `NO_TEXT_EXTRACTED`). The token measure used
   for chunk sizes is an approximation, not a model tokenizer.
 - Version history is available via the API (`/revisions`) but has no UI yet.
@@ -61,12 +71,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **Step 2 – embeddings & retrieval**: Embedding node (local open-source model by default via an
-   embedding-provider interface; provider APIs optional; deterministic embedder for tests); Vector Store
-   interface with adapters (local open-source default; Qdrant, Chroma, pgvector, Pinecone options);
-   Retriever; separate ingestion and query graphs sharing a collection.
-2. **Step 3 – RAG with citations**: OpenRouter provider (Gemini default, verify current API docs first);
-   Context Builder; Citation Builder; interactive chat test panel.
+1. **Step 3 – RAG with citations**: OpenRouter chat provider (Gemini default, verify current API docs
+   first); Context Builder (token budget, dedup, source labels); Citation Builder; interactive chat test
+   panel targeting the answer output.
+2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting.
 3. Compiler (M4): IR → standalone FastAPI project embedding the runtime, OpenAPI, Dockerfile, tests,
    build manifest; REST Trigger/Response nodes.
 4. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two

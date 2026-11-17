@@ -3,7 +3,7 @@ name = "agenticmind-nodes-rag"
 version = "0.1.0"
 description = "AgenticMind RAG nodes (chunking; embeddings, retrieval and context building follow)"
 requires-python = ">=3.11"
-dependencies = ["agenticmind-node-sdk"]
+dependencies = ["agenticmind-node-sdk", "agenticmind-providers", "agenticmind-vectorstores"]
 
 [project.entry-points."agenticmind.nodes"]
 rag = "agenticmind_nodes_rag:register"

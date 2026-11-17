@@ -16,6 +16,13 @@ export function isDocumentList(v: unknown): v is DocumentValue[] {
   return Array.isArray(v) && v.length > 0 && v.every(isDocument);
 }
 
+/** Content without a leading Markdown heading line (the section path already shows it). */
+function preview(d: DocumentValue): string {
+  if (!d.source.section) return d.content;
+  const stripped = d.content.replace(/^#{1,6}[ \t].*(\r?\n)+/, "");
+  return stripped || d.content;
+}
+
 function sourceLabel(d: DocumentValue): string {
   const parts = [d.source.filename ?? d.source.uri];
   if (d.source.page) parts.push(`p. ${d.source.page}`);
@@ -48,12 +55,17 @@ export function DocumentViewer({ docs, limit = 50 }: { docs: DocumentValue[]; li
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-[11px] font-medium text-slate-700">{sourceLabel(d)}</span>
-                  <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                  <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] text-slate-400">
+                    {d.score !== undefined && (
+                      <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-semibold text-indigo-700" title="Similarity score">
+                        {d.score.toFixed(3)}
+                      </span>
+                    )}
                     {d.offsets ? `${d.offsets.start}–${d.offsets.end}` : `${d.content.length} ch`}
                   </span>
                 </div>
                 <div className={`mt-0.5 whitespace-pre-wrap text-xs text-slate-800 ${open ? "" : "line-clamp-2"}`}>
-                  {d.content}
+                  {open ? d.content : preview(d)}
                 </div>
               </button>
               {open && (
