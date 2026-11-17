@@ -737,8 +737,10 @@ class _RunExecution:
                 values = self._end_inputs(end, child)
                 value = values.get("value")
                 results.append(value)
-                if value is not None:
-                    state = value
+                # Loop End 1.1.0: 'next_state' (when connected) carries state forward; otherwise the value
+                nxt = values["next_state"] if "next_state" in values else value
+                if nxt is not None:
+                    state = nxt
                 if values.get("continue") is False:
                     stop_reason = "condition"
                     break

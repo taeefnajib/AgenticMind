@@ -8,7 +8,7 @@ from agenticmind_node_sdk import NodeDefinition
 
 from .approval import human_approval
 from .control import conditional
-from .flow import join, loop, loop_end, router
+from .flow import join, loop, loop_end, loop_end_v1, router
 from .io import delay, manual_input, output
 from .models import llm, llm_v1
 from .transform import collect, json_select, parse_json, text_template, text_transform, to_text
@@ -26,6 +26,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     conditional,
     loop,
     loop_end,
+    loop_end_v1,
     router,
     join,
     human_approval,

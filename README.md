@@ -59,6 +59,9 @@ To try human-in-the-loop: **New** → *Draft and approve*, then **Run**. Gemini 
 pauses (nothing keeps running, and it survives a server restart). Open **Approvals**, edit the text if you
 like and approve, or reject with a reason; the run continues from its checkpoint.
 
+Multi-agent templates: *Research team* (supervisor delegating to subagents), *Plan and execute*
+(planner + parallel workers + synthesizer) and *Write with a critic* (revise until a critic passes).
+
 ### API keys and settings (`.env`)
 
 The API loads a `.env` file from the directory it starts in (the repo root for `npm run dev:api`). Copy

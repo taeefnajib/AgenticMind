@@ -110,28 +110,55 @@ async def loop(ctx: NodeContext, inputs, config: LoopConfig) -> NodeResult:
     return NodeResult(outputs={"item": initial, "index": 0, "state": initial, "scope": spec})
 
 
-@define_node(
-    type="agenticmind.core.loop_end",
-    version="1.0.0",
-    display_name="Loop End",
-    category="control",
-    package=PACKAGE,
-    description="Ends a loop: collects each iteration's value. In repeat mode a false 'continue' stops the loop.",
-    inputs=[
-        InputPort(name="scope", type=PortType.LOOP_SCOPE, description="From the Loop's scope output"),
-        InputPort(name="value", type=PortType.ANY, description="This iteration's result"),
-        InputPort(name="continue", type=PortType.BOOLEAN, required=False, description="repeat: false stops"),
-    ],
-    outputs=[
-        OutputPort(name="results", type=PortType.JSON, description="Every iteration's value, in order"),
-        OutputPort(name="last", type=PortType.ANY, description="The final value"),
-        OutputPort(name="report", type=PortType.JSON, description="{mode, iterations, stop_reason, errors}"),
-    ],
-    runtime_role="loop_end",
-    tags=["control", "loop"],
-)
-async def loop_end(ctx: NodeContext, inputs, config) -> NodeResult:
+_LOOP_END_INPUTS = [
+    InputPort(name="scope", type=PortType.LOOP_SCOPE, description="From the Loop's scope output"),
+    InputPort(name="value", type=PortType.ANY, description="This iteration's result"),
+    InputPort(name="continue", type=PortType.BOOLEAN, required=False, description="repeat: false stops"),
+]
+_LOOP_END_OUTPUTS = [
+    OutputPort(name="results", type=PortType.JSON, description="Every iteration's value, in order"),
+    OutputPort(name="last", type=PortType.ANY, description="The final value"),
+    OutputPort(name="report", type=PortType.JSON, description="{mode, iterations, stop_reason, errors}"),
+]
+
+
+async def _loop_end(ctx: NodeContext, inputs, config) -> NodeResult:
     raise NodeError("LOOP_END_STANDALONE", "Loop End is executed by the runtime together with its Loop")
+
+
+_LOOP_END: dict[str, Any] = {
+    "type": "agenticmind.core.loop_end",
+    "display_name": "Loop End",
+    "category": "control",
+    "package": PACKAGE,
+    "outputs": _LOOP_END_OUTPUTS,
+    "runtime_role": "loop_end",
+}
+#: 1.1.0 adds ``next_state``: in repeat mode the next iteration's state (default: ``value``), so a loop can
+#: collect drafts in ``results`` while passing e.g. a revision request forward.
+loop_end = define_node(
+    **_LOOP_END,
+    version="1.1.0",
+    description="Ends a loop and collects each iteration's value. repeat: 'continue' false stops; "
+    "'next_state' (optional) becomes the next iteration's state.",
+    inputs=[
+        *_LOOP_END_INPUTS,
+        InputPort(
+            name="next_state",
+            type=PortType.ANY,
+            required=False,
+            description="repeat: state for the next iteration (default: value)",
+        ),
+    ],
+    tags=["control", "loop"],
+)(_loop_end)
+loop_end_v1 = define_node(
+    **_LOOP_END,
+    version="1.0.0",
+    description="Ends a loop: collects each iteration's value. In repeat mode a false 'continue' stops the loop.",
+    inputs=_LOOP_END_INPUTS,
+    tags=["control", "loop", "legacy"],
+)(_loop_end)
 
 
 # ---- Router -------------------------------------------------------------------------------------

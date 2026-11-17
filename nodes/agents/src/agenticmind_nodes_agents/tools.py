@@ -54,6 +54,59 @@ def implementation(tool_type: str) -> Callable[[ToolFn], ToolFn]:
     return decorator
 
 
+#: Entry-point group through which other packages provide tool implementations (ADR-0014):
+#: ``[project.entry-points."agenticmind.tools"] acme_weather = "acme_nodes.tools:get_weather"``.
+TOOL_ENTRY_POINT_GROUP = "agenticmind.tools"
+_third_party: dict[str, tuple[ToolFn, str]] | None = None
+#: Problems found while discovering third-party tools (shown by diagnostics / logs, never fatal).
+DISCOVERY_PROBLEMS: list[str] = []
+
+
+def discover_third_party_tools(*, refresh: bool = False) -> dict[str, tuple[ToolFn, str]]:
+    """Load tool implementations from installed packages: ``{tool_type: (fn, distribution)}``.
+
+    Built-in tool types can never be overridden. A third-party implementation is only reachable through
+    a handle produced by a tool *node*, and non-core nodes are refused by validation unless the operator
+    trusts them for in-process execution (ADR-0004), so discovery does not widen what can run.
+    """
+    global _third_party
+    if _third_party is not None and not refresh:
+        return _third_party
+    import inspect
+    from importlib.metadata import entry_points
+
+    found: dict[str, tuple[ToolFn, str]] = {}
+    DISCOVERY_PROBLEMS.clear()
+    for ep in entry_points(group=TOOL_ENTRY_POINT_GROUP):
+        dist = ep.dist.name if ep.dist is not None else "unknown"
+        if ep.name in TOOL_IMPLEMENTATIONS:
+            DISCOVERY_PROBLEMS.append(f"{dist}: tool type '{ep.name}' is built in and cannot be replaced")
+            continue
+        if ep.name in found:
+            DISCOVERY_PROBLEMS.append(f"{dist}: tool type '{ep.name}' is already provided by {found[ep.name][1]}")
+            continue
+        try:
+            fn = ep.load()
+        except Exception as exc:  # noqa: BLE001 - a broken plugin must not break the agent package
+            DISCOVERY_PROBLEMS.append(f"{dist}: could not load '{ep.name}': {type(exc).__name__}: {exc}")
+            continue
+        if not inspect.iscoroutinefunction(fn):
+            DISCOVERY_PROBLEMS.append(f"{dist}: '{ep.name}' must be an async function (ctx, tool, arguments)")
+            continue
+        found[ep.name] = (fn, dist)
+    _third_party = found
+    return found
+
+
+def resolve_implementation(tool_type: str) -> ToolFn | None:
+    """Built-in implementation first, then one discovered through the entry-point group."""
+    builtin = TOOL_IMPLEMENTATIONS.get(tool_type)
+    if builtin is not None:
+        return builtin
+    third = discover_third_party_tools().get(tool_type)
+    return third[0] if third else None
+
+
 def _name_field(default: str) -> Any:
     return Field(default=default, pattern=TOOL_NAME_PATTERN, description="Name the model uses to call the tool.")
 

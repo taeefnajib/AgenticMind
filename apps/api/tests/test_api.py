@@ -324,3 +324,38 @@ def test_interrupted_run_resumes_from_checkpoint(client):
     assert client.post(f"/api/runs/{run_id}/resume", json={}).status_code == 202
     again = wait_for_run(client, run_id)
     assert again["status"] == "succeeded" and again["outputs"] == done["outputs"]
+
+
+def _offline(client, template):
+    """Create a project from a template with every model node switched to the mock provider."""
+    pid = client.post("/api/projects", json={"name": template, "template": template}).json()["id"]
+    doc = client.get(f"/api/projects/{pid}").json()["document"]
+    for node in doc["nodes"]:
+        if node["config"].get("provider") == "openrouter":
+            node["config"].update(provider="mock", model="mock-1")
+            node["config"].pop("api_key", None)
+    assert client.put(f"/api/projects/{pid}", json={"document": doc}).status_code == 200
+    return pid
+
+
+def test_multi_agent_templates_run_offline(client):
+    pid = _offline(client, "research-team")
+    run_id = client.post(
+        f"/api/projects/{pid}/runs", json={"inputs": {"question": "analyst: 1969 - 2002"}, "targets": ["answer"]}
+    ).json()["id"]
+    final = wait_for_run(client, run_id)
+    assert final["status"] == "succeeded", final["error"]
+    step = final["outputs"]["answer"]["steps"][0]
+    assert step["tool"] == "analyst" and step["substeps"][0]["tool"] == "calculator"
+
+    pid = _offline(client, "plan-and-execute")
+    run_id = client.post(f"/api/projects/{pid}/runs", json={"inputs": {}}).json()["id"]
+    final = wait_for_run(client, run_id, timeout=10)
+    assert final["status"] == "succeeded", final["error"]
+    assert final["outputs"]["plan"]["tasks"] and final["outputs"]["answer"]["answer"]
+
+    pid = _offline(client, "write-with-critic")
+    run_id = client.post(f"/api/projects/{pid}/runs", json={"inputs": {}}).json()["id"]
+    final = wait_for_run(client, run_id, timeout=10)
+    assert final["status"] == "succeeded", final["error"]
+    assert 1 <= final["outputs"]["rounds"]["iterations"] <= 3 and len(final["outputs"]["drafts"]) >= 1

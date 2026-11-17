@@ -1,0 +1,60 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Write with a critic (reflection loop)",
+    "description": "A writer (Gemini) drafts, a separate Critic checks the draft against rules (word limit, must mention 'dishwasher') and model-judged criteria, and the loop revises with the critic's feedback until it passes or 3 rounds are used. Rule checks are verified; model judgments are reported as opinions. Uses OPENROUTER_API_KEY."
+  },
+  "runtime": {"engine": "agenticmind", "profile": "development"},
+  "nodes": [
+    {"id": "task", "type": "agenticmind.core.manual_input", "version": "1.0.0",
+     "config": {"key": "task", "value_type": "String", "required": true,
+                "default": "Write a product description for the Aqua 750 steel water bottle: keeps drinks cold for 24 hours, 750 ml, leak-proof lid, dishwasher safe, costs 29 EUR."},
+     "ui": {"position": {"x": 0, "y": 160}, "label": "Task"}},
+    {"id": "rounds", "type": "agenticmind.core.loop", "version": "1.0.0",
+     "config": {"mode": "repeat", "item_type": "Any", "state_type": "String", "max_items": 100, "on_too_many": "fail",
+                "concurrency": 1, "on_item_error": "fail", "max_iterations": 3},
+     "ui": {"position": {"x": 290, "y": 160}, "label": "Revise up to 3x"}},
+    {"id": "writer", "type": "agenticmind.models.llm", "version": "1.1.0",
+     "config": {"provider": "openrouter", "model": "google/gemini-3.8-flash", "api_key": {"$secret": "OPENROUTER_API_KEY"},
+                "system_prompt": "You are a copywriter. Output only the text that was asked for. On a revision, apply every point of the feedback.",
+                "temperature": 0.7, "max_tokens": 500},
+     "ui": {"position": {"x": 600, "y": 100}, "label": "Writer"}},
+    {"id": "critic", "type": "agenticmind.agents.critic", "version": "1.0.0",
+     "config": {"provider": "openrouter", "model": "google/gemini-3.8-flash", "api_key": {"$secret": "OPENROUTER_API_KEY"},
+                "criteria": [
+                  {"name": "answers_task", "description": "Covers every product fact given in the task.", "required": true},
+                  {"name": "accurate", "description": "Adds no facts, numbers or claims that are not in the task.", "required": true},
+                  {"name": "persuasive", "description": "Has a clear benefit-led opening and a call to action.", "required": false}
+                ],
+                "min_words": 40, "max_words": 90, "must_include": ["dishwasher"], "must_not_include": ["guarantee"],
+                "temperature": 0.0, "max_tokens": 800},
+     "ui": {"position": {"x": 900, "y": 220}}},
+    {"id": "rounds_end", "type": "agenticmind.core.loop_end", "version": "1.1.0",
+     "config": {},
+     "ui": {"position": {"x": 1220, "y": 160}, "label": "Drafts"}},
+    {"id": "final", "type": "agenticmind.core.output", "version": "1.0.0",
+     "config": {"key": "final"},
+     "ui": {"position": {"x": 1520, "y": 60}, "label": "Final text"}},
+    {"id": "drafts", "type": "agenticmind.core.output", "version": "1.0.0",
+     "config": {"key": "drafts"},
+     "ui": {"position": {"x": 1520, "y": 200}, "label": "All drafts"}},
+    {"id": "loop_report", "type": "agenticmind.core.output", "version": "1.0.0",
+     "config": {"key": "rounds"},
+     "ui": {"position": {"x": 1520, "y": 340}, "label": "Rounds"}}
+  ],
+  "edges": [
+    {"id": "e01", "kind": "data", "source": {"node": "task", "port": "value"}, "target": {"node": "rounds", "port": "initial"}},
+    {"id": "e02", "kind": "data", "source": {"node": "rounds", "port": "scope"}, "target": {"node": "rounds_end", "port": "scope"}},
+    {"id": "e03", "kind": "data", "source": {"node": "rounds", "port": "state"}, "target": {"node": "writer", "port": "prompt"}},
+    {"id": "e04", "kind": "data", "source": {"node": "writer", "port": "text"}, "target": {"node": "critic", "port": "content"}},
+    {"id": "e05", "kind": "data", "source": {"node": "task", "port": "value"}, "target": {"node": "critic", "port": "task"}},
+    {"id": "e06", "kind": "data", "source": {"node": "writer", "port": "text"}, "target": {"node": "rounds_end", "port": "value"}},
+    {"id": "e07", "kind": "data", "source": {"node": "critic", "port": "needs_revision"}, "target": {"node": "rounds_end", "port": "continue"}},
+    {"id": "e08", "kind": "data", "source": {"node": "critic", "port": "revision_request"}, "target": {"node": "rounds_end", "port": "next_state"}},
+    {"id": "e09", "kind": "data", "source": {"node": "rounds_end", "port": "last"}, "target": {"node": "final", "port": "value"}},
+    {"id": "e10", "kind": "data", "source": {"node": "rounds_end", "port": "results"}, "target": {"node": "drafts", "port": "value"}},
+    {"id": "e11", "kind": "data", "source": {"node": "rounds_end", "port": "report"}, "target": {"node": "loop_report", "port": "value"}}
+  ],
+  "metadata": {}
+}

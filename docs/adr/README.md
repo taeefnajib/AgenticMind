@@ -15,5 +15,6 @@
 | [0011](0011-loops-router-join.md) | Paired loop regions, Router with config-defined routes, AND Join | Accepted |
 | [0012](0012-memory.md) | Conversation state vs consented long-term memory, retention, deletion | Accepted |
 | [0013](0013-checkpoints-approval-resume.md) | Durable checkpoints, Human Approval suspension, resume | Accepted |
+| [0014](0014-multi-agent-patterns.md) | Subagent handoff, Planner, Critic, third-party tool discovery | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

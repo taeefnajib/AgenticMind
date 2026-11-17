@@ -10,7 +10,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M3 RAG vertical slice | **Core done**: ingestion, retrieval, cited answers with a real LLM; step 4 (hybrid search, reranking, query rewriting) pending |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
-| M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join), 8c (memory) and 8d (checkpoints, approval, resume) done; 8e next |
+| M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join), 8c (memory), 8d (checkpoints, approval, resume) and 8e (multi-agent patterns) done |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
@@ -76,6 +76,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   API and Approvals tab; `POST /runs/{id}/resume` with schema-validated responses and atomic claim; interrupted
   runs resume from checkpoints (side-effect guard with `force`); cancel waiting runs; *Draft and approve*
   template; verified live with Gemini, including an API restart while the run waited.
+- **8e – multi-agent patterns**: Subagent tool (supervisor handoff, depth cap, usage roll-up, labelled
+  traces), Planner, Critic (rule checks separate from model judgments), Loop End 1.1.0 `next_state`,
+  `agenticmind.tools` entry points for third-party tool implementations; *Research team*, *Plan and
+  execute* and *Write with a critic* templates (tested offline with the mock provider).
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -106,7 +110,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **Section 8 – Agents** (continuing): 8e planner/worker,
+1. Browser/live verification of the 8e templates with Gemini. Previously planned under section 8: planner/worker,
    supervisor, reflection/critic, handoff; third-party tools via an entry-point group.
 2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,
    context compression.

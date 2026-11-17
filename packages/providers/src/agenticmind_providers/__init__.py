@@ -82,6 +82,27 @@ def _approx_tokens(text: str) -> int:
 _SOURCE_LINE = re.compile(r"^\[(\d+)\][^\n]*\n(.+?)(?:\n\n|\Z)", re.MULTILINE | re.DOTALL)
 
 
+def _mock_value(schema: dict[str, Any], text: str) -> Any:
+    """A deterministic value satisfying a (simple) JSON Schema, built from ``text``.
+
+    Used by the mock provider for tool arguments: strings get the text, enums their first option,
+    arrays one element, objects their required properties.
+    """
+    if "enum" in schema:
+        return schema["enum"][0]
+    kind = schema.get("type")
+    if kind == "object" or "properties" in schema:
+        props = schema.get("properties", {})
+        return {name: _mock_value(props.get(name, {}), text) for name in schema.get("required", [])}
+    if kind == "array":
+        return [_mock_value(schema.get("items", {}), text)]
+    if kind in ("number", "integer"):
+        return 0
+    if kind == "boolean":
+        return False
+    return text
+
+
 class MockProvider:
     """Deterministic provider for development, tests and offline demos.
 
@@ -139,17 +160,11 @@ class MockProvider:
             return ChatResponse(text=text, usage=usage, finish_reason="stop", model=request.model)
         lowered = last_user.lower()
         tool = next((t for t in request.tools if t.name in lowered), request.tools[0])
-        props = tool.parameters.get("properties", {})
-        args: dict[str, Any] = {}
-        for name in tool.parameters.get("required", []):
-            kind = props.get(name, {}).get("type")
-            if kind in ("number", "integer"):
-                args[name] = 0
-            elif kind == "boolean":
-                args[name] = False
-            else:
-                marker = f"{tool.name}:"
-                args[name] = last_user.split(marker, 1)[1].strip() if marker in last_user else last_user
+        marker = f"{tool.name}:"
+        text = last_user.split(marker, 1)[1].strip() if marker in last_user else last_user
+        args = _mock_value(tool.parameters, text)
+        if not isinstance(args, dict):
+            args = {}
         call = ToolCall(id=f"mock_call_{len(request.messages)}", name=tool.name, arguments=args)
         return ChatResponse(text="", tool_calls=[call], usage=usage, finish_reason="tool_calls", model=request.model)
 

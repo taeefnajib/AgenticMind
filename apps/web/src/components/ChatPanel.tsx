@@ -32,6 +32,9 @@ export interface AgentStep {
   result_summary?: string;
   duration_ms?: number;
   turn?: number;
+  /** Steps taken by a subagent this call delegated to (ADR-0014). */
+  substeps?: AgentStep[];
+  subreport?: { stop_reason?: string; turns?: number };
 }
 
 interface Message {
@@ -358,6 +361,11 @@ function AgentSteps({ steps, stopReason }: { steps: AgentStep[]; stopReason?: st
               <div className={`mt-0.5 line-clamp-3 break-words ${s.ok ? "text-slate-600" : "text-red-700"}`}>
                 {s.ok ? s.result_summary : s.error}
               </div>
+              {s.substeps && s.substeps.length > 0 && (
+                <div className="ml-3 border-l border-slate-200 pl-2">
+                  <AgentSteps steps={s.substeps} stopReason={s.subreport?.stop_reason} />
+                </div>
+              )}
             </li>
           ))}
         </ol>

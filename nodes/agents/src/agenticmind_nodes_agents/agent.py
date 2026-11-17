@@ -4,13 +4,19 @@ Each turn the model sees the task, the conversation so far and the declared tool
 checked (known tool, permissions, JSON-Schema arguments) before execution, run with a timeout, and their
 results (or errors) are returned to the model. The loop ends with a final answer or when a limit is hit
 (turns, tool calls, tokens, cost). Every model turn and tool call is a trace event.
+
+``run_agent_loop`` is shared with the Subagent tool (ADR-0014): a supervisor agent delegates to a
+subagent through an ordinary, traced tool call, and the subagent's usage counts toward the supervisor's
+budgets.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import time
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from agenticmind_node_sdk import (
@@ -36,7 +42,7 @@ from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, ToolS
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import Field, model_validator
 
-from .tools import PACKAGE, TOOL_IMPLEMENTATIONS, ToolError
+from .tools import PACKAGE, ToolError, resolve_implementation
 
 DEFAULT_INSTRUCTIONS = (
     "You are a careful assistant. Use the available tools whenever they help answer accurately, and never "
@@ -45,6 +51,8 @@ DEFAULT_INSTRUCTIONS = (
 )
 MAX_TOOL_RESULT_CHARS = 12_000
 AGENT_PERMISSIONS = Permissions(network=True, filesystem=True, credentials=True, database=True, memory=True)
+#: Chain of agents currently running (node > subagent > ...), used to label trace events.
+CURRENT_AGENT: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar("agenticmind_agent", default=())
 
 
 class AgentConfig(NodeConfig):
@@ -105,28 +113,6 @@ def _short(value: Any, limit: int = 300) -> str:
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-_INPUTS_V1 = [
-    InputPort(name="task", type=PortType.STRING, description="The question or task"),
-    InputPort(
-        name="tools",
-        type=PortType.TOOL,
-        required=False,
-        cardinality=Cardinality.MULTIPLE,
-        description="Tools the agent may use",
-    ),
-    InputPort(name="context", type=PortType.STRING, required=False, description="Extra background for the agent"),
-]
-_HISTORY = InputPort(
-    name="history",
-    type=PortType.JSON,
-    required=False,
-    description="Earlier messages [{role, content}], e.g. from Conversation History",
-)
-_OUTPUTS = [
-    OutputPort(name="answer", type=PortType.STRING),
-    OutputPort(name="result", type=PortType.JSON, description="{answer, steps, report} for chat/API"),
-    OutputPort(name="transcript", type=PortType.JSON, description="Full message history (for debugging)"),
-]
 MAX_HISTORY_MESSAGES = 200
 
 
@@ -147,28 +133,56 @@ def _history(raw: Any) -> list[ChatMessage]:
     return out
 
 
-async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResult:
-    tools = [ToolHandle.model_validate(t) for t in inputs.get("tools", [])]
+def check_tools(tools: list[ToolHandle]) -> dict[str, ToolHandle]:
     names = [t.name for t in tools]
     if len(names) != len(set(names)):
         dupes = sorted({n for n in names if names.count(n) > 1})
         raise NodeError("DUPLICATE_TOOL_NAME", f"Tool names must be unique; duplicated: {', '.join(dupes)}")
     granted = _granted(AGENT_PERMISSIONS)
     for t in tools:
-        if t.tool_type not in TOOL_IMPLEMENTATIONS:
+        if resolve_implementation(t.tool_type) is None:
             raise NodeError("TOOL_UNKNOWN", f"No implementation for tool type '{t.tool_type}' ({t.name})")
         missing = set(t.permissions) - granted
         if missing:
             raise NodeError(
                 "TOOL_PERMISSION_DENIED", f"Tool '{t.name}' needs permissions: {', '.join(sorted(missing))}"
             )
-    by_name = {t.name: t for t in tools}
-    specs = [ToolSpec(name=t.name, description=t.description, parameters=t.parameters) for t in tools]
+    return {t.name: t for t in tools}
 
+
+@dataclass
+class AgentOutcome:
+    answer: str
+    steps: list[dict[str, Any]]
+    report: dict[str, Any]
+    transcript: list[dict[str, Any]]
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float | None = None
+
+
+async def emit_agent(ctx: NodeContext, event_type: str, data: dict[str, Any]) -> None:
+    """Emit a trace event labelled with the agent chain when running inside a subagent."""
+    path = CURRENT_AGENT.get()
+    await ctx.emit(event_type, {**data, **({"agent": " > ".join(path)} if len(path) > 1 else {})})
+
+
+async def run_agent_loop(
+    ctx: NodeContext,
+    config: AgentConfig,
+    *,
+    task: str,
+    tools: list[ToolHandle],
+    history: list[ChatMessage] | None = None,
+    context: str | None = None,
+) -> AgentOutcome:
+    """The bounded model ↔ tool loop. Raises ``NodeError('AGENT_LIMIT_REACHED')`` when on_limit=fail."""
+    by_name = check_tools(tools)
+    specs = [ToolSpec(name=t.name, description=t.description, parameters=t.parameters) for t in tools]
     system = config.instructions
-    if inputs.get("context"):
-        system += "\n\nBackground:\n" + inputs["context"]
-    messages: list[ChatMessage] = [*_history(inputs.get("history")), ChatMessage(role="user", content=inputs["task"])]
+    if context:
+        system += "\n\nBackground:\n" + context
+    messages: list[ChatMessage] = [*(history or []), ChatMessage(role="user", content=task)]
     try:
         provider = get_provider(config.provider)
     except ProviderError as exc:
@@ -219,7 +233,8 @@ async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResul
             if resp.usage.estimated_cost_usd is not None:
                 cost += resp.usage.estimated_cost_usd
                 cost_known = True
-            await ctx.emit(
+            await emit_agent(
+                ctx,
                 "agent_turn",
                 {
                     "turn": turns,
@@ -245,6 +260,13 @@ async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResul
                 tool_calls_used += 1
                 step = await _run_tool(ctx, by_name, call.name, call.arguments, config.tool_timeout_seconds)
                 step["turn"] = turns
+                usage = step.pop("_usage", None)
+                if usage:  # a subagent's model usage counts toward this agent's budgets
+                    tokens_in += int(usage.get("input_tokens", 0))
+                    tokens_out += int(usage.get("output_tokens", 0))
+                    if usage.get("cost_usd") is not None:
+                        cost += float(usage["cost_usd"])
+                        cost_known = True
                 steps.append(step)
                 content = json.dumps(step["_result"], ensure_ascii=False, default=str)[:MAX_TOOL_RESULT_CHARS]
                 messages.append(ChatMessage(role="tool", content=content, tool_call_id=call.id, name=call.name))
@@ -272,19 +294,43 @@ async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResul
         "cost_usd": round(cost, 6) if cost_known else None,
         "model": config.model,
     }
-    transcript = [m.model_dump(mode="json", exclude_none=True) for m in messages]
+    return AgentOutcome(
+        answer=answer,
+        steps=steps,
+        report=report,
+        transcript=[m.model_dump(mode="json", exclude_none=True) for m in messages],
+        input_tokens=tokens_in,
+        output_tokens=tokens_out,
+        cost_usd=round(cost, 6) if cost_known else None,
+    )
+
+
+async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResult:
+    tools = [ToolHandle.model_validate(t) for t in inputs.get("tools", [])]
+    token = CURRENT_AGENT.set((ctx.node_id,))
+    try:
+        out = await run_agent_loop(
+            ctx,
+            config,
+            task=inputs["task"],
+            tools=tools,
+            history=_history(inputs.get("history")),
+            context=inputs.get("context"),
+        )
+    finally:
+        CURRENT_AGENT.reset(token)
     return NodeResult(
         outputs={
-            "answer": answer,
-            "result": {"answer": answer, "steps": steps, "report": report},
-            "transcript": transcript,
+            "answer": out.answer,
+            "result": {"answer": out.answer, "steps": out.steps, "report": out.report},
+            "transcript": out.transcript,
         },
         usage=ModelUsage(
             provider=config.provider,
             model=config.model,
-            input_tokens=tokens_in,
-            output_tokens=tokens_out,
-            estimated_cost_usd=round(cost, 6) if cost_known else None,
+            input_tokens=out.input_tokens,
+            output_tokens=out.output_tokens,
+            estimated_cost_usd=out.cost_usd,
         ),
     )
 
@@ -302,22 +348,35 @@ async def _run_tool(
         if problems:
             result = {"error": "Invalid arguments: " + "; ".join(problems)}
         else:
+            # a tool may declare its own timeout (a subagent needs longer than a calculator)
+            limit = float(tool.binding.get("tool_timeout_seconds", timeout))
+            impl = resolve_implementation(tool.tool_type)
             try:
-                result = await asyncio.wait_for(TOOL_IMPLEMENTATIONS[tool.tool_type](ctx, tool, arguments), timeout)
+                if impl is None:
+                    raise ToolError(f"No implementation for tool type '{tool.tool_type}'")
+                result = await asyncio.wait_for(impl(ctx, tool, arguments), limit)
                 step["ok"] = True
             except TimeoutError:
-                result = {"error": f"Tool timed out after {timeout:g}s"}
+                result = {"error": f"Tool timed out after {limit:g}s"}
             except ToolError as exc:
                 result = {"error": str(exc)}
             except NodeError as exc:
                 result = {"error": f"{exc.code}: {exc.message}"}
+    if isinstance(result, dict):  # private fields from a subagent: nested steps, report and usage
+        if "_steps" in result:
+            step["substeps"] = result.pop("_steps")
+        if "_report" in result:
+            step["subreport"] = result.pop("_report")
+        if "_usage" in result:
+            step["_usage"] = result.pop("_usage")
     step["duration_ms"] = round((time.perf_counter() - t0) * 1000, 1)
     if step["ok"]:
         step["result_summary"] = _short(result)
     else:
         step["error"] = result["error"]
     step["_result"] = result
-    await ctx.emit(
+    await emit_agent(
+        ctx,
         "tool_call",
         {
             "tool": name,
@@ -330,6 +389,28 @@ async def _run_tool(
     return step
 
 
+_INPUTS_V1 = [
+    InputPort(name="task", type=PortType.STRING, description="The question or task"),
+    InputPort(
+        name="tools",
+        type=PortType.TOOL,
+        required=False,
+        cardinality=Cardinality.MULTIPLE,
+        description="Tools the agent may use (including Subagent tools to delegate to)",
+    ),
+    InputPort(name="context", type=PortType.STRING, required=False, description="Extra background for the agent"),
+]
+_HISTORY = InputPort(
+    name="history",
+    type=PortType.JSON,
+    required=False,
+    description="Earlier messages [{role, content}], e.g. from Conversation History",
+)
+_OUTPUTS = [
+    OutputPort(name="answer", type=PortType.STRING),
+    OutputPort(name="result", type=PortType.JSON, description="{answer, steps, report} for chat/API"),
+    OutputPort(name="transcript", type=PortType.JSON, description="Full message history (for debugging)"),
+]
 _COMMON: dict[str, Any] = {
     "type": "agenticmind.agents.agent",
     "display_name": "Agent",
