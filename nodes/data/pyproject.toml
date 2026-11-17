@@ -1,0 +1,20 @@
+[project]
+name = "agenticmind-nodes-data"
+version = "0.1.0"
+description = "AgenticMind data ingestion nodes (document loading, parsing, cleaning)"
+requires-python = ">=3.11"
+dependencies = [
+    "agenticmind-node-sdk",
+    "pypdf>=7.1.0",
+    "python-docx>=1.2.0",
+]
+
+[project.entry-points."agenticmind.nodes"]
+data = "agenticmind_nodes_data:register"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agenticmind_nodes_data"]

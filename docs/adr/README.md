@@ -8,5 +8,6 @@
 | [0004](0004-node-trust-and-isolation.md) | Only core nodes execute in-process until isolation exists | Accepted |
 | [0005](0005-in-process-run-execution.md) | Runs execute as asyncio tasks in the API process (for now) | Accepted |
 | [0006](0006-edge-semantics.md) | Distinct data/control edges, OR-join, skip propagation, fail-fast | Accepted |
+| [0007](0007-artifact-storage.md) | Project files in a scoped artifact store, referenced by ID | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

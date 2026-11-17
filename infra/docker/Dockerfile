@@ -21,7 +21,8 @@ RUN uv sync --frozen --no-dev --package agenticmind-api
 COPY --from=web /src/apps/web/dist /app/web
 ENV PATH="/app/.venv/bin:$PATH" \
     AGENTICMIND_WEB_DIST=/app/web \
-    AGENTICMIND_DATABASE_URL=sqlite:////data/agenticmind.db
+    AGENTICMIND_DATABASE_URL=sqlite:////data/agenticmind.db \
+    AGENTICMIND_DATA_DIR=/data
 RUN useradd --create-home --uid 10001 agenticmind && mkdir -p /data && chown agenticmind /data
 USER agenticmind
 VOLUME ["/data"]

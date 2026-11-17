@@ -19,6 +19,7 @@ from typing import Any
 from agenticmind_ir import ir_json_schema, to_canonical_json
 from agenticmind_registry import default_registry
 
+from .artifacts import LocalArtifactStore
 from .engine import Engine
 from .events import InMemoryObserver, RunStatus
 from .plan import PlanError, compile_plan
@@ -57,6 +58,12 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("-i", "--input", action="append", default=[], help="key=value (JSON values allowed)")
     p_run.add_argument("--inputs-json", help="Run inputs as a JSON object")
     p_run.add_argument("--events", action="store_true", help="Print trace events")
+    p_run.add_argument(
+        "--data-dir",
+        type=Path,
+        default=Path(".agenticmind"),
+        help="Data directory holding uploaded project files (same layout as the API)",
+    )
     args = parser.parse_args(argv)
 
     if args.cmd == "schema":
@@ -95,7 +102,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     observer = InMemoryObserver()
     result = asyncio.run(
-        Engine(observer=observer, secrets=secrets).run(plan, inputs=_parse_inputs(args.input, args.inputs_json))
+        Engine(observer=observer, secrets=secrets, artifacts=LocalArtifactStore(args.data_dir / "artifacts")).run(
+            plan, inputs=_parse_inputs(args.input, args.inputs_json)
+        )
     )
     out: dict[str, Any] = {
         "run_id": result.run_id,

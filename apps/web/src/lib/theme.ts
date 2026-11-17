@@ -2,6 +2,8 @@ import type { NodeRunStatus } from "../api/types";
 
 export const CATEGORY_STYLE: Record<string, { bar: string; chip: string; label: string }> = {
   input: { bar: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700", label: "Inputs & triggers" },
+  data: { bar: "bg-teal-600", chip: "bg-teal-50 text-teal-800", label: "Data ingestion" },
+  rag: { bar: "bg-indigo-500", chip: "bg-indigo-50 text-indigo-700", label: "RAG & knowledge" },
   output: { bar: "bg-sky-500", chip: "bg-sky-50 text-sky-700", label: "Outputs" },
   transform: { bar: "bg-violet-500", chip: "bg-violet-50 text-violet-700", label: "Transform" },
   convert: { bar: "bg-slate-500", chip: "bg-slate-100 text-slate-700", label: "Conversion" },
@@ -12,13 +14,15 @@ export const CATEGORY_STYLE: Record<string, { bar: string; chip: string; label: 
 export const categoryStyle = (category: string) =>
   CATEGORY_STYLE[category] ?? { bar: "bg-slate-400", chip: "bg-slate-100 text-slate-700", label: category };
 
-export const CATEGORY_ORDER = ["input", "transform", "convert", "control", "models", "output"];
+export const CATEGORY_ORDER = ["input", "data", "rag", "models", "transform", "convert", "control", "output"];
 
 const PORT_COLORS: Record<string, string> = {
   String: "#2563eb",
   Number: "#ea580c",
   Boolean: "#db2777",
   JSON: "#0d9488",
+  Document: "#7c3aed",
+  DocumentSet: "#7c3aed",
   Any: "#64748b",
 };
 export const portColor = (type: string) => PORT_COLORS[type] ?? "#4f46e5";

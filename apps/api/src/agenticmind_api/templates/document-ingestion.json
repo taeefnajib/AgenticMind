@@ -1,0 +1,45 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Document ingestion",
+    "description": "Load uploaded files → clean → chunk by Markdown sections. Select files in the Document Loader, then Run."
+  },
+  "runtime": {"engine": "agenticmind", "profile": "development"},
+  "nodes": [
+    {
+      "id": "load",
+      "type": "agenticmind.data.document_loader",
+      "version": "1.0.0",
+      "config": {"files": [], "split_pdf_pages": true, "csv_mode": "file", "skip_empty": true},
+      "ui": {"position": {"x": 0, "y": 80}, "label": "Load documents"}
+    },
+    {
+      "id": "clean",
+      "type": "agenticmind.data.document_cleaner",
+      "version": "1.0.0",
+      "config": {"normalize_unicode": true, "remove_control_chars": true, "dehyphenate": true, "collapse_whitespace": true, "drop_empty": true, "min_chars": 0},
+      "ui": {"position": {"x": 300, "y": 80}}
+    },
+    {
+      "id": "chunk",
+      "type": "agenticmind.rag.chunker",
+      "version": "1.0.0",
+      "config": {"strategy": "markdown", "unit": "tokens", "chunk_size": 200, "chunk_overlap": 30},
+      "ui": {"position": {"x": 600, "y": 80}}
+    },
+    {
+      "id": "chunks",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {"key": "chunks"},
+      "ui": {"position": {"x": 900, "y": 80}}
+    }
+  ],
+  "edges": [
+    {"id": "e1", "kind": "data", "source": {"node": "load", "port": "documents"}, "target": {"node": "clean", "port": "documents"}},
+    {"id": "e2", "kind": "data", "source": {"node": "clean", "port": "documents"}, "target": {"node": "chunk", "port": "documents"}},
+    {"id": "e3", "kind": "data", "source": {"node": "chunk", "port": "chunks"}, "target": {"node": "chunks", "port": "value"}}
+  ],
+  "metadata": {}
+}

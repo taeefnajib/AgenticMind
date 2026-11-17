@@ -7,6 +7,7 @@ import type {
   TemplateInfo,
   TraceEvent,
   ValidationResult,
+  ArtifactInfo,
   Diagnostic,
   JsonValue,
 } from "./types";
@@ -76,6 +77,28 @@ export const api = {
   events: (runId: string) => request<TraceEvent[]>(`/runs/${runId}/events`),
   nodeOutputs: (runId: string, nodeId: string) =>
     request<{ outputs: Record<string, JsonValue> }>(`/runs/${runId}/nodes/${nodeId}/outputs`),
+  files: (projectId: string) => request<ArtifactInfo[]>(`/projects/${projectId}/files`),
+  fileTypes: (projectId: string) =>
+    request<{ extensions: string[]; max_bytes: number }>(`/projects/${projectId}/files/types`),
+  async uploadFile(projectId: string, file: File): Promise<ArtifactInfo> {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    // no JSON content-type: the browser sets the multipart boundary
+    const res = await fetch(`/api/projects/${projectId}/files`, { method: "POST", body });
+    if (!res.ok) {
+      let detail: unknown = undefined;
+      try {
+        detail = (await res.json()).detail;
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    return (await res.json()) as ArtifactInfo;
+  },
+  deleteFile: (projectId: string, fileId: string) =>
+    request<void>(`/projects/${projectId}/files/${fileId}`, { method: "DELETE" }),
+  fileUrl: (projectId: string, fileId: string) => `/api/projects/${projectId}/files/${fileId}/content`,
   async exportIR(id: string): Promise<{ blob: Blob; filename: string }> {
     const res = await fetch(`/api/projects/${id}/export`);
     if (!res.ok) throw new ApiError(res.status, undefined);

@@ -8,8 +8,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from .artifacts import ArtifactInfo, ArtifactNotFoundError, ArtifactReader
 from .config import SecretRef
-from .errors import SecretAccessError
+from .errors import NodeError, SecretAccessError
 
 NodeInputs = Mapping[str, Any]
 
@@ -54,6 +55,7 @@ class NodeContext:
     allowed_secrets: frozenset[str] = frozenset()
     _secret_lookup: SecretLookup | None = None
     _emitter: EventEmitter | None = None
+    _artifacts: ArtifactReader | None = None
 
     def secret(self, ref: SecretRef) -> str:
         """Resolve a secret referenced by this node's own config (requires ``credentials`` permission)."""
@@ -66,6 +68,28 @@ class NodeContext:
         if value is None:
             raise SecretAccessError(f"Secret {ref.name} is not configured in this environment")
         return value
+
+    def _artifact_reader(self) -> ArtifactReader:
+        if self._artifacts is None:
+            raise NodeError(
+                "ARTIFACT_ACCESS_DENIED",
+                f"Node {self.node_id} cannot read project files: it lacks the 'artifacts' permission "
+                "or no file store is configured",
+            )
+        return self._artifacts
+
+    def artifact_info(self, artifact_id: str) -> ArtifactInfo:
+        try:
+            return self._artifact_reader().info(artifact_id)
+        except ArtifactNotFoundError as exc:
+            raise NodeError("ARTIFACT_NOT_FOUND", f"File '{artifact_id}' does not exist in this project") from exc
+
+    def read_artifact(self, artifact_id: str) -> bytes:
+        """Read an uploaded project file (requires ``Permissions(artifacts=True)``)."""
+        try:
+            return self._artifact_reader().read_bytes(artifact_id)
+        except ArtifactNotFoundError as exc:
+            raise NodeError("ARTIFACT_NOT_FOUND", f"File '{artifact_id}' does not exist in this project") from exc
 
     async def emit(self, event_type: str, data: Mapping[str, Any]) -> None:
         """Emit a custom trace event (e.g. ``tool_call``). Data is redacted by the runtime."""

@@ -8,6 +8,7 @@ from typing import Any
 
 from agenticmind_ir import iter_secret_refs
 
+from .artifacts import ArtifactInfo, ArtifactNotFoundError, ArtifactReader
 from .context import NodeContext, NodeResult
 from .define import NodeDefinition
 from .errors import NodeError
@@ -23,6 +24,7 @@ async def invoke_node(
     run_input: Mapping[str, Any] | None = None,
     secrets: Mapping[str, str] | None = None,
     check_outputs: bool = True,
+    artifacts: ArtifactReader | None = None,
 ) -> NodeResult:
     raw_config = dict(config or {})
     parsed = definition.parse_config(raw_config)
@@ -38,6 +40,7 @@ async def invoke_node(
         run_input=dict(run_input or {}),
         allowed_secrets=allowed,
         _secret_lookup=(secrets or {}).get,
+        _artifacts=artifacts if definition.manifest.permissions.artifacts else None,
     )
     result = await definition.handler(ctx, dict(inputs or {}), parsed)
     if check_outputs:
@@ -52,3 +55,36 @@ async def invoke_node(
 
 def invoke_node_sync(definition: NodeDefinition[Any], **kwargs: Any) -> NodeResult:
     return asyncio.run(invoke_node(definition, **kwargs))
+
+
+class MemoryArtifacts:
+    """In-memory ``ArtifactReader`` for node tests: ``MemoryArtifacts({"a1": ("doc.txt", b"hi")})``."""
+
+    def __init__(self, files: Mapping[str, tuple[str, bytes]]) -> None:
+        import hashlib
+        import mimetypes
+
+        self._files = dict(files)
+        self._info = {
+            aid: ArtifactInfo(
+                id=aid,
+                filename=name,
+                media_type=mimetypes.guess_type(name)[0] or "application/octet-stream",
+                size=len(data),
+                sha256=hashlib.sha256(data).hexdigest(),
+            )
+            for aid, (name, data) in self._files.items()
+        }
+
+    def info(self, artifact_id: str) -> ArtifactInfo:
+        if artifact_id not in self._info:
+            raise ArtifactNotFoundError(artifact_id)
+        return self._info[artifact_id]
+
+    def read_bytes(self, artifact_id: str) -> bytes:
+        if artifact_id not in self._files:
+            raise ArtifactNotFoundError(artifact_id)
+        return self._files[artifact_id][1]
+
+    def list(self) -> list[ArtifactInfo]:
+        return list(self._info.values())

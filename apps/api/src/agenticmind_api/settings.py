@@ -14,6 +14,11 @@ def _trust_from_env() -> frozenset[TrustLevel]:
 
 @dataclass(frozen=True)
 class Settings:
+    #: Root for local data (uploaded files etc.).
+    data_dir: Path = field(default_factory=lambda: Path(os.environ.get("AGENTICMIND_DATA_DIR", ".agenticmind")))
+    max_upload_bytes: int = field(
+        default_factory=lambda: int(os.environ.get("AGENTICMIND_MAX_UPLOAD_MB", "50")) * 1024 * 1024
+    )
     database_url: str = field(
         default_factory=lambda: os.environ.get(
             "AGENTICMIND_DATABASE_URL", "sqlite:///./.agenticmind/agenticmind.db"

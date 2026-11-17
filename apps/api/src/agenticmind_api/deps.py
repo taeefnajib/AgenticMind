@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agenticmind_registry import NodeRegistry
-from agenticmind_runtime import SecretResolver
+from agenticmind_runtime import LocalArtifactStore, SecretResolver
 from fastapi import Request
 
 from .run_manager import RunManager
@@ -18,6 +18,7 @@ class Services:
     store: Store
     secrets: SecretResolver
     runs: RunManager
+    artifacts: LocalArtifactStore
 
 
 def services(request: Request) -> Services:

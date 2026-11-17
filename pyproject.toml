@@ -10,6 +10,8 @@ dependencies = [
     "agenticmind-providers",
     "agenticmind-runtime",
     "agenticmind-nodes-core",
+    "agenticmind-nodes-data",
+    "agenticmind-nodes-rag",
     "agenticmind-api",
 ]
 
@@ -34,6 +36,8 @@ agenticmind-registry = { workspace = true }
 agenticmind-providers = { workspace = true }
 agenticmind-runtime = { workspace = true }
 agenticmind-nodes-core = { workspace = true }
+agenticmind-nodes-data = { workspace = true }
+agenticmind-nodes-rag = { workspace = true }
 agenticmind-api = { workspace = true }
 
 [tool.pytest.ini_options]

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, ApiError, subscribeRunEvents } from "./api/client";
 import type {
+  ArtifactInfo,
   Diagnostic,
   IRNode,
   JsonValue,
@@ -106,6 +107,10 @@ export function App() {
   const [message, setMessage] = useState<Message>(null);
   const [newOpen, setNewOpen] = useState(false);
   const unsubscribe = useRef<(() => void) | null>(null);
+  const [projectFiles, setProjectFiles] = useState<ArtifactInfo[]>([]);
+  // Guards one-time startup work: StrictMode runs effects twice in development, which would
+  // otherwise create two starter projects on first launch.
+  const initialized = useRef(false);
 
   const setMode = (m: Mode) => {
     setModeState(m);
@@ -153,6 +158,8 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     (async () => {
       try {
         const [nodeList, templateList, list] = await Promise.all([api.nodes(), api.templates(), api.projects()]);
@@ -192,6 +199,44 @@ export function App() {
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [changeTick, project?.id, manifestList.length]);
+
+  // ---- project files ------------------------------------------------------------------------
+  const projectId = project?.id ?? null;
+  useEffect(() => {
+    setProjectFiles([]);
+    if (!projectId) return;
+    api.files(projectId).then(setProjectFiles).catch(() => setProjectFiles([]));
+  }, [projectId]);
+
+  const uploadFiles = useCallback(
+    async (list: FileList | File[]) => {
+      if (!projectId) return [];
+      const added: ArtifactInfo[] = [];
+      try {
+        for (const file of Array.from(list)) added.push(await api.uploadFile(projectId, file));
+        notify(`Uploaded ${added.map((a) => a.filename).join(", ")}`, "success");
+      } finally {
+        setProjectFiles(await api.files(projectId));
+      }
+      return added;
+    },
+    [projectId, notify],
+  );
+
+  const removeFile = useCallback(
+    async (fileId: string) => {
+      if (!projectId) return;
+      await api.deleteFile(projectId, fileId);
+      setProjectFiles(await api.files(projectId));
+      setChangeTick((t) => t + 1);
+    },
+    [projectId],
+  );
+
+  const filesState = useMemo(
+    () => ({ projectId, files: projectFiles, upload: uploadFiles, remove: removeFile }),
+    [projectId, projectFiles, uploadFiles, removeFile],
+  );
 
   const diagnosticsByNode = useMemo(() => {
     const map = new Map<string, Diagnostic[]>();
@@ -461,7 +506,10 @@ export function App() {
   const inputNodes = nodes.map((n) => n.data.ir).filter(isManualInput);
   const running = run !== null && (run.status === "queued" || run.status === "running") && !events.some((e) => e.event_type.startsWith("run_") && e.event_type !== "run_started");
 
-  const workbench = useMemo(() => ({ manifests, nodeStatus, diagnosticsByNode, mode }), [manifests, nodeStatus, diagnosticsByNode, mode]);
+  const workbench = useMemo(
+    () => ({ manifests, nodeStatus, diagnosticsByNode, mode, files: filesState }),
+    [manifests, nodeStatus, diagnosticsByNode, mode, filesState],
+  );
 
   return (
     <WorkbenchContext.Provider value={workbench}>

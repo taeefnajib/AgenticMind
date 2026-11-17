@@ -72,11 +72,19 @@ def value_matches_type(value: Any, port_type: PortType) -> bool:
             return is_json_value(value)
         case PortType.CHAT_MESSAGE:
             return isinstance(value, dict) and "role" in value and "content" in value
+        case PortType.DOCUMENT:
+            from .documents import is_document
+
+            return is_document(value)
+        case PortType.DOCUMENT_SET:
+            from .documents import is_document_set
+
+            return is_document_set(value)
         case PortType.EMBEDDING_VECTOR:
             return isinstance(value, list) and all(
                 isinstance(v, (int, float)) and not isinstance(v, bool) for v in value
             )
         case _:
-            # Domain types (Document, DocumentSet, ...) get schema-level checks when their
-            # node families land (see docs/roadmap.md). Until then they are opaque.
+            # Remaining domain types get schema-level checks when their node families land
+            # (see docs/roadmap.md). Until then they are opaque.
             return True

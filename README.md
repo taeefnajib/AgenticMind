@@ -27,6 +27,10 @@ npm run dev:web         # Vite on  http://localhost:5173     (terminal 2, proxie
 Open http://localhost:5173. On first launch a *Hello pipeline* project is created. Edit the *Run inputs*
 tab and press **Run**.
 
+To try document ingestion: **New** → *Document ingestion*, select the **Load documents** node, upload
+`examples/data/employee-handbook.md` (or any PDF/DOCX/TXT/MD/HTML/CSV), then **Run** and open the
+**Output** tab to browse the chunks with their sections and offsets.
+
 ### Self-hosted (Docker)
 
 ```bash
@@ -67,6 +71,9 @@ packages/
   providers/      model provider adapter layer (mock provider today)
 nodes/
   core/           core node package (inputs, transforms, conversions, control flow, LLM, outputs)
+  data/           data ingestion nodes (Document Loader, Document Cleaner)
+  rag/            RAG nodes (Chunker; embeddings/retrieval next)
+examples/data/    sample documents for trying ingestion and retrieval
 docs/             architecture, roadmap, ADRs
 infra/docker/     container build
 ```

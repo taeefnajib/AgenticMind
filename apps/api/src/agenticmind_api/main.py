@@ -7,14 +7,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from agenticmind_registry import NodeRegistry, default_registry
-from agenticmind_runtime import EnvSecretResolver, SecretResolver
+from agenticmind_runtime import EnvSecretResolver, LocalArtifactStore, SecretResolver
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .db import make_engine, make_session_factory
 from .deps import Services
-from .routers import nodes, projects, runs
+from .routers import files, nodes, projects, runs
 from .run_manager import RunManager
 from .settings import Settings
 from .store import Store
@@ -32,12 +32,14 @@ def create_app(
     registry = registry or default_registry()
     secrets = secrets or EnvSecretResolver(prefix=settings.secret_env_prefix)
     store = Store(make_session_factory(make_engine(settings.database_url)))
+    artifacts = LocalArtifactStore(settings.data_dir / "artifacts", max_bytes=settings.max_upload_bytes)
     run_manager = RunManager(
         store,
         registry,
         secrets,
         in_process_trust=settings.in_process_trust,
         max_concurrency=settings.max_concurrency,
+        artifacts=artifacts,
     )
 
     @asynccontextmanager
@@ -55,7 +57,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.services = Services(
-        settings=settings, registry=registry, store=store, secrets=secrets, runs=run_manager
+        settings=settings, registry=registry, store=store, secrets=secrets, runs=run_manager, artifacts=artifacts
     )
     app.add_middleware(
         CORSMiddleware,
@@ -67,6 +69,7 @@ def create_app(
     app.include_router(nodes.router)
     app.include_router(projects.router)
     app.include_router(runs.router)
+    app.include_router(files.router)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app

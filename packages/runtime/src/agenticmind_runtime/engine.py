@@ -35,6 +35,7 @@ from agenticmind_node_sdk import (
     value_matches_type,
 )
 
+from .artifacts import ArtifactStore
 from .events import ErrorInfo, EventType, NodeStatus, RunObserver, RunStatus, TraceEvent
 from .plan import ExecutionPlan, PlannedNode
 from .redaction import summarize
@@ -88,6 +89,7 @@ class Engine:
         secrets: SecretResolver | None = None,
         max_concurrency: int = 8,
         retry_backoff_seconds: float = 0.2,
+        artifacts: ArtifactStore | None = None,
     ) -> None:
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be >= 1")
@@ -95,6 +97,7 @@ class Engine:
         self.secrets = secrets
         self.max_concurrency = max_concurrency
         self.retry_backoff_seconds = retry_backoff_seconds
+        self.artifacts = artifacts
 
     async def run(
         self,
@@ -316,6 +319,11 @@ class _RunExecution:
         invocation_id = new_id("inv")
         inputs_summary = self._summary(inputs)
         common = {"node_id": pn.id, "node_type": pn.node.type, "invocation_id": invocation_id}
+        artifacts = (
+            self.engine.artifacts.scoped(self.plan.project_id)
+            if self.engine.artifacts is not None and manifest.permissions.artifacts
+            else None
+        )
 
         async def emit_custom(event_type: str, data: Mapping[str, Any]) -> None:
             await self.emit(EventType.NODE_EVENT, **common, data={"type": event_type, **self._summary(dict(data))})
@@ -340,6 +348,7 @@ class _RunExecution:
                 allowed_secrets=pn.allowed_secrets,
                 _secret_lookup=self.engine.secrets.get if self.engine.secrets else None,
                 _emitter=emit_custom,
+                _artifacts=artifacts,
             )
             try:
                 result = await asyncio.wait_for(

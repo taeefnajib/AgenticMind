@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import type { Diagnostic, IRNode, JsonValue, Mode, ProjectDocument, RunOut, TraceEvent } from "../api/types";
 import { DiagnosticList } from "./DiagnosticList";
+import { ValueView } from "./DocumentViewer";
 
 export type ConsoleTab = "problems" | "inputs" | "trace" | "output" | "ir";
 
@@ -238,9 +239,13 @@ function RunOutput({ run, events }: { run: RunOut | null; events: TraceEvent[] }
             {run.error.node_id && <span className="font-mono"> @ {run.error.node_id}</span>}: {run.error.message}
           </div>
         )}
-        {run.outputs && (
-          <pre className="rounded bg-slate-50 p-2 font-mono text-xs text-slate-800">{JSON.stringify(run.outputs, null, 2)}</pre>
-        )}
+        {run.outputs &&
+          Object.entries(run.outputs).map(([key, value]) => (
+            <div key={key} className="mb-3">
+              <div className="mb-1 font-mono text-[10px] font-semibold uppercase text-slate-500">{key}</div>
+              <ValueView value={value} />
+            </div>
+          ))}
         {!run.outputs && !run.error && <p className="text-xs text-slate-500">Running…</p>}
       </div>
     </div>

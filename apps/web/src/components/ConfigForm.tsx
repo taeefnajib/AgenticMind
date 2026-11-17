@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { JsonValue, Mode, NodeManifest } from "../api/types";
 import { fieldsFromSchema, type FieldSpec } from "../lib/schemaForm";
+import { ArtifactsControl } from "./Files";
 
 interface Props {
   manifest: NodeManifest;
@@ -132,6 +133,8 @@ function Control({
           onChange={(e) => onChange(e.target.value)}
         />
       );
+    case "artifacts":
+      return <ArtifactsControl value={value} onChange={(ids) => onChange(ids)} />;
     case "secret":
       return <SecretControl id={id} value={value} onChange={onChange} />;
     case "json":

@@ -14,7 +14,16 @@ from typing import Any
 
 from agenticmind_ir import ProjectDocument
 from agenticmind_registry import NodeRegistry, TrustLevel
-from agenticmind_runtime import CancelToken, Engine, ExecutionPlan, SecretResolver, TraceEvent, compile_plan, new_id
+from agenticmind_runtime import (
+    ArtifactStore,
+    CancelToken,
+    Engine,
+    ExecutionPlan,
+    SecretResolver,
+    TraceEvent,
+    compile_plan,
+    new_id,
+)
 
 from .db import ProjectRevisionRow
 from .store import Store
@@ -42,12 +51,14 @@ class RunManager:
         *,
         in_process_trust: frozenset[TrustLevel],
         max_concurrency: int = 8,
+        artifacts: ArtifactStore | None = None,
     ) -> None:
         self.store = store
         self.registry = registry
         self.secrets = secrets
         self.in_process_trust = in_process_trust
         self.max_concurrency = max_concurrency
+        self.artifacts = artifacts
         self._active: dict[str, tuple[asyncio.Task[None], CancelToken]] = {}
 
     def plan(self, doc: ProjectDocument) -> ExecutionPlan:
@@ -68,7 +79,12 @@ class RunManager:
     async def _execute(self, run_id: str, plan: ExecutionPlan, inputs: dict[str, Any], token: CancelToken) -> None:
         try:
             self.store.mark_run_started(run_id)
-            engine = Engine(observer=DbObserver(self.store), secrets=self.secrets, max_concurrency=self.max_concurrency)
+            engine = Engine(
+                observer=DbObserver(self.store),
+                secrets=self.secrets,
+                max_concurrency=self.max_concurrency,
+                artifacts=self.artifacts,
+            )
             result = await engine.run(plan, run_id=run_id, inputs=inputs, cancel=token)
             self.store.finish_run(result)
         except asyncio.CancelledError:

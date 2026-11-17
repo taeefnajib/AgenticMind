@@ -1,8 +1,10 @@
 """AgenticMind Node SDK."""
 
+from .artifacts import ArtifactInfo, ArtifactNotFoundError, ArtifactReader
 from .config import EmptyConfig, NodeConfig, SecretRef, secret_field, secret_fields, ui
 from .context import ModelUsage, NodeContext, NodeInputs, NodeResult
 from .define import NodeDefinition, define_node
+from .documents import Document, Offsets, RetrievedDocument, SourceRef
 from .errors import NodeError, SecretAccessError, TransientNodeError
 from .manifest import (
     Cardinality,
@@ -18,6 +20,13 @@ from .manifest import (
 from .types import PortType, is_compatible, is_json_value, value_matches_type
 
 __all__ = [
+    "ArtifactInfo",
+    "ArtifactNotFoundError",
+    "ArtifactReader",
+    "Document",
+    "Offsets",
+    "RetrievedDocument",
+    "SourceRef",
     "Cardinality",
     "Compatibility",
     "EmptyConfig",

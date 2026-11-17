@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(tmp_path):
-    settings = Settings(database_url=f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
+    settings = Settings(database_url=f"sqlite:///{(tmp_path / 'test.db').as_posix()}", data_dir=tmp_path / "data")
     with TestClient(create_app(settings)) as c:
         yield c
 

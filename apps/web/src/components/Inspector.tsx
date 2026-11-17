@@ -7,6 +7,8 @@ import { categoryStyle, portColor, STATUS_STYLE } from "../lib/theme";
 import { useWorkbench } from "../lib/workbench";
 import { ConfigForm } from "./ConfigForm";
 import { DiagnosticList } from "./DiagnosticList";
+import { ValueView } from "./DocumentViewer";
+import { FilesPanel } from "./Files";
 
 interface Props {
   node: AmFlowNode | null;
@@ -65,6 +67,9 @@ function ProjectInspector({ meta, onMetaChange, diagnostics, onSelectDiagnostic 
         ) : (
           <DiagnosticList diagnostics={diagnostics} onSelect={onSelectDiagnostic} compact />
         )}
+      </Section>
+      <Section title="Files">
+        <FilesPanel />
       </Section>
       <Section title="Tips">
         <ul className="list-disc space-y-1 pl-4 text-xs text-slate-600">
@@ -295,11 +300,13 @@ function RunSection({
           <div>{lastEvent.error.message}</div>
         </div>
       )}
-      {outputs && (
-        <pre className="max-h-56 overflow-auto rounded bg-slate-50 p-2 font-mono text-[11px] text-slate-800">
-          {JSON.stringify(outputs, null, 2)}
-        </pre>
-      )}
+      {outputs &&
+        Object.entries(outputs).map(([port, value]) => (
+          <div key={port} className="mb-2">
+            <div className="mb-1 font-mono text-[10px] font-semibold uppercase text-slate-500">{port}</div>
+            <ValueView value={value} />
+          </div>
+        ))}
     </Section>
   );
 }

@@ -112,6 +112,7 @@ def save_project(project_id: str, body: ProjectSave, svc: Services = Depends(ser
 def delete_project(project_id: str, svc: Services = Depends(services)) -> Response:
     if not svc.store.delete_project(project_id):
         raise HTTPException(404, f"Project {project_id!r} not found")
+    svc.artifacts.delete_project(project_id)
     return Response(status_code=204)
 
 

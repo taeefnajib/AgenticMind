@@ -172,4 +172,33 @@ export interface TemplateInfo {
   node_count: number;
 }
 
+export interface ArtifactInfo {
+  id: string;
+  filename: string;
+  media_type: string;
+  size: number;
+  sha256: string;
+  created_at?: string | null;
+}
+
+export interface DocumentValue {
+  id: string;
+  content: string;
+  source: {
+    uri: string;
+    filename?: string;
+    media_type?: string;
+    artifact_id?: string;
+    page?: number;
+    section?: string;
+  };
+  metadata?: Record<string, JsonValue>;
+  parent_id?: string;
+  offsets?: { start: number; end: number };
+  ingestion_version?: string;
+  retrieval_method?: string;
+  score?: number;
+  rerank_score?: number | null;
+}
+
 export type NodeRunStatus = "pending" | "running" | "retrying" | "succeeded" | "failed" | "skipped" | "cancelled";

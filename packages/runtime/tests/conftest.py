@@ -19,6 +19,8 @@ from agenticmind_node_sdk import (
     secret_field,
 )
 from agenticmind_nodes_core import register
+from agenticmind_nodes_data import register as register_data
+from agenticmind_nodes_rag import register as register_rag
 from agenticmind_registry import NodeRegistry, TrustLevel
 
 
@@ -109,6 +111,8 @@ async def no_creds(ctx, inputs, config) -> NodeResult:
 def registry() -> NodeRegistry:
     reg = NodeRegistry()
     register(lambda d: reg.register(d, trust=TrustLevel.CORE, source="agenticmind-nodes-core"))
+    register_data(lambda d: reg.register(d, trust=TrustLevel.CORE, source="agenticmind-nodes-data"))
+    register_rag(lambda d: reg.register(d, trust=TrustLevel.CORE, source="agenticmind-nodes-rag"))
     for d in (flaky, boom, bad_output, leaky, no_creds):
         reg.register(d, trust=TrustLevel.CORE, source="tests")
     return reg

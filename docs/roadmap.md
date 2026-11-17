@@ -7,7 +7,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M0 Foundation | **Done**: monorepo, local dev, IR v1 + JSON Schema, node contract, persistence |
 | M1 Visual architecture | **Done (core)**: canvas, library, typed ports, inspector, live validation |
 | M2 First-party runtime | **Done (core)**: plan, registry, handlers, traces, retries, timeouts, cancellation |
-| M3 RAG vertical slice | Next |
+| M3 RAG vertical slice | **In progress**: step 1 (ingestion) done; step 2 (embeddings + vector stores) next |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
 | M6 Agent Lab | Planned |
@@ -36,6 +36,12 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   config forms (enum/number/bool/text/JSON/secret), live diagnostics on nodes, run inputs form, live trace,
   output and token/cost totals, per-node outputs, no-code / low-code / developer modes, Ctrl+S, export,
   import, new-from-template.
+- **Step 1 – ingestion**: `Document`/`RetrievedDocument` schemas with runtime port checks; project file
+  storage (`LocalArtifactStore`, upload/list/download/delete API, type allowlist, size limit, `artifacts`
+  permission); Document Loader (PDF per page, DOCX headings → Markdown, TXT/MD/HTML/CSV/JSON); Document
+  Cleaner; Chunker (recursive / fixed / markdown, tokens or characters, exact offsets, section paths);
+  file picker + Files panel + document viewer in the IDE; *Document ingestion* template;
+  `examples/data/employee-handbook.md`; GitHub Actions CI.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -47,17 +53,20 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - No authentication, workspaces or roles yet; the API must not be exposed publicly.
 - Schema is created with `create_all`; Alembic migrations needed before production databases.
 - No subgraphs, loops, explicit parallel/join nodes, or streaming execution mode.
+- OCR for scanned PDFs is not supported yet (loader reports `NO_TEXT_EXTRACTED`). The token measure used
+  for chunk sizes is an approximation, not a model tokenizer.
 - Version history is available via the API (`/revisions`) but has no UI yet.
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI.
 
 ## Next tasks (in order)
 
-1. **RAG vertical slice (M3)**: `Document`/`RetrievedDocument` schemas; File Loader + PDF parser; Chunker
-   (fixed/recursive, token-aware, offsets preserved); Embedding node behind a provider interface
-   (deterministic local embedder for tests); pluggable Vector Store (in-memory + one persistent backend);
-   Retriever; Context Builder; Citation Builder; artifact storage for uploads.
-2. First real model provider adapter, after verifying its current API docs; opt-in live tests.
+1. **Step 2 – embeddings & retrieval**: Embedding node (local open-source model by default via an
+   embedding-provider interface; provider APIs optional; deterministic embedder for tests); Vector Store
+   interface with adapters (local open-source default; Qdrant, Chroma, pgvector, Pinecone options);
+   Retriever; separate ingestion and query graphs sharing a collection.
+2. **Step 3 – RAG with citations**: OpenRouter provider (Gemini default, verify current API docs first);
+   Context Builder; Citation Builder; interactive chat test panel.
 3. Compiler (M4): IR → standalone FastAPI project embedding the runtime, OpenAPI, Dockerfile, tests,
    build manifest; REST Trigger/Response nodes.
 4. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two

@@ -59,6 +59,28 @@ Compatibility is strict: equal types, any type into `Any`, and `String`/`Number`
 (subtype acceptance, no value change). Everything else needs an explicit conversion node (`To Text`,
 `Parse JSON`). The runtime checks produced values against declared types.
 
+## Documents
+
+`Document` (`id`, `content`, `source` {uri, filename, media_type, artifact_id, page, section}, `metadata`,
+`parent_id`, `offsets` {start, end}, `ingestion_version`) and `RetrievedDocument` (+ `retrieval_method`,
+`score`, `rerank_score`) live in `agenticmind_node_sdk.documents`. On ports they travel as plain JSON;
+use `parse_documents(...)` / `to_values(...)` to convert, and the runtime validates `Document` and
+`DocumentSet` ports against these schemas. IDs are deterministic (`<artifact>:p<page>#c<chunk>`), so
+citations and evaluation datasets stay stable across runs. `offsets` are exact character spans in the
+parent's content; `ingestion_version` records the node chain that produced a document.
+
+## Project files
+
+Declare `Permissions(artifacts=True)` to read uploaded project files:
+
+```python
+info = ctx.artifact_info(file_id)      # filename, media_type, size, sha256
+data = ctx.read_artifact(file_id)      # bytes; ARTIFACT_NOT_FOUND / ARTIFACT_ACCESS_DENIED otherwise
+```
+
+Do CPU-heavy parsing with `await asyncio.to_thread(...)` so other runs keep flowing. In tests pass
+`artifacts=MemoryArtifacts({"art_1": ("doc.pdf", data)})` to `invoke_node`.
+
 ## Secrets
 
 ```python
