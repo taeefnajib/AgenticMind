@@ -15,7 +15,7 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { api, ApiError, subscribeRunEvents } from "./api/client";
+import { api, ApiError, apiAlive, isConnectionError, subscribeRunEvents } from "./api/client";
 import type {
   ArtifactInfo,
   Diagnostic,
@@ -112,6 +112,7 @@ export function App() {
   // Guards one-time startup work: StrictMode runs effects twice in development, which would
   // otherwise create two starter projects on first launch.
   const initialized = useRef(false);
+  const [apiDown, setApiDown] = useState<string | null>(null);
   const [runTarget, setRunTarget] = useState("");
   const theme = useTheme();
 
@@ -161,12 +162,10 @@ export function App() {
     return list;
   }, []);
 
-  useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    (async () => {
+  const loadWorkspace = useCallback(async () => {
       try {
         const [nodeList, templateList, list] = await Promise.all([api.nodes(), api.templates(), api.projects()]);
+        setApiDown(null);
         setManifestList(nodeList);
         setTemplates(templateList);
         setProjects(list);
@@ -180,11 +179,34 @@ export function App() {
         const target = list.find((p) => p.id === last) ?? list[0]!;
         applyProject(await api.getProject(target.id));
       } catch (err) {
-        notify(`Cannot reach the API: ${(err as Error).message}. Is it running on port 8000?`, "error");
+        setApiDown((err as Error).message);
       }
-    })();
+  }, [applyProject]);
+
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    void loadWorkspace();
     return () => unsubscribe.current?.();
-  }, [applyProject, notify]);
+  }, [loadWorkspace]);
+
+  // While the API is unreachable, probe it every few seconds and reload once it answers again.
+  useEffect(() => {
+    if (!apiDown) return;
+    const timer = window.setInterval(async () => {
+      if (await apiAlive()) void loadWorkspace();
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [apiDown, loadWorkspace]);
+
+  /** Show the banner for connection failures from any action (save, run, create…). */
+  const reportError = useCallback(
+    (prefix: string, err: unknown) => {
+      if (isConnectionError(err)) setApiDown((err as Error).message);
+      else notify(`${prefix}: ${(err as Error).message}`, "error");
+    },
+    [notify],
+  );
 
   // ---- validation (debounced, on the unsaved canvas state) -----------------------------------
   useEffect(() => {
@@ -271,7 +293,7 @@ export function App() {
         setDiagnostics(err.diagnostics);
         setConsoleTab("problems");
         notify("The document does not match the IR schema", "error");
-      } else notify(`Save failed: ${(err as Error).message}`, "error");
+      } else reportError("Save failed", err);
       return null;
     } finally {
       setBusy(false);
@@ -321,7 +343,7 @@ export function App() {
         setValid(false);
         setConsoleTab("problems");
         notify("Fix the problems before running", "error");
-      } else notify(`Run failed to start: ${(err as Error).message}`, "error");
+      } else reportError("Run failed to start", err);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, dirty, save, runInputs, notify, runTarget, nodes]);
@@ -372,7 +394,7 @@ export function App() {
         applyProject(created);
         notify(`Created ${created.name}`, "success");
       } catch (err) {
-        notify(`Could not create project: ${(err as Error).message}`, "error");
+        reportError("Could not create project", err);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -550,7 +572,8 @@ export function App() {
         <div className="flex min-h-0 flex-1">
           <NodeLibrary manifests={manifestList} mode={mode} onAdd={(m) => addNode(m)} />
           <main className="flex min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+            <div className="relative min-h-0 flex-1" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+              {apiDown && <ApiDownBanner reason={apiDown} onRetry={() => void loadWorkspace()} />}
               <ReactFlow<AmFlowNode, AmFlowEdge>
                 nodes={nodes}
                 edges={edges}
@@ -616,5 +639,25 @@ export function App() {
         onImport={(f) => void importFile(f)}
       />
     </WorkbenchContext.Provider>
+  );
+}
+
+function ApiDownBanner({ reason, onRetry }: { reason: string; onRetry: () => void }) {
+  return (
+    <div className="absolute inset-x-0 top-4 z-20 flex justify-center px-4" role="alert">
+      <div className="flex max-w-xl items-start gap-3 rounded-lg border border-red-200 bg-surface px-4 py-3 shadow-lg">
+        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-500" aria-hidden="true" />
+        <div className="min-w-0 text-sm">
+          <div className="font-medium text-slate-900">Can’t reach the AgenticMind API</div>
+          <div className="mt-0.5 text-slate-600">
+            {reason}. Make sure <code className="rounded bg-slate-100 px-1 font-mono text-xs">npm run dev:api</code> is
+            running; if it is, stop it (Ctrl+C) and start it again. This page reconnects automatically.
+          </div>
+        </div>
+        <button type="button" className="am-btn shrink-0" onClick={onRetry}>
+          Retry
+        </button>
+      </div>
+    </div>
   );
 }

@@ -40,7 +40,12 @@ export function NodeLibrary({ manifests, mode, onAdd }: Props) {
         />
       </div>
       <div className="flex-1 overflow-y-auto p-2">
-        {groups.length === 0 && <div className="p-3 text-sm text-slate-500">No matching nodes.</div>}
+        {manifests.length === 0 && (
+          <div className="p-3 text-sm text-slate-500">Nodes appear once the API is connected.</div>
+        )}
+        {manifests.length > 0 && groups.length === 0 && (
+          <div className="p-3 text-sm text-slate-500">No matching nodes.</div>
+        )}
         {groups.map(([category, items]) => (
           <div key={category} className="mb-3">
             <div className="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
