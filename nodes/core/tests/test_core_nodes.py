@@ -85,6 +85,75 @@ async def test_conditional_selects_branch():
 
 
 async def test_llm_mock_reports_usage():
-    r = await invoke_node(llm, inputs={"prompt": "what is RAG"}, config={"model": "demo"})
+    r = await invoke_node(llm, inputs={"prompt": "what is RAG"}, config={"provider": "mock", "model": "demo"})
     assert r.outputs["text"] == "[mock:demo] what is RAG"
     assert r.usage is not None and r.usage.provider == "mock"
+
+
+def test_llm_config_requires_credentials_for_openrouter():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        llm.parse_config({})  # default provider is openrouter
+    cfg = llm.parse_config({"api_key": {"$secret": "OPENROUTER_API_KEY"}})
+    assert cfg.provider == "openrouter" and cfg.model == "google/gemini-3.8-flash"
+    with pytest.raises(ValidationError):
+        llm.parse_config({"provider": "openai_compatible"})
+
+
+async def test_llm_system_input_and_legacy_version():
+    from agenticmind_nodes_core.models import llm_v1
+
+    r = await invoke_node(llm, inputs={"prompt": "hi", "system": "be brief"}, config={"provider": "mock", "model": "m"})
+    assert r.outputs["text"] == "[mock:m] hi"
+    legacy = await invoke_node(llm_v1, inputs={"prompt": "hi"})
+    assert legacy.outputs["text"] == "[mock:mock-1] hi"
+    assert llm_v1.manifest.version == "1.0.0" and llm.manifest.version == "1.1.0"
+
+
+async def test_llm_secret_reaches_provider(monkeypatch):
+    import httpx
+
+    seen = []
+
+    def handler(request):
+        seen.append(request.headers.get("authorization"))
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "hello"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 1, "cost": 0.00001},
+            },
+        )
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    r = await invoke_node(
+        llm,
+        inputs={"prompt": "hi"},
+        config={"api_key": {"$secret": "OPENROUTER_API_KEY"}},
+        secrets={"OPENROUTER_API_KEY": "sk-or-unit"},
+    )
+    assert seen == ["Bearer sk-or-unit"] and r.outputs["text"] == "hello"
+    assert r.usage.estimated_cost_usd == pytest.approx(0.00001)
+
+
+async def test_llm_empty_response_is_an_error(monkeypatch):
+    import httpx
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kw: real(
+            transport=httpx.MockTransport(
+                lambda r: httpx.Response(
+                    200, json={"choices": [{"message": {"content": ""}, "finish_reason": "length"}]}
+                )
+            ),
+            **kw,
+        ),
+    )
+    with pytest.raises(NodeError) as exc:
+        await invoke_node(llm, inputs={"prompt": "hi"}, config={"api_key": {"$secret": "K"}}, secrets={"K": "v"})
+    assert exc.value.code == "MODEL_EMPTY_RESPONSE" and "length" in str(exc.value)

@@ -7,7 +7,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M0 Foundation | **Done**: monorepo, local dev, IR v1 + JSON Schema, node contract, persistence |
 | M1 Visual architecture | **Done (core)**: canvas, library, typed ports, inspector, live validation |
 | M2 First-party runtime | **Done (core)**: plan, registry, handlers, traces, retries, timeouts, cancellation |
-| M3 RAG vertical slice | **In progress**: steps 1 (ingestion) and 2 (embeddings, vector stores, retrieval) done; step 3 (LLM answers with citations) next |
+| M3 RAG vertical slice | **Core done**: ingestion, retrieval, cited answers with a real LLM; step 4 (hybrid search, reranking, query rewriting) pending |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
 | M6 Agent Lab | Planned |
@@ -48,6 +48,12 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   Documents (skips unchanged chunks) and Retriever nodes; handles with secret delegation; run targets
   (API + "Run → output" selector); node storage dirs; project deletion removes embedded collections;
   *RAG retrieval* template; similarity scores in the document viewer.
+- **Step 3 – grounded answers**: OpenRouter / OpenAI-compatible chat provider (Gemini default
+  `google/gemini-3.8-flash`, tool-calling types, cost tracking, classified errors); LLM node 1.1.0 (1.0.0
+  kept for existing projects; library shows latest versions only); Context Builder (numbered sources,
+  dedup, token budget, editable prompt); Citation Builder (marker parsing, invalid-citation removal,
+  optional enforcement); Chat panel with clickable citations, latency, tokens and cost; *RAG answers with
+  citations* template; verified live with Gemini (correct cited answer; "I don't know" when unsupported).
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -55,7 +61,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Runs execute in the API process (ADR-0005); no durable checkpoints, resume or human-approval suspension.
 - No process/container isolation: non-core nodes are refused (ADR-0004). Declared permissions other
   than `credentials` are not yet enforced at OS level.
-- Only the deterministic mock model provider exists.
+- Chat is single-turn (no conversation memory yet). Citation validation checks that cited sources exist,
+  not that they support the claim (faithfulness evaluation comes with the Evaluation Lab).
 - No authentication, workspaces or roles yet; the API must not be exposed publicly.
 - Schema is created with `create_all`; Alembic migrations needed before production databases.
 - No subgraphs, loops, explicit parallel/join nodes, or streaming execution mode.
@@ -71,10 +78,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **Step 3 – RAG with citations**: OpenRouter chat provider (Gemini default, verify current API docs
-   first); Context Builder (token budget, dedup, source labels); Citation Builder; interactive chat test
-   panel targeting the answer output.
-2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting.
+1. **Section 8 – Agents** (next): 8a tool contract + Agent node; 8b Loop / Router / Parallel-Join; 8c memory
+   (short-term state, consented long-term memory); 8d durable checkpoints, Human Approval, resume;
+   8e planner/worker, supervisor, reflection/critic, handoff.
+2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,
+   context compression.
 3. Compiler (M4): IR → standalone FastAPI project embedding the runtime, OpenAPI, Dockerfile, tests,
    build manifest; REST Trigger/Response nodes.
 4. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two

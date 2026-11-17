@@ -85,3 +85,47 @@ def test_unknown_target_is_rejected(client):
     resp = client.post(f"/api/projects/{pid}/runs", json={"targets": ["ghost"]})
     assert resp.status_code == 422
     assert resp.json()["detail"]["diagnostics"][0]["code"] == "RUN_TARGET_UNKNOWN"
+
+
+def test_answers_template_end_to_end_with_citations(client):
+    pid = client.post("/api/projects", json={"name": "Answers", "template": "rag-answers"}).json()["id"]
+    file_id = client.post(
+        f"/api/projects/{pid}/files", files={"file": ("employee-handbook.md", HANDBOOK, "text/markdown")}
+    ).json()["id"]
+    doc = client.get(f"/api/projects/{pid}").json()["document"]
+    nodes = {n["id"]: n for n in doc["nodes"]}
+    assert nodes["llm"]["config"]["api_key"] == {"$secret": "OPENROUTER_API_KEY"}  # template ships a reference only
+    nodes["load"]["config"]["files"] = [file_id]
+    nodes["embedding"]["config"] = {"provider": "hash", "model": "hash", "dimensions": 384, "batch_size": 32}
+    nodes["llm"]["config"] = {"provider": "mock", "model": "mock-1", "temperature": 0, "max_tokens": 200}
+    assert client.put(f"/api/projects/{pid}", json={"document": doc}).status_code == 200
+
+    final = wait(client, client.post(f"/api/projects/{pid}/runs", json={"targets": ["index_report"]}).json()["id"])
+    assert final["status"] == "succeeded", final["error"]
+
+    run = client.post(
+        f"/api/projects/{pid}/runs",
+        json={"targets": ["answer"], "inputs": {"question": "How many days of annual leave do employees get?"}},
+    ).json()
+    final = wait(client, run["id"])
+    assert final["status"] == "succeeded", final["error"]
+    result = final["outputs"]["answer"]
+    assert result["answer"].startswith("[mock:mock-1]") and result["answer"].endswith("[1]")
+    assert result["validation"] == {
+        "has_citations": True,
+        "cited": [1],
+        "invalid": [],
+        "uncited": result["validation"]["uncited"],
+    }
+    cited = result["citations"][0]
+    assert cited["n"] == 1 and cited["filename"] == "employee-handbook.md" and "Annual leave" in cited["section"]
+    assert set(final["node_status"]) == {
+        "embedding",
+        "store",
+        "question",
+        "retrieve",
+        "context",
+        "llm",
+        "cite",
+        "answer",
+    }

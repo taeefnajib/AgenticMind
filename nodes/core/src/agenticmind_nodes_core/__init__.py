@@ -8,7 +8,7 @@ from agenticmind_node_sdk import NodeDefinition
 
 from .control import conditional
 from .io import delay, manual_input, output
-from .models import llm
+from .models import llm, llm_v1
 from .transform import collect, json_select, parse_json, text_template, text_transform, to_text
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
@@ -23,6 +23,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     collect,
     conditional,
     llm,
+    llm_v1,
 )
 
 

@@ -38,6 +38,11 @@ in the toolbar and run (the first run downloads the local embedding model once, 
 **Run → Results**, type a question in **Run inputs** and run again to see the most relevant chunks with
 similarity scores.
 
+To get answers with citations: put your key in `.env` (`OPENROUTER_API_KEY=...`, see below) and restart the
+API. **New** → *RAG answers with citations*, upload a file in **Load documents**, run **Run → Index report**,
+then open the **Chat** tab and ask. Answers come from Gemini via OpenRouter and cite their sources; click a
+citation number to see the source.
+
 ### API keys and settings (`.env`)
 
 The API loads a `.env` file from the directory it starts in (the repo root for `npm run dev:api`). Copy

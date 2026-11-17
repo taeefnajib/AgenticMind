@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 
 import type { Diagnostic, IRNode, JsonValue, Mode, ProjectDocument, RunOut, TraceEvent } from "../api/types";
+import { ChatPanel, type ChatOutputOption, type ChatResult } from "./ChatPanel";
 import { DiagnosticList } from "./DiagnosticList";
 import { ValueView } from "./DocumentViewer";
 
-export type ConsoleTab = "problems" | "inputs" | "trace" | "output" | "ir";
+export type ConsoleTab = "chat" | "problems" | "inputs" | "trace" | "output" | "ir";
 
 const MANUAL_INPUT = "agenticmind.core.manual_input";
 
@@ -21,6 +22,10 @@ interface Props {
   events: TraceEvent[];
   onSelectNode: (id: string) => void;
   document: () => ProjectDocument;
+  chatKey: string;
+  chatOutputs: ChatOutputOption[];
+  chatDisabled: boolean;
+  onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
 }
 
 export function isManualInput(n: IRNode) {
@@ -31,6 +36,7 @@ export function ConsolePanel(props: Props) {
   const { tab, onTab, mode, diagnostics, run, events } = props;
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   const tabs: { id: ConsoleTab; label: string; badge?: string | number; tone?: string }[] = [
+    { id: "chat", label: "Chat" },
     { id: "problems", label: "Problems", badge: diagnostics.length || undefined, tone: errors ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800" },
     { id: "inputs", label: "Run inputs" },
     { id: "trace", label: "Trace", badge: events.length || undefined, tone: "bg-slate-200 text-slate-700" },
@@ -39,7 +45,7 @@ export function ConsolePanel(props: Props) {
   if (mode === "developer") tabs.push({ id: "ir", label: "IR (live)" });
 
   return (
-    <section className="flex h-64 shrink-0 flex-col border-t border-slate-200 bg-surface">
+    <section className={`flex shrink-0 flex-col border-t border-slate-200 bg-surface ${tab === "chat" ? "h-96" : "h-64"}`}>
       <nav className="flex items-center gap-1 border-b border-slate-200 px-2" role="tablist">
         {tabs.map((t) => (
           <button
@@ -57,7 +63,16 @@ export function ConsolePanel(props: Props) {
           </button>
         ))}
       </nav>
-      <div className="flex-1 overflow-auto p-3">
+      <div className={tab === "chat" ? "min-h-0 flex-1 p-3" : "hidden"}>
+        <ChatPanel
+          key={props.chatKey}
+          inputNodes={props.inputNodes}
+          outputs={props.chatOutputs}
+          disabled={props.chatDisabled}
+          onAsk={props.onAsk}
+        />
+      </div>
+      <div className={tab === "chat" ? "hidden" : "flex-1 overflow-auto p-3"}>
         {tab === "problems" &&
           (diagnostics.length ? (
             <DiagnosticList diagnostics={diagnostics} onSelect={props.onSelectDiagnostic} />

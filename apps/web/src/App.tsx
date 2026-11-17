@@ -32,6 +32,7 @@ import type {
   TraceEvent,
 } from "./api/types";
 import { AmNode } from "./components/AmNode";
+import type { ChatResult } from "./components/ChatPanel";
 import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
@@ -310,43 +311,69 @@ export function App() {
     notify(report.valid ? "Graph is valid" : `${report.diagnostics.filter((d) => d.severity === "error").length} error(s) found`, report.valid ? "success" : "error");
   }, [currentDocument, project, notify]);
 
-  const startRun = useCallback(async () => {
-    if (!project) return;
-    if (dirty && !(await save())) return;
-    resetRunState();
-    try {
-      const targets = runTarget && nodes.some((n) => n.id === runTarget) ? [runTarget] : undefined;
-      const r = await api.startRun(project.id, runInputs, targets);
-      setRun(r);
-      setConsoleTab("trace");
-      notify(`Run ${r.id} started`);
-      let lastSeq = 0;
-      unsubscribe.current = subscribeRunEvents(
-        r.id,
-        (e) => {
-          if (e.seq <= lastSeq) return;
-          lastSeq = e.seq;
-          setEvents((prev) => [...prev, e]);
-          const st = STATUS_BY_EVENT[e.event_type];
-          if (st && e.node_id) setNodeStatus((prev) => ({ ...prev, [e.node_id!]: st }));
-        },
-        async () => {
-          const final = await api.getRun(r.id);
-          setRun(final);
-          setConsoleTab("output");
-          notify(`Run ${final.status}`, final.status === "succeeded" ? "success" : final.status === "failed" ? "error" : "info");
-        },
-      );
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 422) {
-        setDiagnostics(err.diagnostics);
-        setValid(false);
-        setConsoleTab("problems");
-        notify("Fix the problems before running", "error");
-      } else reportError("Run failed to start", err);
-    }
+  /**
+   * Save if needed, start a run, stream its events onto the canvas and resolve with the finished run.
+   * Shared by the Run button and the Chat panel. Resolves null if the run could not start.
+   */
+  const executeRun = useCallback(
+    async (
+      inputs: Record<string, JsonValue>,
+      targets: string[] | undefined,
+      opts: { switchTabs: boolean },
+    ): Promise<ChatResult | null> => {
+      if (!project) return null;
+      if (dirty && !(await save())) return null;
+      resetRunState();
+      try {
+        const r = await api.startRun(project.id, inputs, targets);
+        setRun(r);
+        if (opts.switchTabs) setConsoleTab("trace");
+        notify(`Run ${r.id} started`);
+        const collected: TraceEvent[] = [];
+        return await new Promise<ChatResult>((resolve) => {
+          let lastSeq = 0;
+          unsubscribe.current = subscribeRunEvents(
+            r.id,
+            (e) => {
+              if (e.seq <= lastSeq) return;
+              lastSeq = e.seq;
+              collected.push(e);
+              setEvents((prev) => [...prev, e]);
+              const st = STATUS_BY_EVENT[e.event_type];
+              if (st && e.node_id) setNodeStatus((prev) => ({ ...prev, [e.node_id!]: st }));
+            },
+            async () => {
+              const final = await api.getRun(r.id);
+              setRun(final);
+              if (opts.switchTabs) setConsoleTab("output");
+              notify(`Run ${final.status}`, final.status === "succeeded" ? "success" : final.status === "failed" ? "error" : "info");
+              resolve({ run: final, events: collected });
+            },
+          );
+        });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 422) {
+          setDiagnostics(err.diagnostics);
+          setValid(false);
+          setConsoleTab("problems");
+          notify("Fix the problems before running", "error");
+        } else reportError("Run failed to start", err);
+        return null;
+      }
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, dirty, save, runInputs, notify, runTarget, nodes]);
+    [project, dirty, save, notify, reportError],
+  );
+
+  const startRun = useCallback(async () => {
+    const targets = runTarget && nodes.some((n) => n.id === runTarget) ? [runTarget] : undefined;
+    await executeRun(runInputs, targets, { switchTabs: true });
+  }, [executeRun, runInputs, runTarget, nodes]);
+
+  const askChat = useCallback(
+    (inputs: Record<string, JsonValue>, target: string) => executeRun(inputs, [target], { switchTabs: false }),
+    [executeRun],
+  );
 
   const cancelRun = useCallback(async () => {
     if (!run) return;
@@ -607,6 +634,10 @@ export function App() {
               events={events}
               onSelectNode={focusNode}
               document={() => currentDocument() ?? ({} as ProjectDocument)}
+              chatKey={project?.id ?? "none"}
+              chatOutputs={runTargets.map((t) => ({ ...t, key: String(nodes.find((n) => n.id === t.id)?.data.ir.config.key ?? t.id) }))}
+              chatDisabled={!project || Boolean(apiDown)}
+              onAsk={askChat}
             />
           </main>
           <Inspector

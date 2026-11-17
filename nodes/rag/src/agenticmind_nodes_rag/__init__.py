@@ -6,10 +6,19 @@ from typing import Any
 
 from agenticmind_node_sdk import NodeDefinition
 
+from .answering import citation_builder, context_builder
 from .chunker import chunker
 from .retrieval import embedding_model, index_documents, retriever, vector_store
 
-ALL_NODES: tuple[NodeDefinition[Any], ...] = (chunker, embedding_model, vector_store, index_documents, retriever)
+ALL_NODES: tuple[NodeDefinition[Any], ...] = (
+    chunker,
+    embedding_model,
+    vector_store,
+    index_documents,
+    retriever,
+    context_builder,
+    citation_builder,
+)
 
 
 def register(registrar: Any) -> None:

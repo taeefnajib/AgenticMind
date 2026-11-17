@@ -5,6 +5,23 @@ import { CATEGORY_ORDER, categoryStyle } from "../lib/theme";
 
 export const DRAG_MIME = "application/agenticmind-node";
 
+/** Semantic-version comparison (pre-release suffixes sort before the release). */
+export function compareVersions(a: string, b: string): number {
+  const parse = (v: string) => {
+    const [core = "", pre] = v.split("-", 2);
+    return { nums: core.split(".").map((x) => Number(x) || 0), pre };
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa.nums[i] ?? 0) - (pb.nums[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  if (pa.pre && !pb.pre) return -1;
+  if (!pa.pre && pb.pre) return 1;
+  return (pa.pre ?? "").localeCompare(pb.pre ?? "");
+}
+
 interface Props {
   manifests: NodeManifest[];
   mode: Mode;
@@ -16,7 +33,13 @@ export function NodeLibrary({ manifests, mode, onAdd }: Props) {
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const visible = manifests.filter(
+    // Older versions stay installed for existing projects but are not offered for new nodes.
+    const latest = new Map<string, NodeManifest>();
+    for (const m of manifests) {
+      const cur = latest.get(m.type);
+      if (!cur || compareVersions(m.version, cur.version) > 0) latest.set(m.type, m);
+    }
+    const visible = [...latest.values()].filter(
       (m) =>
         m.modes.includes(mode) &&
         (!q || m.display_name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q) || m.type.includes(q)),

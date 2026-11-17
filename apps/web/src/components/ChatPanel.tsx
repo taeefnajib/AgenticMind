@@ -1,0 +1,256 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import type { IRNode, JsonValue, RunOut, TraceEvent } from "../api/types";
+
+export interface ChatOutputOption {
+  id: string;
+  label: string;
+  key: string;
+}
+
+export interface ChatResult {
+  run: RunOut;
+  events: TraceEvent[];
+}
+
+interface Citation {
+  n: number;
+  filename?: string | null;
+  page?: number | null;
+  section?: string | null;
+  uri?: string;
+  excerpt?: string;
+  score?: number | null;
+}
+
+interface Message {
+  role: "user" | "assistant";
+  text: string;
+  citations?: Citation[];
+  invalid?: number[];
+  error?: string;
+  meta?: { ms?: number; tokens?: number; cost?: number };
+}
+
+interface Props {
+  inputNodes: IRNode[];
+  outputs: ChatOutputOption[];
+  disabled: boolean;
+  onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
+}
+
+const MARKER = /\[(\d+)\]/g;
+
+function isAnswerObject(v: unknown): v is { answer: string; citations: Citation[]; validation?: { invalid?: number[] } } {
+  return typeof v === "object" && v !== null && typeof (v as { answer?: unknown }).answer === "string" &&
+    Array.isArray((v as { citations?: unknown }).citations);
+}
+
+export function toMessage(result: ChatResult, outputKey: string): Message {
+  const { run, events } = result;
+  let tokens = 0;
+  let cost = 0;
+  for (const e of events) {
+    if (e.usage) {
+      tokens += e.usage.input_tokens + e.usage.output_tokens;
+      cost += e.usage.estimated_cost_usd ?? 0;
+    }
+  }
+  const end = [...events].reverse().find((e) => e.event_type.startsWith("run_") && e.event_type !== "run_started");
+  const meta = { ms: end?.duration_ms, tokens, cost };
+  if (run.status !== "succeeded") {
+    return { role: "assistant", text: "", error: run.error ? `${run.error.code}: ${run.error.message}` : `Run ${run.status}`, meta };
+  }
+  const value = run.outputs?.[outputKey];
+  if (isAnswerObject(value)) {
+    return { role: "assistant", text: value.answer, citations: value.citations, invalid: value.validation?.invalid, meta };
+  }
+  if (typeof value === "string") return { role: "assistant", text: value, meta };
+  if (value === undefined) return { role: "assistant", text: "", error: `The run produced no '${outputKey}' output`, meta };
+  return { role: "assistant", text: JSON.stringify(value, null, 2), meta };
+}
+
+function sourceLabel(c: Citation): string {
+  const parts = [c.filename ?? c.uri ?? `source ${c.n}`];
+  if (c.page) parts.push(`p. ${c.page}`);
+  if (c.section) parts.push(c.section);
+  return parts.join(" · ");
+}
+
+function AnswerText({ message, onCite }: { message: Message; onCite: (n: number) => void }) {
+  const byN = new Map((message.citations ?? []).map((c) => [c.n, c]));
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of message.text.matchAll(MARKER)) {
+    const n = Number(m[1]);
+    parts.push(message.text.slice(last, m.index));
+    const c = byN.get(n);
+    parts.push(
+      <button
+        key={`${m.index}-${n}`}
+        type="button"
+        onClick={() => onCite(n)}
+        title={c ? `${sourceLabel(c)}\n\n${c.excerpt ?? ""}` : "Unknown source"}
+        className={`mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded px-1 align-[1px] text-[10px] font-semibold ${
+          c ? "bg-accent-100 text-accent-700 hover:bg-accent-200" : "bg-red-100 text-red-700"
+        }`}
+      >
+        {n}
+      </button>,
+    );
+    last = (m.index ?? 0) + m[0].length;
+  }
+  parts.push(message.text.slice(last));
+  return <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{parts}</div>;
+}
+
+export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
+  const textInputs = useMemo(
+    () => inputNodes.filter((n) => (n.config.value_type ?? "String") === "String"),
+    [inputNodes],
+  );
+  const defaultInput = (textInputs.find((n) => n.config.key === "question") ?? textInputs[0])?.config.key as string | undefined;
+  const defaultOutput = (outputs.find((o) => o.key === "answer") ?? outputs[0])?.id;
+  const [inputKey, setInputKey] = useState<string | undefined>(defaultInput);
+  const [target, setTarget] = useState<string | undefined>(defaultOutput);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [activeCite, setActiveCite] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!inputKey || !textInputs.some((n) => n.config.key === inputKey)) setInputKey(defaultInput);
+  }, [defaultInput, inputKey, textInputs]);
+  useEffect(() => {
+    if (!target || !outputs.some((o) => o.id === target)) setTarget(defaultOutput);
+  }, [defaultOutput, outputs, target]);
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
+  }, [messages, busy]);
+
+  const output = outputs.find((o) => o.id === target);
+  const ready = Boolean(inputKey && output && !disabled);
+
+  const send = async () => {
+    const question = draft.trim();
+    if (!question || !inputKey || !output || busy) return;
+    setDraft("");
+    setBusy(true);
+    setMessages((m) => [...m, { role: "user", text: question }]);
+    try {
+      const result = await onAsk({ [inputKey]: question }, output.id);
+      setMessages((m) => [...m, result ? toMessage(result, output.key) : { role: "assistant", text: "", error: "The run did not start" }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (textInputs.length === 0 || outputs.length === 0) {
+    return (
+      <p className="text-xs text-slate-500">
+        Chat needs a text <b>Manual Input</b> (the question) and an <b>Output</b> node. Start from the
+        <i> RAG answers with citations</i> template to try it.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <label className="flex items-center gap-1">
+          Ask into
+          <select className="am-input !w-auto !py-0.5 text-xs" value={inputKey} onChange={(e) => setInputKey(e.target.value)}>
+            {textInputs.map((n) => (
+              <option key={n.id} value={String(n.config.key)}>
+                {n.ui?.label || String(n.config.key)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1">
+          answer from
+          <select className="am-input !w-auto !py-0.5 text-xs" value={target} onChange={(e) => setTarget(e.target.value)}>
+            {outputs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="text-slate-400">Each question runs only what this output needs. No memory between questions yet.</span>
+        {messages.length > 0 && (
+          <button type="button" className="ml-auto text-slate-500 hover:text-slate-800" onClick={() => setMessages([])}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      <div ref={scroller} className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        {messages.length === 0 && <p className="pt-2 text-xs text-slate-400">Ask a question about your documents.</p>}
+        {messages.map((m, i) =>
+          m.role === "user" ? (
+            <div key={i} className="flex justify-end">
+              <div className="max-w-[80%] rounded-lg bg-accent-100 px-3 py-2 text-sm text-accent-900">{m.text}</div>
+            </div>
+          ) : (
+            <div key={i} className="max-w-[90%] rounded-lg border border-slate-200 bg-surface px-3 py-2">
+              {m.error ? (
+                <div className="text-sm text-red-700">{m.error}</div>
+              ) : (
+                <AnswerText message={m} onCite={(n) => setActiveCite(`${i}:${n}`)} />
+              )}
+              {m.citations && m.citations.length > 0 && (
+                <ol className="mt-2 space-y-1 border-t border-slate-100 pt-2">
+                  {m.citations.map((c) => (
+                    <li
+                      key={c.n}
+                      className={`rounded px-1.5 py-1 text-xs ${activeCite === `${i}:${c.n}` ? "bg-accent-50" : ""}`}
+                    >
+                      <span className="mr-1.5 font-semibold text-accent-700">[{c.n}]</span>
+                      <span className="font-medium text-slate-700">{sourceLabel(c)}</span>
+                      {c.excerpt && <div className="mt-0.5 line-clamp-2 text-slate-500">{c.excerpt}</div>}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {m.invalid && m.invalid.length > 0 && (
+                <div className="mt-1 text-[11px] text-amber-700">
+                  Removed citation{m.invalid.length > 1 ? "s" : ""} to non-existent source{m.invalid.length > 1 ? "s" : ""}: {m.invalid.join(", ")}
+                </div>
+              )}
+              {m.meta && (
+                <div className="mt-1.5 text-[10px] text-slate-400">
+                  {m.meta.ms !== undefined && `${(m.meta.ms / 1000).toFixed(1)} s`}
+                  {m.meta.tokens ? ` · ${m.meta.tokens.toLocaleString()} tokens` : ""}
+                  {m.meta.cost ? ` · $${m.meta.cost.toFixed(5)}` : ""}
+                </div>
+              )}
+            </div>
+          ),
+        )}
+        {busy && <div className="text-xs text-slate-400">Thinking…</div>}
+      </div>
+
+      <form
+        className="mt-2 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+      >
+        <input
+          className="am-input"
+          placeholder={ready ? "Ask a question…" : "Waiting for the API…"}
+          value={draft}
+          disabled={!ready || busy}
+          onChange={(e) => setDraft(e.target.value)}
+          aria-label="Question"
+        />
+        <button type="submit" className="am-btn-primary" disabled={!ready || busy || !draft.trim()}>
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}

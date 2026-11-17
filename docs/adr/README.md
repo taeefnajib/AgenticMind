@@ -10,5 +10,6 @@
 | [0006](0006-edge-semantics.md) | Distinct data/control edges, OR-join, skip propagation, fail-fast | Accepted |
 | [0007](0007-artifact-storage.md) | Project files in a scoped artifact store, referenced by ID | Accepted |
 | [0008](0008-embeddings-vector-stores-run-targets.md) | Embedding providers, vector store adapters, handles, run targets | Accepted |
+| [0009](0009-llm-provider-and-grounded-answers.md) | OpenRouter LLM provider, Context/Citation Builder, chat panel | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.
