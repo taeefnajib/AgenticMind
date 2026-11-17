@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { IRNode, JsonValue, RunOut, TraceEvent } from "../api/types";
+import { Markdown } from "../lib/markdown";
 
 export interface ChatOutputOption {
   id: string;
@@ -23,10 +24,22 @@ interface Citation {
   score?: number | null;
 }
 
+export interface AgentStep {
+  tool: string;
+  arguments?: Record<string, unknown>;
+  ok: boolean;
+  error?: string;
+  result_summary?: string;
+  duration_ms?: number;
+  turn?: number;
+}
+
 interface Message {
   role: "user" | "assistant";
   text: string;
   citations?: Citation[];
+  steps?: AgentStep[];
+  stopReason?: string;
   invalid?: number[];
   error?: string;
   meta?: { ms?: number; tokens?: number; cost?: number };
@@ -39,11 +52,17 @@ interface Props {
   onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
 }
 
-const MARKER = /\[(\d+)\]/g;
+type AnswerObject = {
+  answer: string;
+  citations?: Citation[];
+  validation?: { invalid?: number[] };
+  steps?: AgentStep[];
+  report?: { stop_reason?: string };
+};
 
-function isAnswerObject(v: unknown): v is { answer: string; citations: Citation[]; validation?: { invalid?: number[] } } {
-  return typeof v === "object" && v !== null && typeof (v as { answer?: unknown }).answer === "string" &&
-    Array.isArray((v as { citations?: unknown }).citations);
+/** Citation Builder results ({answer, citations}) and Agent results ({answer, steps, report}). */
+function isAnswerObject(v: unknown): v is AnswerObject {
+  return typeof v === "object" && v !== null && typeof (v as { answer?: unknown }).answer === "string";
 }
 
 export function toMessage(result: ChatResult, outputKey: string): Message {
@@ -63,7 +82,15 @@ export function toMessage(result: ChatResult, outputKey: string): Message {
   }
   const value = run.outputs?.[outputKey];
   if (isAnswerObject(value)) {
-    return { role: "assistant", text: value.answer, citations: value.citations, invalid: value.validation?.invalid, meta };
+    return {
+      role: "assistant",
+      text: value.answer,
+      citations: value.citations,
+      invalid: value.validation?.invalid,
+      steps: value.steps,
+      stopReason: value.report?.stop_reason,
+      meta,
+    };
   }
   if (typeof value === "string") return { role: "assistant", text: value, meta };
   if (value === undefined) return { role: "assistant", text: "", error: `The run produced no '${outputKey}' output`, meta };
@@ -79,15 +106,11 @@ function sourceLabel(c: Citation): string {
 
 function AnswerText({ message, onCite }: { message: Message; onCite: (n: number) => void }) {
   const byN = new Map((message.citations ?? []).map((c) => [c.n, c]));
-  const parts: React.ReactNode[] = [];
-  let last = 0;
-  for (const m of message.text.matchAll(MARKER)) {
-    const n = Number(m[1]);
-    parts.push(message.text.slice(last, m.index));
+  const cite = (n: number, key: string) => {
     const c = byN.get(n);
-    parts.push(
+    return (
       <button
-        key={`${m.index}-${n}`}
+        key={key}
         type="button"
         onClick={() => onCite(n)}
         title={c ? `${sourceLabel(c)}\n\n${c.excerpt ?? ""}` : "Unknown source"}
@@ -96,12 +119,10 @@ function AnswerText({ message, onCite }: { message: Message; onCite: (n: number)
         }`}
       >
         {n}
-      </button>,
+      </button>
     );
-    last = (m.index ?? 0) + m[0].length;
-  }
-  parts.push(message.text.slice(last));
-  return <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{parts}</div>;
+  };
+  return <Markdown text={message.text} cite={cite} />;
 }
 
 export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
@@ -200,6 +221,7 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
               ) : (
                 <AnswerText message={m} onCite={(n) => setActiveCite(`${i}:${n}`)} />
               )}
+              {m.steps && m.steps.length > 0 && <AgentSteps steps={m.steps} stopReason={m.stopReason} />}
               {m.citations && m.citations.length > 0 && (
                 <ol className="mt-2 space-y-1 border-t border-slate-100 pt-2">
                   {m.citations.map((c) => (
@@ -251,6 +273,41 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
           Send
         </button>
       </form>
+    </div>
+  );
+}
+
+function AgentSteps({ steps, stopReason }: { steps: AgentStep[]; stopReason?: string }) {
+  const [open, setOpen] = useState(false);
+  const failed = steps.filter((s) => !s.ok).length;
+  const tools = [...new Set(steps.map((s) => s.tool))];
+  return (
+    <div className="mt-2 border-t border-slate-100 pt-2 text-xs">
+      <button type="button" className="text-slate-500 hover:text-slate-800" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {open ? "▾" : "▸"} Used {steps.length} tool call{steps.length === 1 ? "" : "s"}: {tools.join(", ")}
+        {failed > 0 && <span className="text-amber-700"> ({failed} failed)</span>}
+        {stopReason && stopReason !== "final_answer" && <span className="text-amber-700"> · stopped: {stopReason}</span>}
+      </button>
+      {open && (
+        <ol className="mt-1.5 space-y-1.5">
+          {steps.map((s, i) => (
+            <li key={i} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono font-semibold text-slate-700">
+                  {s.ok ? "✓" : "✗"} {s.tool}
+                </span>
+                {s.duration_ms !== undefined && <span className="text-[10px] text-slate-400">{s.duration_ms.toFixed(0)} ms</span>}
+              </div>
+              {s.arguments && (
+                <div className="mt-0.5 break-all font-mono text-[11px] text-slate-500">{JSON.stringify(s.arguments)}</div>
+              )}
+              <div className={`mt-0.5 line-clamp-3 break-words ${s.ok ? "text-slate-600" : "text-red-700"}`}>
+                {s.ok ? s.result_summary : s.error}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }

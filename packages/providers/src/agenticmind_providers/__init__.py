@@ -87,7 +87,8 @@ class MockProvider:
 
     Responses are clearly labelled ``[mock:<model>]`` so they are never mistaken for real output.
     When the prompt contains numbered sources (``[1] ...``), the mock answers with the first sentence
-    of source 1 and cites it, so citation pipelines can be exercised offline.
+    of source 1 and cites it, so citation pipelines can be exercised offline. With tools, it calls the
+    tool named in the task (``"calculator: 2+3"``) or the first tool, then answers from the result.
     """
 
     name = "mock"
@@ -96,6 +97,9 @@ class MockProvider:
         self, request: ChatRequest, *, api_key: str | None = None, base_url: str | None = None
     ) -> ChatResponse:
         last_user = next((m.content or "" for m in reversed(request.messages) if m.role == "user"), "")
+        tool_result = self._tool_step(request, last_user)
+        if tool_result is not None:
+            return tool_result
         match = _SOURCE_LINE.search(last_user)
         if match:
             first_sentence = re.split(r"(?<=[.!?])\s", match.group(2).strip(), maxsplit=1)[0]
@@ -115,6 +119,39 @@ class MockProvider:
             finish_reason="stop",
             model=request.model,
         )
+
+    def _tool_step(self, request: ChatRequest, last_user: str) -> ChatResponse | None:
+        """Deterministic tool use: call the tool named in the task (or the first), then answer from its result."""
+        if not request.tools or request.tool_choice == "none":
+            return None
+        last_user_idx = (
+            max(i for i, m in enumerate(request.messages) if m.role == "user")
+            if any(m.role == "user" for m in request.messages)
+            else -1
+        )
+        results = [m for m in request.messages[last_user_idx + 1 :] if m.role == "tool"]
+        usage = ModelUsage(
+            provider=self.name, model=request.model, input_tokens=10, output_tokens=5, estimated_cost_usd=0.0
+        )
+        if results:
+            last = results[-1]
+            text = f"[mock:{request.model}] Based on {last.name or 'the tool'}: {(last.content or '')[:200]}"
+            return ChatResponse(text=text, usage=usage, finish_reason="stop", model=request.model)
+        lowered = last_user.lower()
+        tool = next((t for t in request.tools if t.name in lowered), request.tools[0])
+        props = tool.parameters.get("properties", {})
+        args: dict[str, Any] = {}
+        for name in tool.parameters.get("required", []):
+            kind = props.get(name, {}).get("type")
+            if kind in ("number", "integer"):
+                args[name] = 0
+            elif kind == "boolean":
+                args[name] = False
+            else:
+                marker = f"{tool.name}:"
+                args[name] = last_user.split(marker, 1)[1].strip() if marker in last_user else last_user
+        call = ToolCall(id=f"mock_call_{len(request.messages)}", name=tool.name, arguments=args)
+        return ChatResponse(text="", tool_calls=[call], usage=usage, finish_reason="tool_calls", model=request.model)
 
 
 _PROVIDERS: dict[str, ModelProvider] = {"mock": MockProvider()}

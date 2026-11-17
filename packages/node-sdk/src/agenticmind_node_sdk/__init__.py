@@ -6,7 +6,7 @@ from .context import ModelUsage, NodeContext, NodeInputs, NodeResult
 from .define import NodeDefinition, define_node
 from .documents import Document, Offsets, RetrievedDocument, SourceRef
 from .errors import NodeError, SecretAccessError, TransientNodeError
-from .handles import HANDLE_PORT_TYPES, EmbeddingModelHandle, VectorStoreHandle
+from .handles import HANDLE_PORT_TYPES, EmbeddingModelHandle, ToolHandle, VectorStoreHandle
 from .manifest import (
     Cardinality,
     Compatibility,
@@ -30,6 +30,7 @@ __all__ = [
     "SourceRef",
     "HANDLE_PORT_TYPES",
     "EmbeddingModelHandle",
+    "ToolHandle",
     "VectorStoreHandle",
     "Cardinality",
     "Compatibility",

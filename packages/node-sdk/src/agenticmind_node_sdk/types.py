@@ -89,6 +89,10 @@ def value_matches_type(value: Any, port_type: PortType) -> bool:
             from .handles import is_handle
 
             return is_handle(value, "vector_store")
+        case PortType.TOOL:
+            from .handles import is_handle
+
+            return is_handle(value, "tool")
         case PortType.EMBEDDING_VECTOR:
             return isinstance(value, list) and all(
                 isinstance(v, (int, float)) and not isinstance(v, bool) for v in value

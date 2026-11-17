@@ -129,3 +129,32 @@ def test_answers_template_end_to_end_with_citations(client):
         "cite",
         "answer",
     }
+
+
+def test_agent_template_end_to_end(client):
+    pid = client.post("/api/projects", json={"name": "Agent", "template": "agent-with-tools"}).json()["id"]
+    file_id = client.post(
+        f"/api/projects/{pid}/files", files={"file": ("employee-handbook.md", HANDBOOK, "text/markdown")}
+    ).json()["id"]
+    doc = client.get(f"/api/projects/{pid}").json()["document"]
+    nodes = {n["id"]: n for n in doc["nodes"]}
+    assert nodes["agent"]["config"]["api_key"] == {"$secret": "OPENROUTER_API_KEY"}
+    nodes["load"]["config"]["files"] = [file_id]
+    nodes["embedding"]["config"] = {"provider": "hash", "model": "hash", "dimensions": 384, "batch_size": 32}
+    nodes["agent"]["config"] = {"provider": "mock", "model": "mock-1"}
+    assert client.put(f"/api/projects/{pid}", json={"document": doc}).status_code == 200
+    assert client.post(f"/api/projects/{pid}/validate").json()["valid"] is True
+
+    final = wait(client, client.post(f"/api/projects/{pid}/runs", json={"targets": ["index_report"]}).json()["id"])
+    assert final["status"] == "succeeded", final["error"]
+    run = client.post(
+        f"/api/projects/{pid}/runs",
+        json={"targets": ["answer"], "inputs": {"question": "calculator: 25 * 3"}},
+    ).json()
+    final = wait(client, run["id"])
+    assert final["status"] == "succeeded", final["error"]
+    result = final["outputs"]["answer"]
+    assert result["steps"][0]["tool"] == "calculator" and result["steps"][0]["ok"] is True
+    assert "75" in result["answer"] and result["report"]["tool_calls"] == 1
+    events = client.get(f"/api/runs/{run['id']}/events").json()
+    assert any(e.get("data", {}).get("type") == "tool_call" for e in events)

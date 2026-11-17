@@ -6,6 +6,8 @@ export const CATEGORY_STYLE: Record<string, { color: string; label: string }> = 
   data: { color: "#5b9fb3", label: "Data ingestion" },
   rag: { color: "#8a7be0", label: "RAG & knowledge" },
   models: { color: "#c6879a", label: "Models" },
+  agents: { color: "#7f74d4", label: "Agents" },
+  tools: { color: "#6aa39a", label: "Agent tools" },
   transform: { color: "#9b8cc9", label: "Transform" },
   convert: { color: "#8b909c", label: "Conversion" },
   control: { color: "#c4a165", label: "Control flow" },
@@ -17,7 +19,7 @@ export const categoryStyle = (category: string) => CATEGORY_STYLE[category] ?? {
 /** Soft tinted chip style for a category colour. */
 export const chipStyle = (color: string) => ({ color, backgroundColor: `${color}1f` });
 
-export const CATEGORY_ORDER = ["input", "data", "rag", "models", "transform", "convert", "control", "output"];
+export const CATEGORY_ORDER = ["input", "data", "rag", "models", "agents", "tools", "transform", "convert", "control", "output"];
 
 const PORT_COLORS: Record<string, string> = {
   String: "#4f7fd0",
@@ -28,6 +30,7 @@ const PORT_COLORS: Record<string, string> = {
   DocumentSet: "#7a67cf",
   EmbeddingModel: "#a8678a",
   VectorStoreHandle: "#4a8bad",
+  Tool: "#3f9483",
   Any: "#7d8190",
 };
 
@@ -41,6 +44,7 @@ const PORT_COLORS_DARK: Record<string, string> = {
   DocumentSet: "#a99bef",
   EmbeddingModel: "#d39abb",
   VectorStoreHandle: "#83b8d6",
+  Tool: "#7cc4b4",
   Any: "#a4a8b4",
 };
 export const portColor = (type: string, dark = false) =>

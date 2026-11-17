@@ -26,6 +26,21 @@ describe("chat messages", () => {
     expect(m.meta).toEqual({ ms: 2300, tokens: 960, cost: 0.0012 });
   });
 
+  it("renders agent results with tool steps", () => {
+    const outputs = {
+      answer: {
+        answer: "75 days in total.",
+        steps: [{ tool: "calculator", arguments: { expression: "25*3" }, ok: true, result_summary: "75" }],
+        report: { stop_reason: "final_answer" },
+      },
+    };
+    const m = toMessage({ run: run({ outputs }), events: [] }, "answer");
+    expect(m.text).toBe("75 days in total.");
+    expect(m.steps?.[0]?.tool).toBe("calculator");
+    expect(m.stopReason).toBe("final_answer");
+    expect(m.citations).toBeUndefined();
+  });
+
   it("shows failures and plain text outputs", () => {
     const failed = toMessage(
       { run: run({ status: "failed", error: { code: "PROVIDER_AUTH_FAILED", message: "bad key" } }), events: [] },

@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .config import SecretRef
 
 #: Port types whose values are handles (used by the runtime for secret delegation).
-HANDLE_PORT_TYPES = frozenset({"EmbeddingModel", "VectorStoreHandle"})
+HANDLE_PORT_TYPES = frozenset({"EmbeddingModel", "VectorStoreHandle", "Tool"})
 
 
 class _Handle(BaseModel):
@@ -49,6 +49,27 @@ class VectorStoreHandle(_Handle):
     cloud: str | None = None
     region: str | None = None
     namespace: str | None = None
+
+
+TOOL_NAME_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"
+
+
+class ToolHandle(_Handle):
+    """A tool an agent may call.
+
+    ``tool_type`` selects the implementation; ``parameters`` is the JSON Schema the model must follow
+    (arguments are validated against it before execution); ``binding`` holds the tool's own config
+    and any handles it needs (e.g. an embedding model and vector store). ``permissions`` lists what
+    executing it requires; the calling node must declare them all.
+    """
+
+    kind: Literal["tool"] = "tool"
+    tool_type: str
+    name: str = Field(pattern=TOOL_NAME_PATTERN)
+    description: str = Field(min_length=1, max_length=2000)
+    parameters: dict[str, Any]
+    binding: dict[str, Any] = Field(default_factory=dict)
+    permissions: list[str] = Field(default_factory=list)
 
 
 def handle_value(handle: _Handle) -> dict[str, Any]:

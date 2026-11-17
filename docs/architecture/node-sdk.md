@@ -76,6 +76,36 @@ Shared resources travel as *handles* (`EmbeddingModelHandle`, `VectorStoreHandle
 config plus secret references. A consumer with `credentials` may call `ctx.secret(handle.api_key)`; the
 runtime delegates the handle's references along the edge. Never put secret values into outputs.
 
+## Writing a tool for agents
+
+A tool is a node that outputs a `ToolHandle` on a `Tool` port, plus an implementation the Agent calls:
+
+```python
+from agenticmind_node_sdk import NodeResult, OutputPort, PortType, ToolHandle, define_node
+from agenticmind_node_sdk.handles import handle_value
+from agenticmind_nodes_agents.tools import ToolError, implementation
+
+@define_node(type="acme.tools.weather", version="1.0.0", display_name="Weather Tool", category="tools",
+             package="acme-nodes", outputs=[OutputPort(name="tool", type=PortType.TOOL)])
+async def weather_tool(ctx, inputs, config):
+    return NodeResult(outputs={"tool": handle_value(ToolHandle(
+        tool_type="acme_weather", name="get_weather",
+        description="Current weather for a city.",
+        parameters={"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
+        permissions=["network"],
+    ))})
+
+@implementation("acme_weather")
+async def run_weather(ctx, tool, args):
+    if not args["city"].strip():
+        raise ToolError("city must not be empty")   # shown to the model, which can retry
+    return {"city": args["city"], "temp_c": 3}
+```
+
+Arguments are validated against `parameters` (JSON Schema 2020-12) before the implementation runs.
+Return JSON-serialisable data; raise `ToolError` for problems the model should see. `permissions` must be a
+subset of what the Agent node declares.
+
 ## Local storage
 
 With `Permissions(filesystem=True)`, `ctx.storage_path("vectors", "qdrant")` returns a persistent

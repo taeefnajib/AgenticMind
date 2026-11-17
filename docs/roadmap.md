@@ -10,7 +10,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M3 RAG vertical slice | **Core done**: ingestion, retrieval, cited answers with a real LLM; step 4 (hybrid search, reranking, query rewriting) pending |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
-| M6 Agent Lab | Planned |
+| M6 Agent Lab | **In progress**: 8a (tools + bounded Agent) done; 8b–8e next |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
@@ -54,6 +54,12 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   dedup, token budget, editable prompt); Citation Builder (marker parsing, invalid-citation removal,
   optional enforcement); Chat panel with clickable citations, latency, tokens and cost; *RAG answers with
   citations* template; verified live with Gemini (correct cited answer; "I don't know" when unsupported).
+- **8a – tools & Agent**: `Tool` handles with transitive secret delegation; Agent node (bounded loop: turns,
+  tool calls, tokens, cost; schema-validated arguments; per-tool timeouts; errors returned to the model;
+  `agent_turn`/`tool_call` trace events); tools: Knowledge Search, Calculator (safe AST), Date & Time,
+  Web Fetch (domain allowlist, private-address and redirect checks); mock provider tool calling for
+  offline tests; chat shows tool steps and renders Markdown safely; *Agent with tools* template;
+  verified live with Gemini (parallel searches + calculator; date + search + calculator).
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -61,6 +67,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Runs execute in the API process (ADR-0005); no durable checkpoints, resume or human-approval suspension.
 - No process/container isolation: non-core nodes are refused (ADR-0004). Declared permissions other
   than `credentials` are not yet enforced at OS level.
+- Agent tools run in-process (core trust only); third-party tool isolation is future work. Web Fetch's
+  DNS check does not defend against DNS rebinding between check and connect.
 - Chat is single-turn (no conversation memory yet). Citation validation checks that cited sources exist,
   not that they support the claim (faithfulness evaluation comes with the Evaluation Lab).
 - No authentication, workspaces or roles yet; the API must not be exposed publicly.
@@ -78,9 +86,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **Section 8 – Agents** (next): 8a tool contract + Agent node; 8b Loop / Router / Parallel-Join; 8c memory
-   (short-term state, consented long-term memory); 8d durable checkpoints, Human Approval, resume;
-   8e planner/worker, supervisor, reflection/critic, handoff.
+1. **Section 8 – Agents** (continuing): 8b Loop / Router / Parallel-Join; 8c memory (short-term state,
+   consented long-term memory); 8d durable checkpoints, Human Approval, resume; 8e planner/worker,
+   supervisor, reflection/critic, handoff; third-party tools via an entry-point group.
 2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,
    context compression.
 3. Compiler (M4): IR → standalone FastAPI project embedding the runtime, OpenAPI, Dockerfile, tests,

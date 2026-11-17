@@ -43,6 +43,10 @@ API. **New** → *RAG answers with citations*, upload a file in **Load documents
 then open the **Chat** tab and ask. Answers come from Gemini via OpenRouter and cite their sources; click a
 citation number to see the source.
 
+To try an agent: **New** → *Agent with tools*, upload a file, run **Run → Index report**, then ask in **Chat**,
+e.g. *"How many leave days do 3 employees get in total?"*. The agent decides when to search the documents,
+calculate or check the date; expand *Used N tool calls* to see every step.
+
 ### API keys and settings (`.env`)
 
 The API loads a `.env` file from the directory it starts in (the repo root for `npm run dev:api`). Copy
@@ -93,7 +97,9 @@ packages/
 nodes/
   core/           core node package (inputs, transforms, conversions, control flow, LLM, outputs)
   data/           data ingestion nodes (Document Loader, Document Cleaner)
-  rag/            RAG nodes (Chunker, Embedding Model, Vector Store, Index Documents, Retriever)
+  rag/            RAG nodes (Chunker, Embedding Model, Vector Store, Index Documents, Retriever,
+                  Context Builder, Citation Builder)
+  agents/         Agent node and tools (Knowledge Search, Calculator, Date & Time, Web Fetch)
 examples/data/    sample documents for trying ingestion and retrieval
 docs/             architecture, roadmap, ADRs
 infra/docker/     container build

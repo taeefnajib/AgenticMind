@@ -13,6 +13,7 @@ members = [
     "agenticmind-api",
     "agenticmind-ir",
     "agenticmind-node-sdk",
+    "agenticmind-nodes-agents",
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",
@@ -30,6 +31,7 @@ source = { editable = "apps/api" }
 dependencies = [
     { name = "agenticmind-ir" },
     { name = "agenticmind-node-sdk" },
+    { name = "agenticmind-nodes-agents" },
     { name = "agenticmind-nodes-core" },
     { name = "agenticmind-nodes-data" },
     { name = "agenticmind-nodes-rag" },
@@ -53,6 +55,7 @@ postgres = [
 requires-dist = [
     { name = "agenticmind-ir", editable = "packages/ir" },
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
+    { name = "agenticmind-nodes-agents", editable = "nodes/agents" },
     { name = "agenticmind-nodes-core", editable = "nodes/core" },
     { name = "agenticmind-nodes-data", editable = "nodes/data" },
     { name = "agenticmind-nodes-rag", editable = "nodes/rag" },
@@ -93,6 +96,31 @@ dependencies = [
 requires-dist = [
     { name = "agenticmind-ir", editable = "packages/ir" },
     { name = "pydantic", specifier = ">=2.7,<3" },
+]
+
+[[package]]
+name = "agenticmind-nodes-agents"
+version = "0.1.0"
+source = { editable = "nodes/agents" }
+dependencies = [
+    { name = "agenticmind-node-sdk" },
+    { name = "agenticmind-nodes-data" },
+    { name = "agenticmind-nodes-rag" },
+    { name = "agenticmind-providers" },
+    { name = "agenticmind-vectorstores" },
+    { name = "jsonschema" },
+    { name = "tzdata" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
+    { name = "agenticmind-nodes-data", editable = "nodes/data" },
+    { name = "agenticmind-nodes-rag", editable = "nodes/rag" },
+    { name = "agenticmind-providers", editable = "packages/providers" },
+    { name = "agenticmind-vectorstores", editable = "packages/vectorstores" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
+    { name = "tzdata", specifier = ">=2026.6" },
 ]
 
 [[package]]
@@ -236,6 +264,7 @@ dependencies = [
     { name = "agenticmind-api" },
     { name = "agenticmind-ir" },
     { name = "agenticmind-node-sdk" },
+    { name = "agenticmind-nodes-agents" },
     { name = "agenticmind-nodes-core" },
     { name = "agenticmind-nodes-data" },
     { name = "agenticmind-nodes-rag" },
@@ -258,6 +287,7 @@ requires-dist = [
     { name = "agenticmind-api", editable = "apps/api" },
     { name = "agenticmind-ir", editable = "packages/ir" },
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
+    { name = "agenticmind-nodes-agents", editable = "nodes/agents" },
     { name = "agenticmind-nodes-core", editable = "nodes/core" },
     { name = "agenticmind-nodes-data", editable = "nodes/data" },
     { name = "agenticmind-nodes-rag", editable = "nodes/rag" },

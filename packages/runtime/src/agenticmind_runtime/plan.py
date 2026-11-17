@@ -114,13 +114,9 @@ def compile_plan(
         ctrl = tuple(control_in[node.id])
         refs: Any = frozenset()
         if manifest.permissions.credentials:
-            refs = set(iter_secret_refs(node.config))
-            # handles delegate the secret references they carry to the nodes wired to them
-            for e in ins:
-                port = manifest.input(e.target.port)
-                if port is not None and resolve_port_type(port, node.config).value in HANDLE_PORT_TYPES:
-                    refs |= set(iter_secret_refs(nodes_by_id[e.source.node].config))
-            refs = frozenset(refs)
+            # own config + references carried by handles wired into this node (transitively, so a tool
+            # built from an embedding-model handle delegates that model's key to the agent using it)
+            refs = frozenset(_handle_secret_refs(node.id, nodes_by_id, data_in, registry, include_self=True))
         planned[node.id] = PlannedNode(
             node=node,
             entry=entry,
@@ -143,6 +139,31 @@ def compile_plan(
         report=report,
         targets=tuple(targets or ()),
     )
+
+
+def _handle_secret_refs(
+    node_id: str,
+    nodes_by_id: dict[str, Node],
+    data_in: dict[str, list[Edge]],
+    registry: NodeRegistry,
+    *,
+    include_self: bool,
+    seen: set[str] | None = None,
+) -> set[str]:
+    seen = seen if seen is not None else set()
+    if node_id in seen:
+        return set()
+    seen.add(node_id)
+    node = nodes_by_id[node_id]
+    refs = set(iter_secret_refs(node.config)) if include_self else set()
+    entry = registry.get(node.type, node.version)
+    if entry is None:
+        return refs
+    for e in data_in.get(node_id, []):
+        port = entry.definition.manifest.input(e.target.port)
+        if port is not None and resolve_port_type(port, node.config).value in HANDLE_PORT_TYPES:
+            refs |= _handle_secret_refs(e.source.node, nodes_by_id, data_in, registry, include_self=True, seen=seen)
+    return refs
 
 
 def _ancestors(targets: set[str], edges: list[Edge]) -> set[str]:
