@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/logo.png" alt="AgenticMind logo" width="360"></p>
+<p align="center"><img src="docs/assets/logo-mark.svg" alt="AgenticMind logo" width="140"></p>
 
 # AgenticMind
 
@@ -70,6 +70,7 @@ uv run agenticmind schema > ir.schema.json
 | `npm run build:web` | Production build of the IDE |
 | `uv run ruff check .` | Lint Python |
 | `uv run python scripts/generate_schemas.py` | Regenerate the published IR JSON Schema after model changes |
+| `uv run python scripts/build_logo.py` | Regenerate the logo, favicons and app icons from the vector definition |
 
 ## Repository layout
 

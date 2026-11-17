@@ -566,7 +566,7 @@ export function App() {
                 proOptions={{ hideAttribution: false }}
                 colorMode={theme.resolved}
               >
-                <Background variant={BackgroundVariant.Dots} gap={18} size={1} color={theme.resolved === "dark" ? "#2a2440" : "#cfc9dd"} />
+                <Background variant={BackgroundVariant.Dots} gap={18} size={1} color={theme.resolved === "dark" ? "#2c2f38" : "#d3d6dd"} />
                 <Controls position="bottom-left" />
                 <MiniMap pannable zoomable position="bottom-right" className="!bg-surface" />
               </ReactFlow>

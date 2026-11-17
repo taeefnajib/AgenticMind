@@ -87,7 +87,7 @@ function TemplateOption({ selected, onSelect, title, description }: { selected: 
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full rounded-lg border px-3 py-2 text-left ${selected ? "border-fuchsia-500 bg-fuchsia-50" : "border-slate-200 hover:bg-slate-50"}`}
+      className={`w-full rounded-lg border px-3 py-2 text-left ${selected ? "border-accent-500 bg-accent-50" : "border-slate-200 hover:bg-slate-50"}`}
     >
       <div className="text-sm font-medium text-slate-900">{title}</div>
       <div className="text-xs text-slate-500">{description}</div>

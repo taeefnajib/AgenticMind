@@ -18,8 +18,8 @@ describe("theme", () => {
   });
 
   it("uses lighter port colours in dark mode", () => {
-    expect(portColor("String")).toBe("#2563eb");
-    expect(portColor("String", true)).toBe("#60a5fa");
-    expect(portColor("Unknown", true)).toBe("#818cf8");
+    expect(portColor("String")).toBe("#4f7fd0");
+    expect(portColor("String", true)).toBe("#8eaeea");
+    expect(portColor("Unknown", true)).toBe("#a4a8b4");
   });
 });

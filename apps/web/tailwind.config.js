@@ -4,42 +4,49 @@ import plugin from "tailwindcss/plugin";
 /**
  * Theming
  * -------
- * Every palette used by the UI is defined through CSS variables (RGB triplets). Light mode uses the
- * normal scale; dark mode (`.dark` on <html>) swaps each shade for its mirror (50↔950, 100↔900, …).
- * Existing classes such as `bg-slate-50` or `text-red-700` therefore adapt automatically, without a
- * `dark:` variant on every element. `surface` is the panel/card background.
+ * Calm, neutral UI with one soft purple accent. Every palette is defined through CSS variables (RGB
+ * triplets). Light mode uses the normal scale; dark mode (`.dark` on <html>) swaps each shade for its
+ * mirror (50↔950, 100↔900, …), so classes like `bg-slate-50` or `text-accent-700` adapt automatically.
  *
- * Neutrals use a violet-tinted "ink" scale and the brand colours come from the logo gradient.
+ * - `slate`   cool neutral greys (dark mode ≈ #191c24 canvas, #20232b panels)
+ * - `accent`  soft purple used sparingly: primary actions, selection, focus, active tabs
+ * - `surface` panel / card background; `primary` the solid primary-button colour per theme
  */
 
-const INK = {
-  50: "#f8f7fc",
-  100: "#f1eff8",
-  200: "#e3e0ee",
-  300: "#c9c4da",
-  400: "#9c95b3",
-  500: "#6f6888",
-  600: "#524b69",
-  700: "#3c3651",
-  800: "#241f35",
-  900: "#110d1d",
-  950: "#08060f",
+const NEUTRAL = {
+  50: "#f7f8fa",
+  100: "#f0f1f4",
+  200: "#e4e6eb",
+  300: "#cfd2d9",
+  400: "#9ea2ad",
+  500: "#6f7381",
+  600: "#545866",
+  700: "#3e414c",
+  800: "#2c2f38",
+  900: "#191c24",
+  950: "#111318",
 };
 
-export const BRAND = {
-  violet: "#6b1bfd",
-  purple: "#8a1dfc",
-  magenta: "#fd22c4",
-  pink: "#fd2079",
-  red: "#fd3536",
-  orange: "#fd4216",
+const ACCENT = {
+  50: "#f5f3fe",
+  100: "#ece8fd",
+  200: "#dbd3fb",
+  300: "#c0b2f6",
+  400: "#a18ef0",
+  500: "#8770e6",
+  600: "#7158d6",
+  700: "#5d47b6",
+  800: "#4b3a92",
+  900: "#3a2f6e",
+  950: "#251e46",
 };
 
 const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
 const MIRROR = { 50: 950, 100: 900, 200: 800, 300: 700, 400: 600, 500: 500, 600: 400, 700: 300, 800: 200, 900: 100, 950: 50 };
 
 const PALETTES = {
-  slate: INK,
+  slate: NEUTRAL,
+  accent: ACCENT,
   red: colors.red,
   amber: colors.amber,
   emerald: colors.emerald,
@@ -48,9 +55,6 @@ const PALETTES = {
   indigo: colors.indigo,
   teal: colors.teal,
   rose: colors.rose,
-  fuchsia: colors.fuchsia,
-  pink: colors.pink,
-  orange: colors.orange,
 };
 
 const rgb = (hex) => {
@@ -66,8 +70,8 @@ const themedColors = Object.fromEntries(
 );
 
 const themeVariables = plugin(({ addBase }) => {
-  const light = { "--surface": "255 255 255" };
-  const dark = { "--surface": "22 18 36" };
+  const light = { "--surface": "255 255 255", "--primary": rgb(ACCENT[600]), "--primary-hover": rgb(ACCENT[700]) };
+  const dark = { "--surface": "32 35 43", "--primary": rgb(ACCENT[500]), "--primary-hover": rgb(ACCENT[400]) };
   for (const [name, palette] of Object.entries(PALETTES)) {
     for (const s of SHADES) {
       light[`--c-${name}-${s}`] = rgb(palette[s]);
@@ -86,10 +90,10 @@ export default {
       colors: {
         ...themedColors,
         surface: "rgb(var(--surface) / <alpha-value>)",
-        brand: BRAND,
-      },
-      backgroundImage: {
-        "brand-gradient": `linear-gradient(100deg, ${BRAND.violet} 0%, ${BRAND.purple} 22%, ${BRAND.magenta} 50%, ${BRAND.pink} 70%, ${BRAND.orange} 100%)`,
+        primary: {
+          DEFAULT: "rgb(var(--primary) / <alpha-value>)",
+          hover: "rgb(var(--primary-hover) / <alpha-value>)",
+        },
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "Segoe UI", "sans-serif"],

@@ -38,8 +38,8 @@ export function Toolbar(p: Props) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-slate-200 bg-surface px-3">
       <div className="flex items-center gap-2 pr-2">
-        <img src="/logo-mark.png" alt="" className="h-8 w-auto rounded-md" />
-        <span className="am-gradient-text hidden text-base font-bold tracking-tight md:inline">AgenticMind</span>
+        <img src="/logo.svg" alt="" className="h-6 w-auto" />
+        <span className="hidden text-[15px] font-semibold tracking-tight text-slate-900 md:inline">AgenticMind</span>
       </div>
 
       <select
@@ -106,7 +106,7 @@ export function Toolbar(p: Props) {
         {p.message?.text}
       </div>
 
-      <div className="flex rounded-md border border-slate-300 p-0.5" role="radiogroup" aria-label="Experience mode">
+      <div className="flex rounded-md border border-slate-200 p-0.5" role="radiogroup" aria-label="Experience mode">
         {(Object.keys(MODE_LABEL) as Mode[]).map((m) => (
           <button
             key={m}
@@ -114,7 +114,7 @@ export function Toolbar(p: Props) {
             role="radio"
             aria-checked={p.mode === m}
             onClick={() => p.onMode(m)}
-            className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${p.mode === m ? "bg-brand-gradient text-white" : "text-slate-600 hover:bg-slate-100"}`}
+            className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${p.mode === m ? "bg-accent-100 text-accent-700" : "text-slate-500 hover:text-slate-800"}`}
           >
             {MODE_LABEL[m]}
           </button>

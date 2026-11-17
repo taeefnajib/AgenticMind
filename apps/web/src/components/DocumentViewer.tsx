@@ -103,7 +103,7 @@ export function DocumentViewer({ docs, limit = 50 }: { docs: DocumentValue[]; li
         })}
       </ul>
       {docs.length > limit && !showAll && (
-        <button type="button" className="mt-1.5 text-xs text-fuchsia-700 underline" onClick={() => setShowAll(true)}>
+        <button type="button" className="mt-1.5 text-xs text-accent-700 underline" onClick={() => setShowAll(true)}>
           Show all {docs.length}
         </button>
       )}

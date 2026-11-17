@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { Diagnostic, IRNode, JsonValue, NodeManifest, RunOut, TraceEvent } from "../api/types";
 import { effectivePortType, manifestKey, type AmFlowEdge, type AmFlowNode } from "../lib/graph";
-import { categoryStyle, portColor, STATUS_STYLE } from "../lib/theme";
+import { categoryStyle, chipStyle, portColor, STATUS_STYLE } from "../lib/theme";
 import { useWorkbench } from "../lib/workbench";
 import { ConfigForm } from "./ConfigForm";
 import { DiagnosticList } from "./DiagnosticList";
@@ -101,7 +101,7 @@ function NodeInspector({ node, onNodeChange, onDeleteNode, diagnostics, run, eve
     <>
       <Section title="Node">
         <div className="mb-2 flex items-center gap-2">
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${categoryStyle(manifest?.category ?? "").chip}`}>
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-medium" style={chipStyle(categoryStyle(manifest?.category ?? "").color)}>
             {manifest?.category ?? "unknown"}
           </span>
           {manifest && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">trust: {manifest.trust}</span>}

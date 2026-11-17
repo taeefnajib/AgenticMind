@@ -72,14 +72,14 @@ export function effectivePortType(
 export function edgeStyle(kind: "data" | "control", branch?: string): Partial<AmFlowEdge> {
   if (kind === "control") {
     return {
-      style: { stroke: "#d97706", strokeWidth: 1.5, strokeDasharray: "6 4" },
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#d97706" },
+      style: { stroke: "#b9975c", strokeWidth: 1.5, strokeDasharray: "6 4" },
+      markerEnd: { type: MarkerType.ArrowClosed, color: "#b9975c" },
       label: branch && branch !== "done" ? branch : undefined,
-      labelStyle: { fill: "#92400e", fontWeight: 600, fontSize: 11 },
-      labelBgStyle: { fill: "#fffbeb" },
+      labelStyle: { fill: "#8a6a32", fontWeight: 600, fontSize: 11 },
+      labelBgStyle: { fill: "#faf6ee" },
     };
   }
-  return { style: { stroke: "#64748b", strokeWidth: 1.5 } };
+  return { style: { stroke: "#8b909c", strokeWidth: 1.5 } };
 }
 
 export function irEdgeToFlow(e: IREdge): AmFlowEdge {

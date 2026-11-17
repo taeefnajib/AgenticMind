@@ -22,20 +22,18 @@ body {
 
 /* ---- React Flow ---------------------------------------------------------------------------- */
 .react-flow__handle {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border: 2px solid rgb(var(--surface));
 }
 
 .react-flow__handle.am-ctrl {
-  width: 10px;
-  height: 10px;
   border-radius: 2px;
-  background: #d97706;
+  background: #b9975c;
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke-width: 2.5;
+  stroke-width: 2.25;
 }
 
 .dark .react-flow__edge-textbg {
@@ -43,37 +41,32 @@ body {
 }
 
 .dark .react-flow__edge-text {
-  fill: #fbbf24 !important;
+  fill: #d6b98a !important;
 }
 
 /* ---- Controls ------------------------------------------------------------------------------- */
 .am-input {
-  @apply w-full rounded-md border border-slate-300 bg-surface px-2 py-1 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500;
+  @apply w-full rounded-md border border-slate-200 bg-surface px-2.5 py-1.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-accent-400 focus:ring-2 focus:ring-accent-500/20;
 }
 
 .am-btn {
-  @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-300 bg-surface px-2.5 py-1 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-slate-200 bg-surface px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .am-btn-primary {
-  @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-brand-gradient px-3 py-1 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
-  box-shadow: 0 1px 10px -2px rgb(253 34 196 / 0.45);
-}
-
-.am-gradient-text {
-  @apply bg-brand-gradient bg-clip-text text-transparent;
+  @apply inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-primary px-3.5 py-1.5 text-sm font-medium text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 @keyframes am-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(253, 34, 196, 0.45);
+    box-shadow: 0 0 0 0 rgba(135, 112, 230, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(253, 34, 196, 0);
+    box-shadow: 0 0 0 5px rgba(135, 112, 230, 0);
   }
 }
 
 .am-running {
-  animation: am-pulse 1.2s ease-in-out infinite;
+  animation: am-pulse 1.4s ease-in-out infinite;
 }

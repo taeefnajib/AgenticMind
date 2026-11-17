@@ -21,7 +21,7 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
     <div
       className={[
         "relative w-60 rounded-lg border bg-surface text-left shadow-sm transition-shadow",
-        selected ? "border-fuchsia-500 shadow-md" : "border-slate-200",
+        selected ? "border-accent-400 shadow-md shadow-accent-500/10" : "border-slate-200",
         errors ? "border-red-400" : "",
         status ? STATUS_STYLE[status].ring : "",
       ].join(" ")}
@@ -29,7 +29,7 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
       {/* control-flow trigger */}
       <Handle type="target" position={Position.Top} id={CTRL_IN} className="am-ctrl" title="Control trigger" />
 
-      <div className={`h-1.5 rounded-t-lg ${cat.bar}`} />
+      <div className="h-1 rounded-t-lg" style={{ backgroundColor: cat.color }} />
       <div className="flex items-start justify-between gap-2 px-3 pb-1.5 pt-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-slate-900">

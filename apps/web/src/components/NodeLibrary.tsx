@@ -59,7 +59,7 @@ export function NodeLibrary({ manifests, mode, onAdd }: Props) {
                 className="group mb-1 flex w-full cursor-grab items-start gap-2 rounded-md border border-transparent px-2 py-1.5 text-left hover:border-slate-200 hover:bg-slate-50 active:cursor-grabbing"
                 title={`${m.type}@${m.version}\nClick to add, or drag onto the canvas`}
               >
-                <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${categoryStyle(m.category).bar}`} />
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: categoryStyle(m.category).color }} />
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-slate-800">{m.display_name}</span>
                   <span className="block truncate text-xs text-slate-500">{m.description}</span>

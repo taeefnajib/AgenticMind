@@ -49,7 +49,7 @@ export function ConsolePanel(props: Props) {
             aria-selected={tab === t.id}
             onClick={() => onTab(t.id)}
             className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium ${
-              tab === t.id ? "border-fuchsia-600 text-fuchsia-700" : "border-transparent text-slate-500 hover:text-slate-800"
+              tab === t.id ? "border-accent-600 text-accent-700" : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
             {t.label}
@@ -102,7 +102,7 @@ function RunInputs({ inputNodes, runInputs, onRunInputs }: Props) {
               <span className="font-mono text-[10px] text-slate-400">{key}</span>
             </label>
             {type === "Boolean" ? (
-              <input id={id} type="checkbox" className="h-4 w-4 accent-fuchsia-600" checked={Boolean(value ?? def)} onChange={(e) => set(key, e.target.checked)} />
+              <input id={id} type="checkbox" className="h-4 w-4 accent-accent-600" checked={Boolean(value ?? def)} onChange={(e) => set(key, e.target.checked)} />
             ) : type === "Number" ? (
               <input
                 id={id}

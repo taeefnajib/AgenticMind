@@ -52,7 +52,7 @@ export function UploadZone({ onUploaded, compact = false }: { onUploaded?: (file
           void handle(e.dataTransfer.files);
         }}
         className={`flex items-center justify-center rounded-md border border-dashed text-xs ${
-          over ? "border-fuchsia-500 bg-fuchsia-50" : "border-slate-300 bg-slate-50"
+          over ? "border-accent-500 bg-accent-50" : "border-slate-300 bg-slate-50"
         } ${compact ? "px-2 py-2" : "px-3 py-4"}`}
       >
         <button type="button" className="am-btn" disabled={busy || !files.projectId} onClick={() => input.current?.click()}>
@@ -134,7 +134,7 @@ export function ArtifactsControl({ value, onChange }: { value: unknown; onChange
           {files.files.map((f) => (
             <li key={f.id}>
               <label className="flex cursor-pointer items-center gap-2 px-2 py-1 text-xs hover:bg-slate-50">
-                <input type="checkbox" className="accent-fuchsia-600" checked={selected.includes(f.id)} onChange={() => toggle(f.id)} />
+                <input type="checkbox" className="accent-accent-600" checked={selected.includes(f.id)} onChange={() => toggle(f.id)} />
                 <span className="min-w-0 flex-1 truncate">{f.filename}</span>
                 <span className="text-[10px] text-slate-400">{formatBytes(f.size)}</span>
               </label>

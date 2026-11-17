@@ -1,52 +1,56 @@
 import type { NodeRunStatus } from "../api/types";
 
-export const CATEGORY_STYLE: Record<string, { bar: string; chip: string; label: string }> = {
-  input: { bar: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700", label: "Inputs & triggers" },
-  data: { bar: "bg-teal-600", chip: "bg-teal-50 text-teal-800", label: "Data ingestion" },
-  rag: { bar: "bg-indigo-500", chip: "bg-indigo-50 text-indigo-700", label: "RAG & knowledge" },
-  output: { bar: "bg-sky-500", chip: "bg-sky-50 text-sky-700", label: "Outputs" },
-  transform: { bar: "bg-violet-500", chip: "bg-violet-50 text-violet-700", label: "Transform" },
-  convert: { bar: "bg-slate-500", chip: "bg-slate-100 text-slate-700", label: "Conversion" },
-  control: { bar: "bg-amber-500", chip: "bg-amber-50 text-amber-800", label: "Control flow" },
-  models: { bar: "bg-rose-500", chip: "bg-rose-50 text-rose-700", label: "Models" },
+// Muted, low-saturation category colours: enough to tell node families apart, never loud.
+export const CATEGORY_STYLE: Record<string, { color: string; label: string }> = {
+  input: { color: "#5fae97", label: "Inputs & triggers" },
+  data: { color: "#5b9fb3", label: "Data ingestion" },
+  rag: { color: "#8a7be0", label: "RAG & knowledge" },
+  models: { color: "#c6879a", label: "Models" },
+  transform: { color: "#9b8cc9", label: "Transform" },
+  convert: { color: "#8b909c", label: "Conversion" },
+  control: { color: "#c4a165", label: "Control flow" },
+  output: { color: "#6a98cf", label: "Outputs" },
 };
 
-export const categoryStyle = (category: string) =>
-  CATEGORY_STYLE[category] ?? { bar: "bg-slate-400", chip: "bg-slate-100 text-slate-700", label: category };
+export const categoryStyle = (category: string) => CATEGORY_STYLE[category] ?? { color: "#8b909c", label: category };
+
+/** Soft tinted chip style for a category colour. */
+export const chipStyle = (color: string) => ({ color, backgroundColor: `${color}1f` });
 
 export const CATEGORY_ORDER = ["input", "data", "rag", "models", "transform", "convert", "control", "output"];
 
 const PORT_COLORS: Record<string, string> = {
-  String: "#2563eb",
-  Number: "#ea580c",
-  Boolean: "#db2777",
-  JSON: "#0d9488",
-  Document: "#7c3aed",
-  DocumentSet: "#7c3aed",
-  EmbeddingModel: "#be185d",
-  VectorStoreHandle: "#0369a1",
-  Any: "#64748b",
+  String: "#4f7fd0",
+  Number: "#c9823f",
+  Boolean: "#b9668f",
+  JSON: "#3f998b",
+  Document: "#7a67cf",
+  DocumentSet: "#7a67cf",
+  EmbeddingModel: "#a8678a",
+  VectorStoreHandle: "#4a8bad",
+  Any: "#7d8190",
 };
+
 // Lighter variants keep port labels readable on dark surfaces.
 const PORT_COLORS_DARK: Record<string, string> = {
-  String: "#60a5fa",
-  Number: "#fb923c",
-  Boolean: "#f472b6",
-  JSON: "#2dd4bf",
-  Document: "#a78bfa",
-  DocumentSet: "#a78bfa",
-  EmbeddingModel: "#f472b6",
-  VectorStoreHandle: "#38bdf8",
-  Any: "#a8a1bd",
+  String: "#8eaeea",
+  Number: "#e2a76e",
+  Boolean: "#d993b6",
+  JSON: "#72c2b4",
+  Document: "#a99bef",
+  DocumentSet: "#a99bef",
+  EmbeddingModel: "#d39abb",
+  VectorStoreHandle: "#83b8d6",
+  Any: "#a4a8b4",
 };
 export const portColor = (type: string, dark = false) =>
-  (dark ? PORT_COLORS_DARK[type] : PORT_COLORS[type]) ?? (dark ? "#818cf8" : "#4f46e5");
+  (dark ? PORT_COLORS_DARK[type] : PORT_COLORS[type]) ?? (dark ? "#a4a8b4" : "#7d8190");
 
 export const STATUS_STYLE: Record<NodeRunStatus, { ring: string; badge: string; text: string }> = {
   pending: { ring: "", badge: "bg-slate-100 text-slate-500", text: "pending" },
-  running: { ring: "ring-2 ring-fuchsia-400 am-running", badge: "bg-fuchsia-100 text-fuchsia-700", text: "running" },
-  retrying: { ring: "ring-2 ring-amber-400 am-running", badge: "bg-amber-100 text-amber-800", text: "retrying" },
-  succeeded: { ring: "ring-2 ring-emerald-400", badge: "bg-emerald-100 text-emerald-700", text: "succeeded" },
+  running: { ring: "ring-2 ring-accent-400 am-running", badge: "bg-accent-100 text-accent-700", text: "running" },
+  retrying: { ring: "ring-2 ring-amber-300 am-running", badge: "bg-amber-100 text-amber-800", text: "retrying" },
+  succeeded: { ring: "ring-1 ring-emerald-500/50", badge: "bg-emerald-100 text-emerald-700", text: "succeeded" },
   failed: { ring: "ring-2 ring-red-500", badge: "bg-red-100 text-red-700", text: "failed" },
   skipped: { ring: "ring-1 ring-slate-300 opacity-60", badge: "bg-slate-100 text-slate-500", text: "skipped" },
   cancelled: { ring: "ring-1 ring-slate-400 opacity-70", badge: "bg-slate-200 text-slate-600", text: "cancelled" },
