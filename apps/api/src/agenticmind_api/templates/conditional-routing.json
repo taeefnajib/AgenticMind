@@ -1,0 +1,63 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Conditional routing",
+    "description": "A Conditional node activates the true/false control branch; the inactive branch is skipped."
+  },
+  "runtime": {"engine": "agenticmind", "profile": "development"},
+  "nodes": [
+    {
+      "id": "score",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {"key": "score", "value_type": "Number", "default": 72, "required": true},
+      "ui": {"position": {"x": 0, "y": 160}}
+    },
+    {
+      "id": "passed",
+      "type": "agenticmind.core.conditional",
+      "version": "1.0.0",
+      "config": {"operator": "greater_than", "operand": 50},
+      "ui": {"position": {"x": 320, "y": 160}}
+    },
+    {
+      "id": "pass_msg",
+      "type": "agenticmind.core.text_template",
+      "version": "1.0.0",
+      "config": {"template": "Passed with a score of {{ variables }}", "strict": true},
+      "ui": {"position": {"x": 660, "y": 20}}
+    },
+    {
+      "id": "fail_msg",
+      "type": "agenticmind.core.text_template",
+      "version": "1.0.0",
+      "config": {"template": "Failed with a score of {{ variables }}", "strict": true},
+      "ui": {"position": {"x": 660, "y": 300}}
+    },
+    {
+      "id": "out_pass",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {"key": "verdict"},
+      "ui": {"position": {"x": 980, "y": 20}}
+    },
+    {
+      "id": "out_fail",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {"key": "verdict"},
+      "ui": {"position": {"x": 980, "y": 300}}
+    }
+  ],
+  "edges": [
+    {"id": "e1", "kind": "data", "source": {"node": "score", "port": "value"}, "target": {"node": "passed", "port": "value"}},
+    {"id": "e2", "kind": "data", "source": {"node": "score", "port": "value"}, "target": {"node": "pass_msg", "port": "variables"}},
+    {"id": "e3", "kind": "data", "source": {"node": "score", "port": "value"}, "target": {"node": "fail_msg", "port": "variables"}},
+    {"id": "c1", "kind": "control", "source": {"node": "passed", "port": "true"}, "target": {"node": "pass_msg", "port": "trigger"}},
+    {"id": "c2", "kind": "control", "source": {"node": "passed", "port": "false"}, "target": {"node": "fail_msg", "port": "trigger"}},
+    {"id": "e4", "kind": "data", "source": {"node": "pass_msg", "port": "text"}, "target": {"node": "out_pass", "port": "value"}},
+    {"id": "e5", "kind": "data", "source": {"node": "fail_msg", "port": "text"}, "target": {"node": "out_fail", "port": "value"}}
+  ],
+  "metadata": {}
+}

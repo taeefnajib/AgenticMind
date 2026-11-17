@@ -1,0 +1,45 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Hello pipeline",
+    "description": "Input → Transform → Output: the smallest end-to-end graph."
+  },
+  "runtime": {"engine": "agenticmind", "profile": "development"},
+  "nodes": [
+    {
+      "id": "name",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {"key": "name", "value_type": "String", "default": "world", "required": true},
+      "ui": {"position": {"x": 0, "y": 80}}
+    },
+    {
+      "id": "greet",
+      "type": "agenticmind.core.text_template",
+      "version": "1.0.0",
+      "config": {"template": "Hello, {{ text }}! Welcome to AgenticMind.", "strict": true},
+      "ui": {"position": {"x": 300, "y": 80}}
+    },
+    {
+      "id": "shout",
+      "type": "agenticmind.core.text_transform",
+      "version": "1.0.0",
+      "config": {"operation": "uppercase"},
+      "ui": {"position": {"x": 600, "y": 80}}
+    },
+    {
+      "id": "result",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {"key": "greeting"},
+      "ui": {"position": {"x": 900, "y": 80}}
+    }
+  ],
+  "edges": [
+    {"id": "e1", "kind": "data", "source": {"node": "name", "port": "value"}, "target": {"node": "greet", "port": "text"}},
+    {"id": "e2", "kind": "data", "source": {"node": "greet", "port": "text"}, "target": {"node": "shout", "port": "text"}},
+    {"id": "e3", "kind": "data", "source": {"node": "shout", "port": "text"}, "target": {"node": "result", "port": "value"}}
+  ],
+  "metadata": {}
+}

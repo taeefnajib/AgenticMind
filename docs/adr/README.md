@@ -1,0 +1,12 @@
+# Architecture decision records
+
+| ADR | Decision | Status |
+|---|---|---|
+| [0001](0001-own-ir-and-runtime.md) | Canonical IR and first-party runtime; frameworks as adapters | Accepted |
+| [0002](0002-monorepo-and-stack.md) | Monorepo layout and starting stack | Accepted |
+| [0003](0003-persistence.md) | SQLite default, PostgreSQL via URL, append-only revisions | Accepted |
+| [0004](0004-node-trust-and-isolation.md) | Only core nodes execute in-process until isolation exists | Accepted |
+| [0005](0005-in-process-run-execution.md) | Runs execute as asyncio tasks in the API process (for now) | Accepted |
+| [0006](0006-edge-semantics.md) | Distinct data/control edges, OR-join, skip propagation, fail-fast | Accepted |
+
+Template: Context → Decision → Consequences → Revisit when.

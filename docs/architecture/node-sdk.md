@@ -1,0 +1,117 @@
+# Node SDK: authoring and testing nodes
+
+A node is a **manifest** (machine-readable contract) bound to an async **handler**. Nodes are testable
+without the UI, API or scheduler.
+
+## Minimal node
+
+```python
+from typing import Literal
+from pydantic import Field
+from agenticmind_node_sdk import (
+    InputPort, NodeConfig, NodeContext, NodeResult, OutputPort, PortType, define_node, ui,
+)
+
+class ReverseConfig(NodeConfig):
+    mode: Literal["chars", "words"] = "chars"
+    keep_case: bool = Field(default=True, json_schema_extra=ui(advanced=True))
+
+@define_node(
+    type="acme.text.reverse",          # stable ID: <publisher>.<family>.<name>
+    version="1.0.0",                   # semver of the contract
+    display_name="Reverse",
+    category="transform",
+    package="acme-nodes",
+    description="Reverses text.",
+    inputs=[InputPort(name="text", type=PortType.STRING)],
+    outputs=[OutputPort(name="text", type=PortType.STRING)],
+    config=ReverseConfig,
+)
+async def reverse(ctx: NodeContext, inputs, config: ReverseConfig) -> NodeResult:
+    text = inputs["text"]
+    out = " ".join(reversed(text.split())) if config.mode == "words" else text[::-1]
+    return NodeResult(outputs={"text": out})
+```
+
+## Contract fields
+
+| Field | Notes |
+|---|---|
+| Identity | `type`, `version`, `display_name`, `category`, `package` |
+| Configuration | A `NodeConfig` subclass (unknown keys rejected). Its JSON Schema is published in the manifest and drives the inspector form. UI hints via `ui(widget="textarea", advanced=True, placeholder=...)`; hints never change semantics. |
+| Inputs | `InputPort(name, type, required=True, cardinality=SINGLE\|MULTIPLE, type_from_config=None)` |
+| Outputs | `OutputPort(name, type, type_from_config=None)`. All declared outputs must be returned. |
+| Branches | Control outputs; default `["done"]`. Branching nodes return `NodeResult(branches=frozenset({...}))`. |
+| Execution | `ExecutionPolicy(timeout_seconds, max_attempts, idempotent)` |
+| Permissions | `Permissions(network, filesystem, database, subprocess, credentials)`, declared up front |
+| Compatibility | `Compatibility(ir_versions, adapters)` |
+| Modes | Which experiences (`no_code`, `low_code`, `developer`) can safely represent the node |
+
+`type_from_config` lets a port's type follow a config field (Manual Input's output type is its
+`value_type`). Validator, runtime and UI all resolve it the same way.
+
+## Types
+
+`Any, String, Number, Boolean, JSON, Document, DocumentSet, EmbeddingVector, VectorStoreHandle,
+ChatMessage, Tool, AgentState, EvaluationDataset, HTTPRequest, HTTPResponse`.
+
+Compatibility is strict: equal types, any type into `Any`, and `String`/`Number`/`Boolean` into `JSON`
+(subtype acceptance, no value change). Everything else needs an explicit conversion node (`To Text`,
+`Parse JSON`). The runtime checks produced values against declared types.
+
+## Secrets
+
+```python
+from agenticmind_node_sdk import Permissions, SecretRef, secret_field
+
+class Cfg(NodeConfig):
+    api_key: SecretRef | None = secret_field("Provider key")
+
+@define_node(..., config=Cfg, permissions=Permissions(network=True, credentials=True))
+async def handler(ctx, inputs, config):
+    key = ctx.secret(config.api_key)   # allowed only for refs in this node's own config
+```
+
+In the IR the value is `{"$secret": "PROVIDER_KEY"}`; literal values are a validation error.
+
+## Errors
+
+Raise `NodeError(code, message)` for permanent failures and `TransientNodeError(code, message)` for
+retryable ones. Codes should be stable `UPPER_SNAKE_CASE`. Any other exception becomes
+`NODE_UNHANDLED_EXCEPTION` and is not retried.
+
+## Observability
+
+Return `usage=ModelUsage(...)` for model calls; emit custom trace events with
+`await ctx.emit("tool_call", {...})`. Everything is redacted by the runtime.
+
+## Testing
+
+```python
+from agenticmind_node_sdk.testing import invoke_node
+
+async def test_reverse():
+    r = await invoke_node(reverse, inputs={"text": "abc"}, config={"mode": "chars"})
+    assert r.outputs == {"text": "cba"}
+```
+
+`invoke_node` parses config, enforces secret permissions and checks outputs against the manifest.
+
+## Packaging & discovery
+
+Expose a `register(registrar)` function and declare an entry point:
+
+```toml
+[project.entry-points."agenticmind.nodes"]
+acme = "acme_nodes:register"
+```
+
+```python
+def register(registrar):
+    for d in (reverse,):
+        registrar(d)
+```
+
+The registry assigns **trust** from the distribution, never from the package: `agenticmind-nodes-core` is
+`core`; everything else is `community`. Only `core` runs in-process today (ADR-0004); operators can opt
+other levels in with `AGENTICMIND_IN_PROCESS_TRUST` at their own risk.

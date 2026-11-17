@@ -1,0 +1,45 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "LLM assistant (mock provider)",
+    "description": "Prompt template → LLM → output, using the deterministic mock provider. Swap the provider once real adapters land."
+  },
+  "runtime": {"engine": "agenticmind", "profile": "development"},
+  "nodes": [
+    {
+      "id": "question",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {"key": "question", "value_type": "String", "default": "What is retrieval-augmented generation?", "required": true},
+      "ui": {"position": {"x": 0, "y": 80}}
+    },
+    {
+      "id": "prompt",
+      "type": "agenticmind.core.text_template",
+      "version": "1.0.0",
+      "config": {"template": "Answer concisely: {{ text }}", "strict": true},
+      "ui": {"position": {"x": 300, "y": 80}}
+    },
+    {
+      "id": "llm",
+      "type": "agenticmind.models.llm",
+      "version": "1.0.0",
+      "config": {"provider": "mock", "model": "mock-1", "system_prompt": "You are a helpful assistant.", "temperature": 0.0, "max_tokens": 512},
+      "ui": {"position": {"x": 600, "y": 80}}
+    },
+    {
+      "id": "answer",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {"key": "answer"},
+      "ui": {"position": {"x": 900, "y": 80}}
+    }
+  ],
+  "edges": [
+    {"id": "e1", "kind": "data", "source": {"node": "question", "port": "value"}, "target": {"node": "prompt", "port": "text"}},
+    {"id": "e2", "kind": "data", "source": {"node": "prompt", "port": "text"}, "target": {"node": "llm", "port": "prompt"}},
+    {"id": "e3", "kind": "data", "source": {"node": "llm", "port": "text"}, "target": {"node": "answer", "port": "value"}}
+  ],
+  "metadata": {}
+}

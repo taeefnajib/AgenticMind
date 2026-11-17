@@ -1,0 +1,16 @@
+[project]
+name = "agenticmind-nodes-core"
+version = "0.1.0"
+description = "AgenticMind core node package (inputs, transforms, control flow, outputs, models)"
+requires-python = ">=3.11"
+dependencies = ["agenticmind-node-sdk", "agenticmind-providers"]
+
+[project.entry-points."agenticmind.nodes"]
+core = "agenticmind_nodes_core:register"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agenticmind_nodes_core"]

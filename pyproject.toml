@@ -1,0 +1,52 @@
+[project]
+name = "agenticmind-workspace"
+version = "0.1.0"
+description = "AgenticMind monorepo workspace (Python side)"
+requires-python = ">=3.11"
+dependencies = [
+    "agenticmind-ir",
+    "agenticmind-node-sdk",
+    "agenticmind-registry",
+    "agenticmind-providers",
+    "agenticmind-runtime",
+    "agenticmind-nodes-core",
+    "agenticmind-api",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*", "nodes/*", "apps/api"]
+
+[tool.uv.sources]
+agenticmind-ir = { workspace = true }
+agenticmind-node-sdk = { workspace = true }
+agenticmind-registry = { workspace = true }
+agenticmind-providers = { workspace = true }
+agenticmind-runtime = { workspace = true }
+agenticmind-nodes-core = { workspace = true }
+agenticmind-api = { workspace = true }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["packages", "nodes", "apps/api/tests"]
+addopts = "--import-mode=importlib"
+pythonpath = ["packages/runtime/tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008", "UP042"]  # FastAPI Depends(); str-mixin enums are deliberate

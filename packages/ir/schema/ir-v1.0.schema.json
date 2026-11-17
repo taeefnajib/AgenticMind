@@ -1,0 +1,305 @@
+{
+  "$defs": {
+    "Edge": {
+      "additionalProperties": false,
+      "description": "A connection between two nodes.\n\n* ``data`` edges carry a typed value from an output port to an input port.\n* ``control`` edges go from a source *branch* (``done`` for ordinary nodes, or a declared\n  branch such as ``true``/``false``) to the target's ``trigger`` port, and determine\n  ordering and routing only.",
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/EdgeKind"
+        },
+        "source": {
+          "$ref": "#/$defs/PortRef"
+        },
+        "target": {
+          "$ref": "#/$defs/PortRef"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "source",
+        "target"
+      ],
+      "title": "Edge",
+      "type": "object"
+    },
+    "EdgeKind": {
+      "enum": [
+        "data",
+        "control"
+      ],
+      "title": "EdgeKind",
+      "type": "string"
+    },
+    "ExecutionOverrides": {
+      "additionalProperties": false,
+      "description": "Per-node overrides of the node manifest's execution policy.",
+      "properties": {
+        "max_attempts": {
+          "anyOf": [
+            {
+              "maximum": 10,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Attempts"
+        },
+        "timeout_seconds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout Seconds"
+        }
+      },
+      "title": "ExecutionOverrides",
+      "type": "object"
+    },
+    "ExecutionProfile": {
+      "enum": [
+        "development",
+        "production",
+        "enterprise"
+      ],
+      "title": "ExecutionProfile",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "Node": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "description": "Node configuration. Secrets MUST be references: {\"$secret\": \"NAME\"}.",
+          "title": "Config",
+          "type": "object"
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionOverrides"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "description": "Stable node type ID, e.g. agenticmind.core.output",
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){2,}$",
+          "title": "Type",
+          "type": "string"
+        },
+        "ui": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NodeUI"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version": {
+          "description": "Semantic version of the node package contract",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[0-9A-Za-z.-]+)?$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "version"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "NodeUI": {
+      "additionalProperties": false,
+      "description": "Presentation-only metadata. Never affects execution semantics.",
+      "properties": {
+        "label": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "NodeUI",
+      "type": "object"
+    },
+    "PortRef": {
+      "additionalProperties": false,
+      "properties": {
+        "node": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$",
+          "title": "Node",
+          "type": "string"
+        },
+        "port": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "title": "Port",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "port"
+      ],
+      "title": "PortRef",
+      "type": "object"
+    },
+    "Position": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "title": "Position",
+      "type": "object"
+    },
+    "ProjectInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "default": "",
+          "maxLength": 5000,
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "ProjectInfo",
+      "type": "object"
+    },
+    "RuntimeSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "const": "agenticmind",
+          "default": "agenticmind",
+          "title": "Engine",
+          "type": "string"
+        },
+        "profile": {
+          "$ref": "#/$defs/ExecutionProfile",
+          "default": "development"
+        }
+      },
+      "title": "RuntimeSpec",
+      "type": "object"
+    }
+  },
+  "$id": "https://agenticmind.dev/schemas/ir-v1.0.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/Edge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "ir_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Ir Version",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Metadata",
+      "type": "object"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/Node"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "project": {
+      "$ref": "#/$defs/ProjectInfo"
+    },
+    "runtime": {
+      "$ref": "#/$defs/RuntimeSpec"
+    }
+  },
+  "required": [
+    "project"
+  ],
+  "title": "AgenticMind IR v1.0",
+  "type": "object"
+}
