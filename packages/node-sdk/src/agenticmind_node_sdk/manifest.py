@@ -55,6 +55,7 @@ class Permissions(_Model):
     subprocess: bool = False
     credentials: bool = Field(default=False, description="May resolve secrets referenced in its own config.")
     artifacts: bool = Field(default=False, description="May read files uploaded to the run's project.")
+    memory: bool = Field(default=False, description="May read/write conversation state and long-term memories.")
 
 
 class ExecutionPolicy(_Model):

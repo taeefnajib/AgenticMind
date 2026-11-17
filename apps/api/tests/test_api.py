@@ -187,3 +187,57 @@ def test_ticket_triage_template_runs(client):
         e["data"]["iteration"][0] for e in events if e.get("node_id") == "route" and e["event_type"] == "node_succeeded"
     )
     assert route_iterations == [0, 1, 2, 3]
+
+
+def _memory_project(client):
+    pid = client.post("/api/projects", json={"name": "Mem", "template": "assistant-with-memory"}).json()["id"]
+    doc = client.get(f"/api/projects/{pid}").json()["document"]
+    agent = next(n for n in doc["nodes"] if n["id"] == "agent")
+    agent["config"].update(provider="mock", model="mock-1")
+    agent["config"].pop("api_key")
+    assert client.put(f"/api/projects/{pid}", json={"document": doc}).status_code == 200
+    return pid
+
+
+def _ask(client, pid, **inputs):
+    run_id = client.post(f"/api/projects/{pid}/runs", json={"inputs": inputs, "targets": ["answer"]}).json()["id"]
+    final = wait_for_run(client, run_id)
+    assert final["status"] == "succeeded", final["error"]
+    return final["outputs"]["answer"]
+
+
+def test_memory_template_conversation_consent_and_deletion(client):
+    pid = _memory_project(client)
+    _ask(client, pid, question="hello there", conversation_id="chat-1")
+    _ask(client, pid, question="second question", conversation_id="chat-1")
+    convs = client.get(f"/api/projects/{pid}/conversations").json()
+    assert [(c["id"], c["messages"]) for c in convs] == [("chat-1", 4)]
+    turns = client.get(f"/api/projects/{pid}/conversations/chat-1").json()
+    assert [t["role"] for t in turns] == ["user", "assistant", "user", "assistant"]
+    assert turns[2]["content"] == "second question"
+
+    # no consent -> the save tool refuses and nothing is stored
+    answer = _ask(client, pid, question="save_memory: I prefer green tea", conversation_id="chat-2")
+    assert answer["steps"][0]["ok"] is False
+    assert client.get(f"/api/projects/{pid}/memories").json() == []
+    # with consent -> stored, listed with its source run
+    answer = _ask(
+        client, pid, question="save_memory: I prefer green tea", conversation_id="chat-2", memory_consent=True
+    )
+    assert answer["steps"][0]["ok"] is True
+    memories = client.get(f"/api/projects/{pid}/memories").json()
+    assert [m["content"] for m in memories] == ["I prefer green tea"]
+    assert memories[0]["source"]["run_id"] and memories[0]["expires_at"]
+    # recall in a new conversation finds it
+    answer = _ask(client, pid, question="recall_memory: green tea", conversation_id="chat-3")
+    assert "green tea" in answer["answer"]
+
+    # projects are isolated
+    other = _memory_project(client)
+    assert client.get(f"/api/projects/{other}/memories").json() == []
+    # deletion
+    assert client.delete(f"/api/projects/{pid}/memories/{memories[0]['id']}").status_code == 204
+    assert client.get(f"/api/projects/{pid}/memories").json() == []
+    assert client.delete(f"/api/projects/{pid}/conversations/chat-1").json() == {"deleted": 4}
+    assert client.get(f"/api/projects/{pid}/conversations/bad%20id").status_code == 400
+    assert client.delete(f"/api/projects/{pid}/memories/mem_missing").status_code == 404

@@ -1,4 +1,10 @@
 import type {
+  ArtifactInfo,
+  ConversationSummary,
+  ConversationTurn,
+  Diagnostic,
+  JsonValue,
+  MemoryRecord,
   NodeManifest,
   ProjectDocument,
   ProjectOut,
@@ -7,9 +13,6 @@ import type {
   TemplateInfo,
   TraceEvent,
   ValidationResult,
-  ArtifactInfo,
-  Diagnostic,
-  JsonValue,
 } from "./types";
 
 export class ApiError extends Error {
@@ -138,6 +141,16 @@ export const api = {
   },
   deleteFile: (projectId: string, fileId: string) =>
     request<void>(`/projects/${projectId}/files/${fileId}`, { method: "DELETE" }),
+  memories: (projectId: string) => request<MemoryRecord[]>(`/projects/${projectId}/memories`),
+  deleteMemory: (projectId: string, memoryId: string) =>
+    request<void>(`/projects/${projectId}/memories/${encodeURIComponent(memoryId)}`, { method: "DELETE" }),
+  clearMemories: (projectId: string) =>
+    request<{ deleted: number }>(`/projects/${projectId}/memories`, { method: "DELETE" }),
+  conversations: (projectId: string) => request<ConversationSummary[]>(`/projects/${projectId}/conversations`),
+  conversation: (projectId: string, id: string) =>
+    request<ConversationTurn[]>(`/projects/${projectId}/conversations/${encodeURIComponent(id)}`),
+  deleteConversation: (projectId: string, id: string) =>
+    request<{ deleted: number }>(`/projects/${projectId}/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
   fileUrl: (projectId: string, fileId: string) => `/api/projects/${projectId}/files/${fileId}/content`,
   async exportIR(id: string): Promise<{ blob: Blob; filename: string }> {
     const res = await send(`/api/projects/${id}/export`, undefined, REQUEST_TIMEOUT_MS);

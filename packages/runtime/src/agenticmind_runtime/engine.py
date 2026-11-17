@@ -43,6 +43,7 @@ from agenticmind_node_sdk import (
 from .artifacts import ArtifactStore
 from .events import ErrorInfo, EventType, NodeStatus, RunObserver, RunStatus, TraceEvent
 from .loops import SCOPE_PORT
+from .memory import MemoryStore
 from .plan import ExecutionPlan, LoopRegion, PlannedNode
 from .redaction import summarize
 from .secrets import SecretResolver
@@ -111,6 +112,7 @@ class Engine:
         retry_backoff_seconds: float = 0.2,
         artifacts: ArtifactStore | None = None,
         data_dir: Path | None = None,
+        memory: MemoryStore | None = None,
     ) -> None:
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be >= 1")
@@ -120,6 +122,7 @@ class Engine:
         self.retry_backoff_seconds = retry_backoff_seconds
         self.artifacts = artifacts
         self.data_dir = data_dir
+        self.memory = memory
 
     async def run(
         self,
@@ -382,6 +385,11 @@ class _RunExecution:
             if self.engine.artifacts is not None and manifest.permissions.artifacts
             else None
         )
+        memory = (
+            self.engine.memory.scoped(self.plan.project_id)
+            if self.engine.memory is not None and manifest.permissions.memory
+            else None
+        )
 
         async def emit_custom(event_type: str, data: Mapping[str, Any]) -> None:
             await self.emit(
@@ -413,6 +421,7 @@ class _RunExecution:
                 _emitter=emit_custom,
                 _artifacts=artifacts,
                 _storage_root=self.engine.data_dir if manifest.permissions.filesystem else None,
+                _memory=memory,
             )
             try:
                 result = await asyncio.wait_for(

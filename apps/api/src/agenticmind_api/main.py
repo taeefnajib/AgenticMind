@@ -14,7 +14,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .db import make_engine, make_session_factory
 from .deps import Services
+from .memory_store import SqlMemoryStore
 from .routers import files, nodes, projects, runs
+from .routers import memory as memory_routes
 from .run_manager import RunManager
 from .settings import Settings
 from .store import Store
@@ -31,7 +33,9 @@ def create_app(
     settings = settings or Settings()
     registry = registry or default_registry()
     secrets = secrets or EnvSecretResolver(prefix=settings.secret_env_prefix)
-    store = Store(make_session_factory(make_engine(settings.database_url)))
+    session_factory = make_session_factory(make_engine(settings.database_url))
+    store = Store(session_factory)
+    memory = SqlMemoryStore(session_factory)
     artifacts = LocalArtifactStore(settings.data_dir / "artifacts", max_bytes=settings.max_upload_bytes)
     run_manager = RunManager(
         store,
@@ -41,6 +45,7 @@ def create_app(
         max_concurrency=settings.max_concurrency,
         artifacts=artifacts,
         data_dir=settings.data_dir,
+        memory=memory,
     )
 
     @asynccontextmanager
@@ -58,7 +63,13 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.services = Services(
-        settings=settings, registry=registry, store=store, secrets=secrets, runs=run_manager, artifacts=artifacts
+        settings=settings,
+        registry=registry,
+        store=store,
+        secrets=secrets,
+        runs=run_manager,
+        artifacts=artifacts,
+        memory=memory,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -71,6 +82,7 @@ def create_app(
     app.include_router(projects.router)
     app.include_router(runs.router)
     app.include_router(files.router)
+    app.include_router(memory_routes.router)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app

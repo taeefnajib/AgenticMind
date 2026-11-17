@@ -61,6 +61,11 @@ Values on `EmbeddingModel` / `VectorStoreHandle` ports are handles: descriptors 
 *references*. A node with the `credentials` permission may resolve the references carried by handles
 wired into it, in addition to those in its own config. Secret values never travel on edges.
 
+### Memory (ADR-0012)
+Nodes with the `memory` permission get `ctx.memory`, a project-scoped `MemoryAccess` for conversation
+turns and long-term memories. The engine takes a `MemoryStore` (`Engine(memory=...)`): the API passes its
+database store, the CLI an in-process one that lives for a single run.
+
 ### Node storage
 Nodes with the `filesystem` permission get `ctx.storage_path(...)` under the runtime data directory (used
 for embedded vector databases and the local model cache).
@@ -99,6 +104,8 @@ GET  /api/runs/{run_id}                     run record (status, outputs, error, 
 GET  /api/runs/{run_id}/events              JSON or SSE
 POST /api/runs/{run_id}/cancel              cooperative cancellation
 GET  /api/runs/{run_id}/nodes/{node_id}/outputs
+GET|DELETE /api/projects/{id}/memories[/{memory_id}]                 long-term memories (?namespace=, ?q=)
+GET|DELETE /api/projects/{id}/conversations[/{conversation_id}]      stored conversation turns
 ```
 
 `POST /runs/{id}/resume` from the blueprint arrives with durable checkpoints.
@@ -143,6 +150,7 @@ Runtime error codes (in `error.code` of events/runs) come from nodes (e.g. `INPU
 `PROVIDER_UNAVAILABLE`, `MODEL_EMPTY_RESPONSE`, `CITATIONS_MISSING`, `STORE_UNAVAILABLE`, `STORE_NOT_INSTALLED`,
 `AGENT_LIMIT_REACHED`, `DUPLICATE_TOOL_NAME`, `TOOL_UNKNOWN`, `TOOL_PERMISSION_DENIED`, `LOOP_ITEMS_MISSING`,
 `LOOP_ITEMS_INVALID`, `LOOP_TOO_MANY_ITEMS`, `LOOP_ITEM_TYPE_MISMATCH`, `LOOP_STATE_TYPE_MISMATCH`,
-`ROUTER_INVALID_REGEX`, `JOIN_INCOMPLETE`, `JOIN_MERGE_NOT_OBJECT`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`, `LOOP_RESULT_NOT_JSON`,
+`ROUTER_INVALID_REGEX`, `JOIN_INCOMPLETE`, `JOIN_MERGE_NOT_OBJECT`, `MEMORY_UNAVAILABLE`, `MEMORY_INVALID_KEY`,
+`MEMORY_EMPTY`, `MEMORY_TOO_LONG`, `AGENT_HISTORY_INVALID`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`, `LOOP_RESULT_NOT_JSON`,
 `NODE_OUTPUT_MISSING`, `NODE_OUTPUT_UNDECLARED`, `NODE_OUTPUT_TYPE_MISMATCH`, `NODE_INVALID_BRANCH`,
 `SECRET_ACCESS_DENIED`, `ARTIFACT_ACCESS_DENIED`, `ARTIFACT_NOT_FOUND`, `STORAGE_UNAVAILABLE`) or the API (`RUN_INTERRUPTED`, `RUN_ABORTED`, `RUNTIME_INTERNAL_ERROR`).

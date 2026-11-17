@@ -13,5 +13,6 @@
 | [0009](0009-llm-provider-and-grounded-answers.md) | OpenRouter LLM provider, Context/Citation Builder, chat panel | Accepted |
 | [0010](0010-tools-and-agent-node.md) | Tool handles, bounded Agent loop, starter tools | Accepted |
 | [0011](0011-loops-router-join.md) | Paired loop regions, Router with config-defined routes, AND Join | Accepted |
+| [0012](0012-memory.md) | Conversation state vs consented long-term memory, retention, deletion | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

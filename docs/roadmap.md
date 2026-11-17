@@ -10,7 +10,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M3 RAG vertical slice | **Core done**: ingestion, retrieval, cited answers with a real LLM; step 4 (hybrid search, reranking, query rewriting) pending |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
-| M6 Agent Lab | **In progress**: 8a (tools + Agent) and 8b (loops, router, join) done; 8c–8e next |
+| M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join) and 8c (memory) done; 8d–8e next |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
@@ -66,6 +66,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   `LOOP_OVERLAP`); Router (routes from config become branches; rules or LLM via a forced tool call);
   Join (waits for all control paths; collect/merge/concat); IDE shows dynamic route handles and
   "ran ×N"; *Ticket triage* template; verified live with Gemini routing.
+- **8c – memory**: conversation state (Conversation History, Save Conversation Turn; Agent 1.1.0 `history`
+  input) kept separate from long-term memories (Remember, Recall, Memory Tool recall/save); explicit
+  consent wired in the graph (chat toggle, off by default); retention per entry; project + namespace
+  isolation; keyword recall with recency fill; API and Memory tab to list and delete; multi-turn chat
+  with "New chat"; *Assistant with memory* template; verified live with Gemini.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -75,7 +80,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   than `credentials` are not yet enforced at OS level.
 - Agent tools run in-process (core trust only); third-party tool isolation is future work. Web Fetch's
   DNS check does not defend against DNS rebinding between check and connect.
-- Chat is single-turn (no conversation memory yet). Citation validation checks that cited sources exist,
+- Memory recall is keyword-based (plus recency), not semantic; memory isolation is per project and
+  namespace only (no user identity yet). Text is not scanned for secrets before it is stored. Citation validation checks that cited sources exist,
   not that they support the claim (faithfulness evaluation comes with the Evaluation Lab).
 - No authentication, workspaces or roles yet; the API must not be exposed publicly.
 - Schema is created with `create_all`; Alembic migrations needed before production databases.
@@ -93,8 +99,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **Section 8 – Agents** (continuing): 8c memory (short-term state,
-   consented long-term memory); 8d durable checkpoints, Human Approval, resume; 8e planner/worker,
+1. **Section 8 – Agents** (continuing): 8d durable checkpoints, Human Approval, resume; 8e planner/worker,
    supervisor, reflection/critic, handoff; third-party tools via an entry-point group.
 2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,
    context compression.

@@ -51,6 +51,10 @@ To try loops and routing: **New** → *Ticket triage*, then **Run**. A Loop proc
 sends it down the billing / technical / default route and Loop End collects the replies (nodes show
 "ran ×N"). Set the Router's mode to *llm* to let Gemini classify instead of the regex rules.
 
+To try memory: **New** → *Assistant with memory*, then chat in **Chat**. It remembers the conversation;
+tick *Remember facts I share* to let it save facts for future chats (**New chat** starts fresh). Review
+and delete everything in the **Memory** tab.
+
 ### API keys and settings (`.env`)
 
 The API loads a `.env` file from the directory it starts in (the repo root for `npm run dev:api`). Copy

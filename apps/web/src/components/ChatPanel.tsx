@@ -125,11 +125,41 @@ function AnswerText({ message, onCite }: { message: Message; onCite: (n: number)
   return <Markdown text={message.text} cite={cite} />;
 }
 
+/** Run-input keys with a fixed meaning for chat (ADR-0012): never offered as the question field. */
+export const CONVERSATION_KEY = "conversation_id";
+export const CONSENT_KEY = "memory_consent";
+
+export function newConversationId(): string {
+  return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Inputs for one chat turn: the question, plus conversation id / consent when the graph reads them. */
+export function chatInputs(
+  inputNodes: IRNode[],
+  questionKey: string,
+  question: string,
+  conversationId: string,
+  consent: boolean,
+): Record<string, JsonValue> {
+  const keys = new Set(inputNodes.map((n) => n.config.key));
+  const inputs: Record<string, JsonValue> = { [questionKey]: question };
+  if (keys.has(CONVERSATION_KEY)) inputs[CONVERSATION_KEY] = conversationId;
+  if (keys.has(CONSENT_KEY)) inputs[CONSENT_KEY] = consent;
+  return inputs;
+}
+
 export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
   const textInputs = useMemo(
-    () => inputNodes.filter((n) => (n.config.value_type ?? "String") === "String"),
+    () =>
+      inputNodes.filter(
+        (n) => (n.config.value_type ?? "String") === "String" && n.config.key !== CONVERSATION_KEY,
+      ),
     [inputNodes],
   );
+  const remembersConversation = inputNodes.some((n) => n.config.key === CONVERSATION_KEY);
+  const asksConsent = inputNodes.some((n) => n.config.key === CONSENT_KEY);
+  const [conversationId, setConversationId] = useState(newConversationId);
+  const [consent, setConsent] = useState(false);
   const defaultInput = (textInputs.find((n) => n.config.key === "question") ?? textInputs[0])?.config.key as string | undefined;
   const defaultOutput = (outputs.find((o) => o.key === "answer") ?? outputs[0])?.id;
   const [inputKey, setInputKey] = useState<string | undefined>(defaultInput);
@@ -160,7 +190,7 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
     setBusy(true);
     setMessages((m) => [...m, { role: "user", text: question }]);
     try {
-      const result = await onAsk({ [inputKey]: question }, output.id);
+      const result = await onAsk(chatInputs(inputNodes, inputKey, question, conversationId, consent), output.id);
       setMessages((m) => [...m, result ? toMessage(result, output.key) : { role: "assistant", text: "", error: "The run did not start" }]);
     } finally {
       setBusy(false);
@@ -199,10 +229,31 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
             ))}
           </select>
         </label>
-        <span className="text-slate-400">Each question runs only what this output needs. No memory between questions yet.</span>
-        {messages.length > 0 && (
-          <button type="button" className="ml-auto text-slate-500 hover:text-slate-800" onClick={() => setMessages([])}>
-            Clear
+        {asksConsent && (
+          <label
+            className="flex items-center gap-1 text-slate-600"
+            title="When on, the assistant may save facts you share to long-term memory. You can review and delete them in the Memory tab."
+          >
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+            Remember facts I share
+          </label>
+        )}
+        <span className="text-slate-400">
+          {remembersConversation
+            ? "This chat remembers earlier messages."
+            : "Each question runs only what this output needs. No memory between questions."}
+        </span>
+        {(messages.length > 0 || remembersConversation) && (
+          <button
+            type="button"
+            className="ml-auto text-slate-500 hover:text-slate-800"
+            onClick={() => {
+              setMessages([]);
+              setConversationId(newConversationId());
+            }}
+            title={remembersConversation ? "Start a new conversation (the assistant forgets this chat's messages)" : undefined}
+          >
+            {remembersConversation ? "New chat" : "Clear"}
           </button>
         )}
       </div>

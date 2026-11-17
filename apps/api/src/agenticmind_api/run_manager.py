@@ -20,6 +20,7 @@ from agenticmind_runtime import (
     CancelToken,
     Engine,
     ExecutionPlan,
+    MemoryStore,
     SecretResolver,
     TraceEvent,
     compile_plan,
@@ -54,6 +55,7 @@ class RunManager:
         max_concurrency: int = 8,
         artifacts: ArtifactStore | None = None,
         data_dir: Path | None = None,
+        memory: MemoryStore | None = None,
     ) -> None:
         self.store = store
         self.registry = registry
@@ -62,6 +64,7 @@ class RunManager:
         self.max_concurrency = max_concurrency
         self.artifacts = artifacts
         self.data_dir = data_dir
+        self.memory = memory
         self._active: dict[str, tuple[asyncio.Task[None], CancelToken]] = {}
 
     def plan(self, doc: ProjectDocument, targets: Sequence[str] | None = None) -> ExecutionPlan:
@@ -90,6 +93,7 @@ class RunManager:
                 max_concurrency=self.max_concurrency,
                 artifacts=self.artifacts,
                 data_dir=self.data_dir,
+                memory=self.memory,
             )
             result = await engine.run(plan, run_id=run_id, inputs=inputs, cancel=token)
             self.store.finish_run(result)

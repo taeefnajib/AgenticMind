@@ -4,8 +4,9 @@ import type { Diagnostic, IRNode, JsonValue, Mode, ProjectDocument, RunOut, Trac
 import { ChatPanel, type ChatOutputOption, type ChatResult } from "./ChatPanel";
 import { DiagnosticList } from "./DiagnosticList";
 import { ValueView } from "./DocumentViewer";
+import { MemoryPanel } from "./MemoryPanel";
 
-export type ConsoleTab = "chat" | "problems" | "inputs" | "trace" | "output" | "ir";
+export type ConsoleTab = "chat" | "problems" | "inputs" | "trace" | "output" | "memory" | "ir";
 
 const MANUAL_INPUT = "agenticmind.core.manual_input";
 
@@ -23,6 +24,7 @@ interface Props {
   onSelectNode: (id: string) => void;
   document: () => ProjectDocument;
   chatKey: string;
+  projectId?: string;
   chatOutputs: ChatOutputOption[];
   chatDisabled: boolean;
   onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
@@ -40,6 +42,7 @@ export function ConsolePanel(props: Props) {
     { id: "problems", label: "Problems", badge: diagnostics.length || undefined, tone: errors ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800" },
     { id: "inputs", label: "Run inputs" },
     { id: "trace", label: "Trace", badge: events.length || undefined, tone: "bg-slate-200 text-slate-700" },
+    { id: "memory", label: "Memory" },
     { id: "output", label: "Output", badge: run?.status, tone: run?.status === "failed" ? "bg-red-100 text-red-700" : run?.status === "succeeded" ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700" },
   ];
   if (mode === "developer") tabs.push({ id: "ir", label: "IR (live)" });
@@ -82,6 +85,7 @@ export function ConsolePanel(props: Props) {
         {tab === "inputs" && <RunInputs {...props} />}
         {tab === "trace" && <TraceTable events={events} onSelectNode={props.onSelectNode} />}
         {tab === "output" && <RunOutput run={run} events={events} />}
+        {tab === "memory" && <MemoryPanel projectId={props.projectId} refreshKey={run?.status} />}
         {tab === "ir" && (
           <pre className="font-mono text-[11px] leading-relaxed text-slate-800">{JSON.stringify(props.document(), null, 2)}</pre>
         )}

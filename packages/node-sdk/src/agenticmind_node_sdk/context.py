@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from .artifacts import ArtifactInfo, ArtifactNotFoundError, ArtifactReader
 from .config import SecretRef
 from .errors import NodeError, SecretAccessError
+from .memory import MemoryAccess
 
 NodeInputs = Mapping[str, Any]
 
@@ -58,6 +59,7 @@ class NodeContext:
     _emitter: EventEmitter | None = None
     _artifacts: ArtifactReader | None = None
     _storage_root: Path | None = None
+    _memory: MemoryAccess | None = None
 
     def secret(self, ref: SecretRef) -> str:
         """Resolve a secret referenced by this node's own config (requires ``credentials`` permission)."""
@@ -110,6 +112,17 @@ class NodeContext:
         path = self._storage_root.joinpath(*parts)
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @property
+    def memory(self) -> MemoryAccess:
+        """Project-scoped conversation state and long-term memories (requires ``memory`` permission)."""
+        if self._memory is None:
+            raise NodeError(
+                "MEMORY_UNAVAILABLE",
+                f"Node {self.node_id} has no memory access: it lacks the 'memory' permission "
+                "or the runtime has no memory store",
+            )
+        return self._memory
 
     async def emit(self, event_type: str, data: Mapping[str, Any]) -> None:
         """Emit a custom trace event (e.g. ``tool_call``). Data is redacted by the runtime."""

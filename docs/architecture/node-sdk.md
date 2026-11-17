@@ -109,6 +109,12 @@ Arguments are validated against `parameters` (JSON Schema 2020-12) before the im
 Return JSON-serialisable data; raise `ToolError` for problems the model should see. `permissions` must be a
 subset of what the Agent node declares.
 
+## Memory
+Nodes declaring `Permissions(memory=True)` get `ctx.memory` (ADR-0012): `recent_turns` / `append_turns`
+for conversation state and `remember` / `search` for long-term memories, all scoped to the run's project.
+Writes of user facts must be gated by an explicit consent value. Tests pass `memory=InMemoryMemory()` to
+`invoke_node`.
+
 ## Local storage
 
 With `Permissions(filesystem=True)`, `ctx.storage_path("vectors", "qdrant")` returns a persistent

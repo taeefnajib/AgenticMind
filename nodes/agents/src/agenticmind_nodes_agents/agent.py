@@ -44,7 +44,7 @@ DEFAULT_INSTRUCTIONS = (
     "Answer concisely."
 )
 MAX_TOOL_RESULT_CHARS = 12_000
-AGENT_PERMISSIONS = Permissions(network=True, filesystem=True, credentials=True, database=True)
+AGENT_PERMISSIONS = Permissions(network=True, filesystem=True, credentials=True, database=True, memory=True)
 
 
 class AgentConfig(NodeConfig):
@@ -105,36 +105,49 @@ def _short(value: Any, limit: int = 300) -> str:
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-@define_node(
-    type="agenticmind.agents.agent",
-    version="1.0.0",
-    display_name="Agent",
-    category="agents",
-    package=PACKAGE,
-    description="A model that decides which connected tools to call, within turn, tool-call, token and cost limits.",
-    inputs=[
-        InputPort(name="task", type=PortType.STRING, description="The question or task"),
-        InputPort(
-            name="tools",
-            type=PortType.TOOL,
-            required=False,
-            cardinality=Cardinality.MULTIPLE,
-            description="Tools the agent may use",
-        ),
-        InputPort(name="context", type=PortType.STRING, required=False, description="Extra background for the agent"),
-    ],
-    outputs=[
-        OutputPort(name="answer", type=PortType.STRING),
-        OutputPort(name="result", type=PortType.JSON, description="{answer, steps, report} for chat/API"),
-        OutputPort(name="transcript", type=PortType.JSON, description="Full message history (for debugging)"),
-    ],
-    config=AgentConfig,
-    permissions=AGENT_PERMISSIONS,
-    # The loop may perform side effects through tools, so the whole node is never retried blindly.
-    execution=ExecutionPolicy(timeout_seconds=600, max_attempts=1, idempotent=False),
-    tags=["agents"],
+_INPUTS_V1 = [
+    InputPort(name="task", type=PortType.STRING, description="The question or task"),
+    InputPort(
+        name="tools",
+        type=PortType.TOOL,
+        required=False,
+        cardinality=Cardinality.MULTIPLE,
+        description="Tools the agent may use",
+    ),
+    InputPort(name="context", type=PortType.STRING, required=False, description="Extra background for the agent"),
+]
+_HISTORY = InputPort(
+    name="history",
+    type=PortType.JSON,
+    required=False,
+    description="Earlier messages [{role, content}], e.g. from Conversation History",
 )
-async def agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResult:
+_OUTPUTS = [
+    OutputPort(name="answer", type=PortType.STRING),
+    OutputPort(name="result", type=PortType.JSON, description="{answer, steps, report} for chat/API"),
+    OutputPort(name="transcript", type=PortType.JSON, description="Full message history (for debugging)"),
+]
+MAX_HISTORY_MESSAGES = 200
+
+
+def _history(raw: Any) -> list[ChatMessage]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_HISTORY_MESSAGES:
+        raise NodeError("AGENT_HISTORY_INVALID", f"history must be a list of at most {MAX_HISTORY_MESSAGES} messages")
+    out = []
+    for i, item in enumerate(raw):
+        if (
+            not isinstance(item, dict)
+            or item.get("role") not in ("user", "assistant")
+            or not isinstance(item.get("content"), str)
+        ):
+            raise NodeError("AGENT_HISTORY_INVALID", f"history[{i}] must be {{role: user|assistant, content: text}}")
+        out.append(ChatMessage(role=item["role"], content=item["content"]))
+    return out
+
+
+async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResult:
     tools = [ToolHandle.model_validate(t) for t in inputs.get("tools", [])]
     names = [t.name for t in tools]
     if len(names) != len(set(names)):
@@ -155,7 +168,7 @@ async def agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResult:
     system = config.instructions
     if inputs.get("context"):
         system += "\n\nBackground:\n" + inputs["context"]
-    messages: list[ChatMessage] = [ChatMessage(role="user", content=inputs["task"])]
+    messages: list[ChatMessage] = [*_history(inputs.get("history")), ChatMessage(role="user", content=inputs["task"])]
     try:
         provider = get_provider(config.provider)
     except ProviderError as exc:
@@ -315,3 +328,21 @@ async def _run_tool(
         },
     )
     return step
+
+
+_COMMON: dict[str, Any] = {
+    "type": "agenticmind.agents.agent",
+    "display_name": "Agent",
+    "category": "agents",
+    "package": PACKAGE,
+    "description": "A model that decides which connected tools to call, within turn, tool-call, token and cost limits.",
+    "outputs": _OUTPUTS,
+    "config": AgentConfig,
+    "permissions": AGENT_PERMISSIONS,
+    # The loop may perform side effects through tools, so the whole node is never retried blindly.
+    "execution": ExecutionPolicy(timeout_seconds=600, max_attempts=1, idempotent=False),
+}
+#: 1.1.0 adds the optional ``history`` input (conversation memory).
+agent = define_node(**_COMMON, version="1.1.0", inputs=[*_INPUTS_V1, _HISTORY], tags=["agents"])(_run_agent)
+#: Kept so projects saved with 1.0.0 keep validating and running unchanged.
+agent_v1 = define_node(**_COMMON, version="1.0.0", inputs=_INPUTS_V1, tags=["agents", "legacy"])(_run_agent)

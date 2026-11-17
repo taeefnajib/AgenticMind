@@ -22,6 +22,7 @@ from agenticmind_registry import default_registry
 from .artifacts import LocalArtifactStore
 from .engine import Engine
 from .events import InMemoryObserver, RunStatus
+from .memory import InMemoryMemoryStore
 from .plan import PlanError, compile_plan
 from .secrets import EnvSecretResolver
 from .validation import validate_project
@@ -102,9 +103,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     observer = InMemoryObserver()
     result = asyncio.run(
-        Engine(observer=observer, secrets=secrets, artifacts=LocalArtifactStore(args.data_dir / "artifacts")).run(
-            plan, inputs=_parse_inputs(args.input, args.inputs_json)
-        )
+        Engine(
+            observer=observer,
+            secrets=secrets,
+            artifacts=LocalArtifactStore(args.data_dir / "artifacts"),
+            memory=InMemoryMemoryStore(),  # a CLI run is one-shot: memory lives only for this run
+        ).run(plan, inputs=_parse_inputs(args.input, args.inputs_json))
     )
     out: dict[str, Any] = {
         "run_id": result.run_id,

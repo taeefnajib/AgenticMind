@@ -204,4 +204,28 @@ export interface DocumentValue {
   rerank_score?: number | null;
 }
 
+export interface MemoryRecord {
+  id: string;
+  namespace: string;
+  content: string;
+  metadata: Record<string, JsonValue>;
+  source: Record<string, JsonValue>;
+  created_at?: string | null;
+  expires_at?: string | null;
+}
+
+export interface ConversationSummary {
+  id: string;
+  messages: number;
+  started_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+  created_at?: string | null;
+  run_id?: string | null;
+}
+
 export type NodeRunStatus = "pending" | "running" | "retrying" | "succeeded" | "failed" | "skipped" | "cancelled";

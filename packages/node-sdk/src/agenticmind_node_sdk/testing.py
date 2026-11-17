@@ -14,6 +14,7 @@ from .context import NodeContext, NodeResult
 from .define import NodeDefinition
 from .errors import NodeError
 from .manifest import resolve_port_type
+from .memory import MemoryAccess
 from .types import value_matches_type
 
 
@@ -28,12 +29,11 @@ async def invoke_node(
     artifacts: ArtifactReader | None = None,
     storage_root: Path | None = None,
     allowed_secrets: frozenset[str] | None = None,
+    memory: MemoryAccess | None = None,
 ) -> NodeResult:
     raw_config = dict(config or {})
     parsed = definition.parse_config(raw_config)
-    allowed = (
-        frozenset(iter_secret_refs(raw_config)) if definition.manifest.permissions.credentials else frozenset()
-    )
+    allowed = frozenset(iter_secret_refs(raw_config)) if definition.manifest.permissions.credentials else frozenset()
     ctx = NodeContext(
         run_id="test-run",
         project_id="test-project",
@@ -45,6 +45,7 @@ async def invoke_node(
         _secret_lookup=(secrets or {}).get,
         _artifacts=artifacts if definition.manifest.permissions.artifacts else None,
         _storage_root=storage_root if definition.manifest.permissions.filesystem else None,
+        _memory=memory if definition.manifest.permissions.memory else None,
     )
     result = await definition.handler(ctx, dict(inputs or {}), parsed)
     if check_outputs:

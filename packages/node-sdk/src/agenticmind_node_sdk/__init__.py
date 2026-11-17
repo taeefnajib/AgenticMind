@@ -19,9 +19,33 @@ from .manifest import (
     effective_branches,
     resolve_port_type,
 )
+from .memory import (
+    MAX_MEMORY_CHARS,
+    MAX_MESSAGE_CHARS,
+    ConversationTurn,
+    InMemoryMemory,
+    MemoryAccess,
+    MemoryHit,
+    MemoryRecord,
+    expiry_for,
+    keyword_scores,
+    rank,
+    valid_key,
+)
 from .types import PortType, is_compatible, is_json_value, value_matches_type
 
 __all__ = [
+    "MAX_MEMORY_CHARS",
+    "MAX_MESSAGE_CHARS",
+    "ConversationTurn",
+    "InMemoryMemory",
+    "MemoryAccess",
+    "MemoryHit",
+    "MemoryRecord",
+    "expiry_for",
+    "keyword_scores",
+    "rank",
+    "valid_key",
     "ArtifactInfo",
     "ArtifactNotFoundError",
     "ArtifactReader",

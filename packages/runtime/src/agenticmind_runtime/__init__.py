@@ -12,12 +12,15 @@ from .events import (
     RunStatus,
     TraceEvent,
 )
+from .memory import InMemoryMemoryStore, MemoryStore
 from .plan import ExecutionPlan, PlanError, PlannedNode, compile_plan
 from .redaction import summarize
 from .secrets import EnvSecretResolver, MappingSecretResolver, SecretResolver
 from .validation import DEFAULT_IN_PROCESS_TRUST, parse_document, validate_document, validate_project
 
 __all__ = [
+    "InMemoryMemoryStore",
+    "MemoryStore",
     "ALLOWED_TYPES",
     "ArtifactError",
     "ArtifactStore",

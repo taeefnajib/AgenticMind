@@ -60,3 +60,19 @@ describe("node library versions", () => {
     expect(compareVersions("1.0.0", "1.0.0")).toBe(0);
   });
 });
+
+describe("chat memory inputs", () => {
+  it("adds conversation id and consent only when the graph reads them", async () => {
+    const { chatInputs, newConversationId } = await import("./ChatPanel");
+    const node = (key: string, value_type = "String") => ({
+      id: key, type: "agenticmind.core.manual_input", version: "1.0.0", config: { key, value_type },
+    });
+    expect(chatInputs([node("question")], "question", "hi", "c1", true)).toEqual({ question: "hi" });
+    const graph = [node("question"), node("conversation_id"), node("memory_consent", "Boolean")];
+    expect(chatInputs(graph, "question", "hi", "c1", false)).toEqual({
+      question: "hi", conversation_id: "c1", memory_consent: false,
+    });
+    expect(newConversationId()).toMatch(/^chat-[a-z0-9]+-[a-z0-9]+$/);
+    expect(newConversationId()).not.toEqual(newConversationId());
+  });
+});

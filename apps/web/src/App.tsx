@@ -640,6 +640,7 @@ export function App() {
               onSelectNode={focusNode}
               document={() => currentDocument() ?? ({} as ProjectDocument)}
               chatKey={project?.id ?? "none"}
+              projectId={project?.id}
               chatOutputs={runTargets.map((t) => ({ ...t, key: String(nodes.find((n) => n.id === t.id)?.data.ir.config.key ?? t.id) }))}
               chatDisabled={!project || Boolean(apiDown)}
               onAsk={askChat}
