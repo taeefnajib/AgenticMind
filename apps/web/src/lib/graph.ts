@@ -51,6 +51,20 @@ export function parseHandle(id: string | null | undefined): ParsedHandle | null 
   return null;
 }
 
+/** Mirrors agenticmind_node_sdk.manifest.effective_branches (e.g. Router routes + "default"). */
+export function effectiveBranches(manifest: NodeManifest, config: Record<string, JsonValue>): string[] {
+  const field = manifest.branches_from_config;
+  if (!field) return manifest.branches;
+  let raw: unknown = config[field];
+  if (raw === undefined || raw === null) raw = manifest.config_schema.properties?.[field]?.default ?? [];
+  const names: string[] = [];
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const name = typeof item === "string" ? item : (item as { name?: unknown } | null)?.name;
+    if (typeof name === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(name) && !names.includes(name)) names.push(name);
+  }
+  return [...names, ...manifest.branches.filter((b) => !names.includes(b))];
+}
+
 /** Mirrors agenticmind_node_sdk.types.is_compatible (strict; subtype acceptance only). */
 export function isCompatible(source: string, target: string): boolean {
   if (target === "Any" || source === target) return true;

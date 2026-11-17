@@ -53,6 +53,9 @@ def define_node(
     compatibility: Compatibility | None = None,
     modes: Iterable[Mode] | None = None,
     tags: Iterable[str] = (),
+    branches_from_config: str | None = None,
+    control_join: str = "any",
+    runtime_role: str | None = None,
 ) -> Callable[[Handler[C]], NodeDefinition[C]]:
     """Decorator turning an async handler into a registered-ready ``NodeDefinition``.
 
@@ -74,6 +77,9 @@ def define_node(
             execution=execution or ExecutionPolicy(),
             compatibility=compatibility or Compatibility(),
             tags=list(tags),
+            branches_from_config=branches_from_config,
+            control_join=control_join,
+            runtime_role=runtime_role,
         )
         if branches is not None:
             manifest_kwargs["branches"] = list(branches)

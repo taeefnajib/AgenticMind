@@ -171,3 +171,19 @@ def test_delete_project(client):
     assert client.delete(f"/api/projects/{pid}").status_code == 204
     assert client.get(f"/api/projects/{pid}").status_code == 404
     assert client.get(f"/api/runs/{run_id}").status_code == 404
+
+
+def test_ticket_triage_template_runs(client):
+    pid = client.post("/api/projects", json={"name": "Triage", "template": "ticket-triage"}).json()["id"]
+    assert client.post(f"/api/projects/{pid}/validate").json()["valid"] is True
+    run_id = client.post(f"/api/projects/{pid}/runs", json={"inputs": {}}).json()["id"]
+    final = wait_for_run(client, run_id)
+    assert final["status"] == "succeeded", final["error"]
+    replies = final["outputs"]["replies"]
+    assert [r.split("]")[0] + "]" for r in replies] == ["[billing]", "[technical]", "[general]", "[billing]"]
+    assert final["outputs"]["loop_report"]["iterations"] == 4
+    events = client.get(f"/api/runs/{run_id}/events").json()
+    route_iterations = sorted(
+        e["data"]["iteration"][0] for e in events if e.get("node_id") == "route" and e["event_type"] == "node_succeeded"
+    )
+    assert route_iterations == [0, 1, 2, 3]

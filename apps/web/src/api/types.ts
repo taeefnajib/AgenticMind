@@ -50,6 +50,9 @@ export interface NodeManifest {
   inputs: InputPortSpec[];
   outputs: OutputPortSpec[];
   branches: string[];
+  branches_from_config?: string | null;
+  control_join?: "any" | "all";
+  runtime_role?: "loop_start" | "loop_end" | null;
   config_schema: JsonSchema;
   permissions: Record<string, boolean>;
   execution: { timeout_seconds: number; max_attempts: number; idempotent: boolean };

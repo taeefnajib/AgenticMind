@@ -31,6 +31,7 @@ const PORT_COLORS: Record<string, string> = {
   EmbeddingModel: "#a8678a",
   VectorStoreHandle: "#4a8bad",
   Tool: "#3f9483",
+  LoopScope: "#b08a4f",
   Any: "#7d8190",
 };
 
@@ -45,6 +46,7 @@ const PORT_COLORS_DARK: Record<string, string> = {
   EmbeddingModel: "#d39abb",
   VectorStoreHandle: "#83b8d6",
   Tool: "#7cc4b4",
+  LoopScope: "#d8b47a",
   Any: "#a4a8b4",
 };
 export const portColor = (type: string, dark = false) =>

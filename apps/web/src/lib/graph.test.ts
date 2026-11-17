@@ -83,6 +83,21 @@ describe("graph conversions", () => {
   });
 });
 
+describe("dynamic branches", () => {
+  it("mirrors effective_branches for routers", async () => {
+    const { effectiveBranches } = await import("./graph");
+    const router = manifest("agenticmind.core.router", [], []);
+    router.branches = ["default"];
+    router.branches_from_config = "routes";
+    router.config_schema = { properties: { routes: { default: [{ name: "billing" }, { name: "technical" }] } } };
+    expect(effectiveBranches(router, {})).toEqual(["billing", "technical", "default"]);
+    expect(effectiveBranches(router, { routes: [{ name: "sales" }, { name: "Bad Name" }, "support"] })).toEqual([
+      "sales", "support", "default",
+    ]);
+    expect(effectiveBranches(manifest("x.y.z", [], []), {})).toEqual(["done"]);
+  });
+});
+
 describe("schema form", () => {
   it("derives fields from pydantic schemas", () => {
     const fields = fieldsFromSchema({

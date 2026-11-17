@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from agenticmind_ir import DEFAULT_BRANCH, IR_VERSION
 from agenticmind_ir.models import NODE_TYPE_PATTERN, PORT_NAME_PATTERN, SEMVER_PATTERN
@@ -80,6 +80,17 @@ class NodeManifest(_Model):
     inputs: list[InputPort] = Field(default_factory=list)
     outputs: list[OutputPort] = Field(default_factory=list)
     branches: list[str] = Field(default_factory=lambda: [DEFAULT_BRANCH])
+    branches_from_config: str | None = Field(
+        default=None,
+        description="Config field listing extra branch names (strings, or objects with a 'name'), e.g. Router routes.",
+    )
+    control_join: Literal["any", "all"] = Field(
+        default="any",
+        description="With several incoming control edges: run if any (default) or only if all are activated.",
+    )
+    runtime_role: Literal["loop_start", "loop_end"] | None = Field(
+        default=None, description="Control construct the runtime executes specially (loops)."
+    )
     config_schema: dict[str, Any] = Field(default_factory=dict)
     permissions: Permissions = Field(default_factory=Permissions)
     execution: ExecutionPolicy = Field(default_factory=ExecutionPolicy)
@@ -99,6 +110,8 @@ class NodeManifest(_Model):
             if not _PORT_RE.match(b):
                 raise ValueError(f"Invalid branch name {b!r}")
         props = self.config_schema.get("properties", {})
+        if self.branches_from_config and self.branches_from_config not in props:
+            raise ValueError("branches_from_config refers to an unknown config field")
         for port in [*self.inputs, *self.outputs]:
             if port.type_from_config and port.type_from_config not in props:
                 raise ValueError(f"Port {port.name} type_from_config refers to unknown field")
@@ -109,6 +122,22 @@ class NodeManifest(_Model):
 
     def output(self, name: str) -> OutputPort | None:
         return next((p for p in self.outputs if p.name == name), None)
+
+
+def effective_branches(manifest: NodeManifest, config: dict[str, Any]) -> list[str]:
+    """Control branches of a node instance: config-driven names (e.g. Router routes) + static branches."""
+    if not manifest.branches_from_config:
+        return list(manifest.branches)
+    field = manifest.branches_from_config
+    raw = config.get(field)
+    if raw is None:
+        raw = manifest.config_schema.get("properties", {}).get(field, {}).get("default", [])
+    names: list[str] = []
+    for item in raw if isinstance(raw, list) else []:
+        name = item.get("name") if isinstance(item, dict) else item
+        if isinstance(name, str) and _PORT_RE.match(name) and name not in names:
+            names.append(name)
+    return names + [b for b in manifest.branches if b not in names]
 
 
 def resolve_port_type(port: InputPort | OutputPort, config: dict[str, Any]) -> PortType:

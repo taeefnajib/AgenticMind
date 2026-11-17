@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from agenticmind_ir import Edge, EdgeKind, Node, ProjectDocument, iter_secret_refs
@@ -12,6 +12,7 @@ from agenticmind_node_sdk import HANDLE_PORT_TYPES, NodeConfig, resolve_port_typ
 from agenticmind_registry import NodeRegistry, RegistryEntry, TrustLevel
 
 from .diagnostics import Code, Diagnostic, ValidationReport
+from .loops import analyze_loops, direct_members
 from .secrets import SecretResolver
 from .validation import DEFAULT_IN_PROCESS_TRUST, validate_document
 
@@ -40,6 +41,18 @@ class PlannedNode:
 
 
 @dataclass(frozen=True)
+class LoopRegion:
+    """A loop body executed once per iteration by its loop end."""
+
+    start: str
+    end: str
+    body: frozenset[str]
+    """All body nodes, including nested loops (start and end excluded)."""
+    order: tuple[str, ...]
+    """Body nodes run directly in an iteration scope (nested loops collapsed to their start/end)."""
+
+
+@dataclass(frozen=True)
 class ExecutionPlan:
     project_id: str
     nodes: dict[str, PlannedNode]
@@ -48,6 +61,8 @@ class ExecutionPlan:
     report: ValidationReport
     targets: tuple[str, ...] = ()
     """When non-empty, only these nodes and their upstream dependencies are executed."""
+    regions: dict[str, LoopRegion] = field(default_factory=dict)
+    """Loop bodies keyed by loop end id. ``order`` excludes all body nodes."""
 
 
 def _topological_order(node_ids: list[str], edges: list[Edge]) -> list[str]:
@@ -132,12 +147,40 @@ def compile_plan(
         )
     edges = [e for e in doc.edges if e.source.node in included and e.target.node in included]
     order = _topological_order([n.id for n in doc.nodes if n.id in included], edges)
+
+    regions: dict[str, LoopRegion] = {}
+    roles = {nid: pn.entry.definition.manifest.runtime_role for nid, pn in planned.items()}
+    if any(roles.values()):
+        analysis = analyze_loops(roles, edges)
+        hidden: set[str] = set()
+        for pair in analysis.pairs:
+            members = direct_members(pair.body, analysis.pairs)
+            regions[pair.end] = LoopRegion(
+                start=pair.start,
+                end=pair.end,
+                body=pair.body,
+                order=tuple(n for n in order if n in members),
+            )
+            # In its enclosing scope the loop end waits for the loop start and for every value the body
+            # (or the end itself) reads from outside the loop.
+            externals = {
+                e.source.node
+                for e in edges
+                if (e.target.node in pair.body or e.target.node == pair.end)
+                and e.source.node not in pair.body
+                and e.source.node != pair.start
+            }
+            planned[pair.end] = replace(planned[pair.end], upstream=frozenset({pair.start} | externals))
+            hidden |= pair.body
+        order = [n for n in order if n not in hidden]
+
     return ExecutionPlan(
         project_id=doc.project.id,
         nodes=planned,
         order=tuple(order),
         report=report,
         targets=tuple(targets or ()),
+        regions=regions,
     )
 
 

@@ -33,7 +33,7 @@ export function NewProjectDialog({ open, templates, onCancel, onCreate, onImport
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="np-title">
-      <div className="w-full max-w-lg rounded-xl bg-surface p-5 shadow-xl">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col rounded-xl bg-surface p-5 shadow-xl">
         <h2 id="np-title" className="text-lg font-semibold text-slate-900">
           New project
         </h2>
@@ -42,7 +42,7 @@ export function NewProjectDialog({ open, templates, onCancel, onCreate, onImport
         </label>
         <input id="np-name" className="am-input" value={name} autoFocus onChange={(e) => setName(e.target.value)} />
         <div className="mb-1 mt-4 text-xs font-medium text-slate-700">Start from</div>
-        <div className="space-y-1.5">
+        <div className="-mx-1 min-h-0 flex-1 space-y-1.5 overflow-y-auto px-1">
           <TemplateOption selected={template === null} onSelect={() => setTemplate(null)} title="Blank canvas" description="An empty graph." />
           {templates.map((t) => (
             <TemplateOption

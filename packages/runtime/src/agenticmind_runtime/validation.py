@@ -25,11 +25,12 @@ from agenticmind_ir import (
     iter_secret_refs,
     load_project,
 )
-from agenticmind_node_sdk import Cardinality, is_compatible, resolve_port_type, secret_fields
+from agenticmind_node_sdk import Cardinality, effective_branches, is_compatible, resolve_port_type, secret_fields
 from agenticmind_registry import NodeRegistry, RegistryEntry, TrustLevel
 from pydantic import ValidationError
 
 from .diagnostics import Code, Diagnostic, Severity, ValidationReport
+from .loops import analyze_loops
 from .secrets import SecretResolver
 
 #: Trust levels allowed to run inside the runtime process. Anything else needs process/container
@@ -87,9 +88,7 @@ def validate_document(
     for node in doc.nodes:
         if node.id in nodes_by_id:
             add(
-                Diagnostic(
-                    code=Code.GRAPH_DUPLICATE_NODE_ID, node_id=node.id, message=f"Duplicate node ID '{node.id}'"
-                )
+                Diagnostic(code=Code.GRAPH_DUPLICATE_NODE_ID, node_id=node.id, message=f"Duplicate node ID '{node.id}'")
             )
         else:
             nodes_by_id[node.id] = node
@@ -97,9 +96,7 @@ def validate_document(
     for edge in doc.edges:
         if edge.id in seen_edges:
             add(
-                Diagnostic(
-                    code=Code.GRAPH_DUPLICATE_EDGE_ID, edge_id=edge.id, message=f"Duplicate edge ID '{edge.id}'"
-                )
+                Diagnostic(code=Code.GRAPH_DUPLICATE_EDGE_ID, edge_id=edge.id, message=f"Duplicate edge ID '{edge.id}'")
             )
         seen_edges.add(edge.id)
 
@@ -240,15 +237,15 @@ def validate_document(
 
         src_entry, tgt_entry = entries.get(s.node), entries.get(t.node)
         if edge.kind == EdgeKind.CONTROL:
-            if src_entry and s.port not in src_entry.manifest.branches:
+            branches = effective_branches(src_entry.manifest, nodes_by_id[s.node].config) if src_entry else []
+            if src_entry and s.port not in branches:
                 add(
                     Diagnostic(
                         code=Code.EDGE_UNKNOWN_PORT,
                         edge_id=edge.id,
                         node_id=s.node,
                         port=s.port,
-                        message=f"'{s.node}' has no control branch '{s.port}' "
-                        f"(branches: {', '.join(src_entry.manifest.branches)})",
+                        message=f"'{s.node}' has no control branch '{s.port}' (branches: {', '.join(branches)})",
                     )
                 )
             if t.port != CONTROL_TRIGGER_PORT:
@@ -339,6 +336,50 @@ def validate_document(
                 hint="Accidental cycles are rejected; iterative execution will use explicit Loop nodes.",
             )
         )
+    if not cycle:
+        roles = {nid: e.manifest.runtime_role for nid, e in entries.items()}
+        if any(roles.values()):
+            loops = analyze_loops(
+                roles, [e for e in doc.edges if e.source.node in entries and e.target.node in entries]
+            )
+            for start in loops.unpaired_starts:
+                add(
+                    Diagnostic(
+                        code=Code.LOOP_UNPAIRED,
+                        node_id=start,
+                        message=f"'{start}' needs a matching loop partner connected through its 'scope' port",
+                        hint="Connect Loop.scope → Loop End.scope; the nodes in between form the loop body.",
+                    )
+                )
+            for start in loops.shared_scopes:
+                add(
+                    Diagnostic(
+                        code=Code.LOOP_SCOPE_SHARED,
+                        node_id=start,
+                        message=f"Loop '{start}' is connected to more than one Loop End",
+                    )
+                )
+            for start, edge in loops.leaks:
+                add(
+                    Diagnostic(
+                        code=Code.LOOP_REGION_LEAK,
+                        node_id=edge.target.node,
+                        edge_id=edge.id,
+                        related_node_ids=[start, edge.source.node],
+                        message=f"'{edge.target.node}' uses a value produced inside loop '{start}' "
+                        f"('{edge.source.node}') but is not part of the loop body",
+                        hint="Send results out of a loop through its Loop End (results / last).",
+                    )
+                )
+            for a, b in loops.overlaps:
+                add(
+                    Diagnostic(
+                        code=Code.LOOP_OVERLAP,
+                        node_id=a,
+                        related_node_ids=[a, b],
+                        message=f"Loops '{a}' and '{b}' overlap; loops must be separate or fully nested",
+                    )
+                )
     if len(nodes_by_id) > 1:
         for node_id in nodes_by_id:
             if node_id not in connected:

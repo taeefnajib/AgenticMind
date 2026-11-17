@@ -10,7 +10,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M3 RAG vertical slice | **Core done**: ingestion, retrieval, cited answers with a real LLM; step 4 (hybrid search, reranking, query rewriting) pending |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
-| M6 Agent Lab | **In progress**: 8a (tools + bounded Agent) done; 8b–8e next |
+| M6 Agent Lab | **In progress**: 8a (tools + Agent) and 8b (loops, router, join) done; 8c–8e next |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
@@ -60,6 +60,12 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   Web Fetch (domain allowlist, private-address and redirect checks); mock provider tool calling for
   offline tests; chat shows tool steps and renders Markdown safely; *Agent with tools* template;
   verified live with Gemini (parallel searches + calculator; date + search + calculator).
+- **8b – loops, router, join**: Loop / Loop End (paired acyclic regions; `for_each` with concurrency and
+  skip-on-error, `repeat` with state and a stop condition; nested loops; per-iteration scopes and
+  `data.iteration` on events); loop validation (`LOOP_UNPAIRED`, `LOOP_SCOPE_SHARED`, `LOOP_REGION_LEAK`,
+  `LOOP_OVERLAP`); Router (routes from config become branches; rules or LLM via a forced tool call);
+  Join (waits for all control paths; collect/merge/concat); IDE shows dynamic route handles and
+  "ran ×N"; *Ticket triage* template; verified live with Gemini routing.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -73,7 +79,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   not that they support the claim (faithfulness evaluation comes with the Evaluation Lab).
 - No authentication, workspaces or roles yet; the API must not be exposed publicly.
 - Schema is created with `create_all`; Alembic migrations needed before production databases.
-- No subgraphs, loops, explicit parallel/join nodes, or streaming execution mode.
+- No subgraphs or streaming execution mode. Loop iterations are not checkpointed; a body node's final
+  status shows its last iteration (the IDE adds "ran ×N").
 - pgvector and Pinecone adapters share the contract tests but have not yet been run against live
   services (set `AGENTICMIND_TEST_PGVECTOR_DSN` / `AGENTICMIND_TEST_PINECONE_API_KEY`).
 - Pure vector search with the small default model can rank a related-but-wrong section first
@@ -86,7 +93,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **Section 8 – Agents** (continuing): 8b Loop / Router / Parallel-Join; 8c memory (short-term state,
+1. **Section 8 – Agents** (continuing): 8c memory (short-term state,
    consented long-term memory); 8d durable checkpoints, Human Approval, resume; 8e planner/worker,
    supervisor, reflection/critic, handoff; third-party tools via an entry-point group.
 2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,

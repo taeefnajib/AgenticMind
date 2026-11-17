@@ -102,6 +102,7 @@ export function App() {
   const [run, setRun] = useState<RunOut | null>(null);
   const [events, setEvents] = useState<TraceEvent[]>([]);
   const [nodeStatus, setNodeStatus] = useState<Record<string, NodeRunStatus>>({});
+  const [iterations, setIterations] = useState<Record<string, number>>({});
   const [runInputs, setRunInputs] = useState<Record<string, JsonValue>>({});
   const [mode, setModeState] = useState<Mode>(() => (storage.get("am.mode") as Mode) || "low_code");
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>("problems");
@@ -138,6 +139,7 @@ export function App() {
     setRun(null);
     setEvents([]);
     setNodeStatus({});
+    setIterations({});
   };
 
   const applyProject = useCallback(
@@ -341,6 +343,9 @@ export function App() {
               setEvents((prev) => [...prev, e]);
               const st = STATUS_BY_EVENT[e.event_type];
               if (st && e.node_id) setNodeStatus((prev) => ({ ...prev, [e.node_id!]: st }));
+              if (e.event_type === "node_succeeded" && e.node_id && e.data?.iteration) {
+                setIterations((prev) => ({ ...prev, [e.node_id!]: (prev[e.node_id!] ?? 0) + 1 }));
+              }
             },
             async () => {
               const final = await api.getRun(r.id);
@@ -565,8 +570,8 @@ export function App() {
   const running = run !== null && (run.status === "queued" || run.status === "running") && !events.some((e) => e.event_type.startsWith("run_") && e.event_type !== "run_started");
 
   const workbench = useMemo(
-    () => ({ manifests, nodeStatus, diagnosticsByNode, mode, files: filesState, dark: theme.resolved === "dark" }),
-    [manifests, nodeStatus, diagnosticsByNode, mode, filesState, theme.resolved],
+    () => ({ manifests, nodeStatus, iterations, diagnosticsByNode, mode, files: filesState, dark: theme.resolved === "dark" }),
+    [manifests, nodeStatus, iterations, diagnosticsByNode, mode, filesState, theme.resolved],
   );
 
   return (

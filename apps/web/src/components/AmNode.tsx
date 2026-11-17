@@ -1,12 +1,12 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
 
-import { CTRL_IN, ctrlOut, dataIn, dataOut, effectivePortType, manifestKey, type AmFlowNode } from "../lib/graph";
+import { CTRL_IN, ctrlOut, dataIn, dataOut, effectiveBranches, effectivePortType, manifestKey, type AmFlowNode } from "../lib/graph";
 import { categoryStyle, portColor, STATUS_STYLE } from "../lib/theme";
 import { useWorkbench } from "../lib/workbench";
 
 function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
-  const { manifests, nodeStatus, diagnosticsByNode, mode, dark } = useWorkbench();
+  const { manifests, nodeStatus, diagnosticsByNode, mode, dark, iterations } = useWorkbench();
   const ir = data.ir;
   const manifest = manifests.get(manifestKey(ir.type, ir.version));
   const status = nodeStatus[id];
@@ -14,8 +14,12 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
   const errors = diags.filter((d) => d.severity === "error").length;
   const warnings = diags.filter((d) => d.severity === "warning").length;
   const cat = categoryStyle(manifest?.category ?? "unknown");
-  const branches = manifest?.branches ?? ["done"];
+  const branches = manifest ? effectiveBranches(manifest, ir.config) : ["done"];
   const showBranchLabels = !(branches.length === 1 && branches[0] === "done");
+  // Inside loops the final status reflects only the last iteration; a node that ran in earlier
+  // iterations should not look as if it never ran.
+  const runs = iterations[id] ?? 0;
+  const shown = status === "skipped" && runs > 0 ? "succeeded" : status;
 
   return (
     <div
@@ -23,7 +27,7 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
         "relative w-60 rounded-lg border bg-surface text-left shadow-sm transition-shadow",
         selected ? "border-accent-400 shadow-md shadow-accent-500/10" : "border-slate-200",
         errors ? "border-red-400" : "",
-        status ? STATUS_STYLE[status].ring : "",
+        shown ? STATUS_STYLE[shown].ring : "",
       ].join(" ")}
     >
       {/* control-flow trigger */}
@@ -40,9 +44,12 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          {status && status !== "pending" && (
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_STYLE[status].badge}`}>
-              {STATUS_STYLE[status].text}
+          {shown && shown !== "pending" && (
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_STYLE[shown].badge}`}
+              title={runs > 0 ? `Ran in ${runs} loop iteration${runs === 1 ? "" : "s"}` : undefined}
+            >
+              {runs > 0 && shown === "succeeded" ? `ran ×${runs}` : STATUS_STYLE[shown].text}
             </span>
           )}
           {errors > 0 && (

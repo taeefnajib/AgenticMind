@@ -107,13 +107,31 @@ async def no_creds(ctx, inputs, config) -> NodeResult:
     return NodeResult(outputs={"value": "x"})
 
 
+class AddConfig(NodeConfig):
+    amount: float = 1
+
+
+@define_node(
+    type="tests.rt.add",
+    version="1.0.0",
+    display_name="Add",
+    category="test",
+    package="tests",
+    inputs=[InputPort(name="value", type=PortType.NUMBER)],
+    outputs=[OutputPort(name="value", type=PortType.NUMBER)],
+    config=AddConfig,
+)
+async def add(ctx, inputs, config: AddConfig) -> NodeResult:
+    return NodeResult(outputs={"value": inputs["value"] + config.amount})
+
+
 @pytest.fixture
 def registry() -> NodeRegistry:
     reg = NodeRegistry()
     register(lambda d: reg.register(d, trust=TrustLevel.CORE, source="agenticmind-nodes-core"))
     register_data(lambda d: reg.register(d, trust=TrustLevel.CORE, source="agenticmind-nodes-data"))
     register_rag(lambda d: reg.register(d, trust=TrustLevel.CORE, source="agenticmind-nodes-rag"))
-    for d in (flaky, boom, bad_output, leaky, no_creds):
+    for d in (flaky, boom, bad_output, leaky, no_creds, add):
         reg.register(d, trust=TrustLevel.CORE, source="tests")
     return reg
 

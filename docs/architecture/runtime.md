@@ -29,7 +29,7 @@ the set of secrets the node may resolve are precomputed; order is a deterministi
 | Rule | Behaviour |
 |---|---|
 | Readiness | A node is ready when every upstream node (data or control) is terminal. |
-| Control routing | With incoming control edges, a node runs only if at least one comes from a succeeded node that activated that branch (OR-join). Otherwise it is **skipped** (`control_not_activated`). |
+| Control routing | With incoming control edges, a node runs only if at least one comes from a succeeded node that activated that branch (OR-join; `control_join="all"` nodes such as Join need every one). Otherwise it is **skipped** (`control_not_activated`). Branches may come from config (`branches_from_config`, e.g. Router routes + `default`). |
 | Skip propagation | If all producers of a required input were skipped, the node is skipped (`upstream_skipped:<port>`). |
 | Joins | `multiple`-cardinality inputs receive a list in **edge-ID order** (not completion order), so results are deterministic. Single inputs accept exactly one edge. |
 | Parallelism | Ready nodes run concurrently up to `max_concurrency` (asyncio). |
@@ -39,7 +39,17 @@ the set of secrets the node may resolve are precomputed; order is a deterministi
 | Cancellation | Cooperative via `CancelToken`; running nodes are cancelled and reported. |
 | Output contract | Outputs must match declared ports and types exactly; branches must be declared; run outputs must be JSON. |
 | Secrets | Nodes resolve only secrets referenced in their own config and only with the `credentials` permission. Values are scrubbed from traces, errors and stored outputs. |
-| Cycles | Rejected at validation. Iteration will use explicit Loop nodes. |
+| Cycles | Rejected at validation. Iteration uses paired Loop / Loop End regions (below). |
+
+### Loops (ADR-0011)
+A `loop_start` and a `loop_end` node paired by a `scope → scope` edge enclose a body: every node on a
+path between them. The plan lifts body nodes out of the top-level order (`ExecutionPlan.regions`). The
+Loop End runs the body once per iteration in a fresh scope seeded with `item` / `index` / `state`:
+`for_each` (bounded concurrency, results in item order, `on_item_error` fail|skip) or `repeat` (state
+carried forward, stop on `continue=false` or `max_iterations`). Events inside a loop carry
+`data.iteration` (one index per nesting level). A failure inside an iteration fails the loop with the
+inner node's code and an "iteration N" message, unless items are skipped. Values may leave the body
+only through Loop End (`LOOP_REGION_LEAK`).
 
 ### Run targets
 `compile_plan(..., targets=[...])` keeps only the targets and every node they depend on (through data
@@ -56,8 +66,8 @@ Nodes with the `filesystem` permission get `ctx.storage_path(...)` under the run
 for embedded vector databases and the local model cache).
 
 ### Not yet implemented (documented, not faked)
-Durable checkpoints/resume, human-approval suspension points, streaming mode, explicit loop/parallel
-nodes, isolated (process/container) execution. The API marks runs interrupted by a restart as
+Durable checkpoints/resume (including per-iteration loop snapshots), human-approval suspension points,
+streaming mode, subgraphs, isolated (process/container) execution. The API marks runs interrupted by a restart as
 `RUN_INTERRUPTED` instead of pretending to resume.
 
 ## Trace events (`events.py`)
@@ -121,12 +131,18 @@ GET  /api/runs/{run_id}/nodes/{node_id}/outputs
 | `SECRET_NOT_PERMITTED` | error | Node references secrets without the `credentials` permission |
 | `SECRET_NOT_CONFIGURED` | warning | Referenced secret missing from the environment |
 | `RUN_TARGET_UNKNOWN` | error | A requested run target is not a node in the graph |
+| `LOOP_UNPAIRED` | error | Loop without a Loop End connected to its `scope` |
+| `LOOP_SCOPE_SHARED` | error | One Loop's scope wired to several Loop Ends |
+| `LOOP_REGION_LEAK` | error | A body value goes to a node outside the loop (use Loop End) |
+| `LOOP_OVERLAP` | error | Two loops share nodes without nesting |
 
 Runtime error codes (in `error.code` of events/runs) come from nodes (e.g. `INPUT_MISSING`,
 `TEMPLATE_MISSING_VARIABLE`, `NO_FILES`, `NO_TEXT_EXTRACTED`, `PARSE_FAILED`, `PARSE_ENCRYPTED`,
 `COLLECTION_NOT_FOUND`, `EMBEDDING_DIMENSION_MISMATCH`, `EMBEDDING_MODEL_MISMATCH`, `FILTER_INVALID`,
 `PROVIDER_AUTH_FAILED`, `PROVIDER_AUTH_MISSING`, `PROVIDER_INSUFFICIENT_CREDITS`, `PROVIDER_BAD_REQUEST`,
 `PROVIDER_UNAVAILABLE`, `MODEL_EMPTY_RESPONSE`, `CITATIONS_MISSING`, `STORE_UNAVAILABLE`, `STORE_NOT_INSTALLED`,
-`AGENT_LIMIT_REACHED`, `DUPLICATE_TOOL_NAME`, `TOOL_UNKNOWN`, `TOOL_PERMISSION_DENIED`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`,
+`AGENT_LIMIT_REACHED`, `DUPLICATE_TOOL_NAME`, `TOOL_UNKNOWN`, `TOOL_PERMISSION_DENIED`, `LOOP_ITEMS_MISSING`,
+`LOOP_ITEMS_INVALID`, `LOOP_TOO_MANY_ITEMS`, `LOOP_ITEM_TYPE_MISMATCH`, `LOOP_STATE_TYPE_MISMATCH`,
+`ROUTER_INVALID_REGEX`, `JOIN_INCOMPLETE`, `JOIN_MERGE_NOT_OBJECT`) or the engine (`NODE_TIMEOUT`, `NODE_UNHANDLED_EXCEPTION`, `LOOP_RESULT_NOT_JSON`,
 `NODE_OUTPUT_MISSING`, `NODE_OUTPUT_UNDECLARED`, `NODE_OUTPUT_TYPE_MISMATCH`, `NODE_INVALID_BRANCH`,
 `SECRET_ACCESS_DENIED`, `ARTIFACT_ACCESS_DENIED`, `ARTIFACT_NOT_FOUND`, `STORAGE_UNAVAILABLE`) or the API (`RUN_INTERRUPTED`, `RUN_ABORTED`, `RUNTIME_INTERNAL_ERROR`).

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import type { Diagnostic, IRNode, JsonValue, NodeManifest, RunOut, TraceEvent } from "../api/types";
-import { effectivePortType, manifestKey, type AmFlowEdge, type AmFlowNode } from "../lib/graph";
+import { effectiveBranches, effectivePortType, manifestKey, type AmFlowEdge, type AmFlowNode } from "../lib/graph";
 import { categoryStyle, chipStyle, portColor, STATUS_STYLE } from "../lib/theme";
 import { useWorkbench } from "../lib/workbench";
 import { ConfigForm } from "./ConfigForm";
@@ -242,11 +242,11 @@ function PortsSection({ manifest, config }: { manifest: NodeManifest; config: Re
               </td>
             </tr>
           ))}
-          {!(manifest.branches.length === 1 && manifest.branches[0] === "done") && (
+          {!(effectiveBranches(manifest, config).length === 1 && effectiveBranches(manifest, config)[0] === "done") && (
             <tr>
               <td className="py-0.5 text-slate-400">ctrl</td>
               <td className="py-0.5 font-medium" colSpan={2}>
-                {manifest.branches.join(" / ")}
+                {effectiveBranches(manifest, config).join(" / ")}
               </td>
             </tr>
           )}

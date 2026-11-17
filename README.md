@@ -47,6 +47,10 @@ To try an agent: **New** → *Agent with tools*, upload a file, run **Run → In
 e.g. *"How many leave days do 3 employees get in total?"*. The agent decides when to search the documents,
 calculate or check the date; expand *Used N tool calls* to see every step.
 
+To try loops and routing: **New** → *Ticket triage*, then **Run**. A Loop processes each ticket, a Router
+sends it down the billing / technical / default route and Loop End collects the replies (nodes show
+"ran ×N"). Set the Router's mode to *llm* to let Gemini classify instead of the regex rules.
+
 ### API keys and settings (`.env`)
 
 The API loads a `.env` file from the directory it starts in (the repo root for `npm run dev:api`). Copy

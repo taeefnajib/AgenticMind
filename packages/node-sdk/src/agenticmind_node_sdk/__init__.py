@@ -16,6 +16,7 @@ from .manifest import (
     NodeManifest,
     OutputPort,
     Permissions,
+    effective_branches,
     resolve_port_type,
 )
 from .types import PortType, is_compatible, is_json_value, value_matches_type
@@ -53,6 +54,7 @@ __all__ = [
     "SecretRef",
     "TransientNodeError",
     "define_node",
+    "effective_branches",
     "is_compatible",
     "is_json_value",
     "resolve_port_type",
