@@ -100,7 +100,7 @@ function Control({
         <input
           id={id}
           type="checkbox"
-          className="h-4 w-4 accent-sky-600"
+          className="h-4 w-4 accent-fuchsia-600"
           checked={Boolean(value)}
           onChange={(e) => onChange(e.target.checked)}
         />

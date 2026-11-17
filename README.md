@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/logo.png" alt="AgenticMind logo" width="360"></p>
+
 # AgenticMind
 
 **Open-source AI engineering platform.** Build visually, simulate execution, test rigorously, evaluate
@@ -35,6 +37,13 @@ To try retrieval: **New** → *RAG retrieval*, upload a file in **Load documents
 in the toolbar and run (the first run downloads the local embedding model once, ~65 MB). Then pick
 **Run → Results**, type a question in **Run inputs** and run again to see the most relevant chunks with
 similarity scores.
+
+### API keys and settings (`.env`)
+
+The API loads a `.env` file from the directory it starts in (the repo root for `npm run dev:api`). Copy
+`.env.example` to `.env` (git-ignored) and fill in what you need, e.g. `OPENROUTER_API_KEY=...`. Restart the
+API after editing. In node configs, refer to a key by name (`$secret` → `OPENROUTER_API_KEY`); the value is
+resolved at run time and never stored in projects, traces or exports.
 
 ### Self-hosted (Docker)
 

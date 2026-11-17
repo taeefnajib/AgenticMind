@@ -50,6 +50,7 @@ import {
   type AmFlowEdge,
   type AmFlowNode,
 } from "./lib/graph";
+import { useTheme } from "./lib/useTheme";
 import { WorkbenchContext } from "./lib/workbench";
 
 const nodeTypes = { am: AmNode };
@@ -112,6 +113,7 @@ export function App() {
   // otherwise create two starter projects on first launch.
   const initialized = useRef(false);
   const [runTarget, setRunTarget] = useState("");
+  const theme = useTheme();
 
   const setMode = (m: Mode) => {
     setModeState(m);
@@ -514,8 +516,8 @@ export function App() {
   const running = run !== null && (run.status === "queued" || run.status === "running") && !events.some((e) => e.event_type.startsWith("run_") && e.event_type !== "run_started");
 
   const workbench = useMemo(
-    () => ({ manifests, nodeStatus, diagnosticsByNode, mode, files: filesState }),
-    [manifests, nodeStatus, diagnosticsByNode, mode, filesState],
+    () => ({ manifests, nodeStatus, diagnosticsByNode, mode, files: filesState, dark: theme.resolved === "dark" }),
+    [manifests, nodeStatus, diagnosticsByNode, mode, filesState, theme.resolved],
   );
 
   return (
@@ -542,6 +544,8 @@ export function App() {
           onCancel={() => void cancelRun()}
           onExport={() => void exportIR()}
           onMode={setMode}
+          theme={theme.preference}
+          onTheme={theme.setPreference}
         />
         <div className="flex min-h-0 flex-1">
           <NodeLibrary manifests={manifestList} mode={mode} onAdd={(m) => addNode(m)} />
@@ -560,10 +564,11 @@ export function App() {
                 fitView
                 minZoom={0.2}
                 proOptions={{ hideAttribution: false }}
+                colorMode={theme.resolved}
               >
-                <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#cbd5e1" />
+                <Background variant={BackgroundVariant.Dots} gap={18} size={1} color={theme.resolved === "dark" ? "#2a2440" : "#cfc9dd"} />
                 <Controls position="bottom-left" />
-                <MiniMap pannable zoomable position="bottom-right" className="!bg-white" />
+                <MiniMap pannable zoomable position="bottom-right" className="!bg-surface" />
               </ReactFlow>
             </div>
             <ConsolePanel

@@ -79,4 +79,7 @@ def create_app(
 def app_factory() -> FastAPI:
     """Entry point for ``uvicorn --factory agenticmind_api.main:app_factory``."""
     logging.basicConfig(level=logging.INFO)
+    from .envfile import load_env_file
+
+    load_env_file()  # before Settings() so .env values apply to settings and secrets
     return create_app()

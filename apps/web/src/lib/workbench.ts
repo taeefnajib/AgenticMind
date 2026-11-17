@@ -15,6 +15,7 @@ export interface WorkbenchState {
   diagnosticsByNode: Map<string, Diagnostic[]>;
   mode: Mode;
   files: FilesState;
+  dark: boolean;
 }
 
 export const WorkbenchContext = createContext<WorkbenchState>({
@@ -23,6 +24,7 @@ export const WorkbenchContext = createContext<WorkbenchState>({
   diagnosticsByNode: new Map(),
   mode: "low_code",
   files: { projectId: null, files: [], upload: async () => [], remove: async () => {} },
+  dark: false,
 });
 
 export const useWorkbench = () => useContext(WorkbenchContext);

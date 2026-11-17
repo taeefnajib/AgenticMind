@@ -27,11 +27,24 @@ const PORT_COLORS: Record<string, string> = {
   VectorStoreHandle: "#0369a1",
   Any: "#64748b",
 };
-export const portColor = (type: string) => PORT_COLORS[type] ?? "#4f46e5";
+// Lighter variants keep port labels readable on dark surfaces.
+const PORT_COLORS_DARK: Record<string, string> = {
+  String: "#60a5fa",
+  Number: "#fb923c",
+  Boolean: "#f472b6",
+  JSON: "#2dd4bf",
+  Document: "#a78bfa",
+  DocumentSet: "#a78bfa",
+  EmbeddingModel: "#f472b6",
+  VectorStoreHandle: "#38bdf8",
+  Any: "#a8a1bd",
+};
+export const portColor = (type: string, dark = false) =>
+  (dark ? PORT_COLORS_DARK[type] : PORT_COLORS[type]) ?? (dark ? "#818cf8" : "#4f46e5");
 
 export const STATUS_STYLE: Record<NodeRunStatus, { ring: string; badge: string; text: string }> = {
   pending: { ring: "", badge: "bg-slate-100 text-slate-500", text: "pending" },
-  running: { ring: "ring-2 ring-sky-400 am-running", badge: "bg-sky-100 text-sky-700", text: "running" },
+  running: { ring: "ring-2 ring-fuchsia-400 am-running", badge: "bg-fuchsia-100 text-fuchsia-700", text: "running" },
   retrying: { ring: "ring-2 ring-amber-400 am-running", badge: "bg-amber-100 text-amber-800", text: "retrying" },
   succeeded: { ring: "ring-2 ring-emerald-400", badge: "bg-emerald-100 text-emerald-700", text: "succeeded" },
   failed: { ring: "ring-2 ring-red-500", badge: "bg-red-100 text-red-700", text: "failed" },

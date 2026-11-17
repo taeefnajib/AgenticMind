@@ -46,7 +46,7 @@ export function DocumentViewer({ docs, limit = 50 }: { docs: DocumentValue[]; li
         {visible.map((d) => {
           const open = expanded === d.id;
           return (
-            <li key={d.id} className="rounded-md border border-slate-200 bg-white">
+            <li key={d.id} className="rounded-md border border-slate-200 bg-surface">
               <button
                 type="button"
                 className="w-full px-2 py-1.5 text-left"
@@ -103,7 +103,7 @@ export function DocumentViewer({ docs, limit = 50 }: { docs: DocumentValue[]; li
         })}
       </ul>
       {docs.length > limit && !showAll && (
-        <button type="button" className="mt-1.5 text-xs text-sky-700 underline" onClick={() => setShowAll(true)}>
+        <button type="button" className="mt-1.5 text-xs text-fuchsia-700 underline" onClick={() => setShowAll(true)}>
           Show all {docs.length}
         </button>
       )}

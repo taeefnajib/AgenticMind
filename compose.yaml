@@ -8,6 +8,9 @@ services:
       dockerfile: infra/docker/Dockerfile
     ports:
       - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
     environment:
       AGENTICMIND_DATABASE_URL: ${AGENTICMIND_DATABASE_URL:-sqlite:////data/agenticmind.db}
       AGENTICMIND_IN_PROCESS_TRUST: ${AGENTICMIND_IN_PROCESS_TRUST:-core}

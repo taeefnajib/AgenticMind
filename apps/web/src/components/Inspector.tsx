@@ -27,7 +27,7 @@ interface Props {
 export function Inspector(props: Props) {
   const { node, edge } = props;
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col overflow-y-auto border-l border-slate-200 bg-white">
+    <aside className="flex h-full w-80 shrink-0 flex-col overflow-y-auto border-l border-slate-200 bg-surface">
       {node ? <NodeInspector {...props} node={node} /> : edge ? <EdgeInspector {...props} edge={edge} /> : <ProjectInspector {...props} />}
     </aside>
   );
@@ -214,6 +214,7 @@ function NodeInspector({ node, onNodeChange, onDeleteNode, diagnostics, run, eve
 }
 
 function PortsSection({ manifest, config }: { manifest: NodeManifest; config: Record<string, JsonValue> }) {
+  const { dark } = useWorkbench();
   if (!manifest.inputs.length && !manifest.outputs.length) return null;
   return (
     <Section title="Ports">
@@ -226,7 +227,7 @@ function PortsSection({ manifest, config }: { manifest: NodeManifest; config: Re
                 {p.name}
                 {p.required && <span className="text-red-500">*</span>}
               </td>
-              <td className="py-0.5 text-right font-mono" style={{ color: portColor(effectivePortType(p, config)) }}>
+              <td className="py-0.5 text-right font-mono" style={{ color: portColor(effectivePortType(p, config), dark) }}>
                 {effectivePortType(p, config)}
                 {p.cardinality === "multiple" ? "[]" : ""}
               </td>
@@ -236,7 +237,7 @@ function PortsSection({ manifest, config }: { manifest: NodeManifest; config: Re
             <tr key={`o-${p.name}`} title={p.description}>
               <td className="py-0.5 text-slate-400">out</td>
               <td className="py-0.5 font-medium">{p.name}</td>
-              <td className="py-0.5 text-right font-mono" style={{ color: portColor(effectivePortType(p, config)) }}>
+              <td className="py-0.5 text-right font-mono" style={{ color: portColor(effectivePortType(p, config), dark) }}>
                 {effectivePortType(p, config)}
               </td>
             </tr>

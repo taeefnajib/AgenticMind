@@ -21,10 +21,19 @@ export function NewProjectDialog({ open, templates, onCancel, onCreate, onImport
     }
   }, [open, templates]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" role="dialog" aria-modal="true" aria-labelledby="np-title">
-      <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="np-title">
+      <div className="w-full max-w-lg rounded-xl bg-surface p-5 shadow-xl">
         <h2 id="np-title" className="text-lg font-semibold text-slate-900">
           New project
         </h2>
@@ -78,7 +87,7 @@ function TemplateOption({ selected, onSelect, title, description }: { selected: 
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full rounded-lg border px-3 py-2 text-left ${selected ? "border-sky-500 bg-sky-50" : "border-slate-200 hover:bg-slate-50"}`}
+      className={`w-full rounded-lg border px-3 py-2 text-left ${selected ? "border-fuchsia-500 bg-fuchsia-50" : "border-slate-200 hover:bg-slate-50"}`}
     >
       <div className="text-sm font-medium text-slate-900">{title}</div>
       <div className="text-xs text-slate-500">{description}</div>

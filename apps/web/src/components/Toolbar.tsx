@@ -1,5 +1,6 @@
 import type { Mode, ProjectSummary } from "../api/types";
 import { MODE_LABEL } from "../lib/theme";
+import { NEXT_THEME, type ThemePreference } from "../lib/useTheme";
 
 export interface RunTargetOption {
   id: string;
@@ -27,16 +28,18 @@ interface Props {
   onCancel: () => void;
   onExport: () => void;
   onMode: (mode: Mode) => void;
+  theme: ThemePreference;
+  onTheme: (theme: ThemePreference) => void;
 }
 
 const TONE = { info: "text-slate-600", error: "text-red-600", success: "text-emerald-700" } as const;
 
 export function Toolbar(p: Props) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-3">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-slate-200 bg-surface px-3">
       <div className="flex items-center gap-2 pr-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-xs font-bold text-white">AM</div>
-        <span className="hidden text-sm font-semibold text-slate-900 md:inline">AgenticMind</span>
+        <img src="/logo-mark.png" alt="" className="h-8 w-auto rounded-md" />
+        <span className="am-gradient-text hidden text-base font-bold tracking-tight md:inline">AgenticMind</span>
       </div>
 
       <select
@@ -111,12 +114,44 @@ export function Toolbar(p: Props) {
             role="radio"
             aria-checked={p.mode === m}
             onClick={() => p.onMode(m)}
-            className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${p.mode === m ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+            className={`whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ${p.mode === m ? "bg-brand-gradient text-white" : "text-slate-600 hover:bg-slate-100"}`}
           >
             {MODE_LABEL[m]}
           </button>
         ))}
       </div>
+      <ThemeToggle theme={p.theme} onTheme={p.onTheme} />
     </header>
+  );
+}
+
+const THEME_LABEL: Record<ThemePreference, string> = { light: "Light", dark: "Dark", system: "System" };
+
+function ThemeToggle({ theme, onTheme }: { theme: ThemePreference; onTheme: (t: ThemePreference) => void }) {
+  return (
+    <button
+      type="button"
+      className="am-btn !px-2"
+      onClick={() => onTheme(NEXT_THEME[theme])}
+      title={`Theme: ${THEME_LABEL[theme]} (click for ${THEME_LABEL[NEXT_THEME[theme]]})`}
+      aria-label={`Theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[NEXT_THEME[theme]]}`}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {theme === "light" && (
+          <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </>
+        )}
+        {theme === "dark" && <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />}
+        {theme === "system" && (
+          <>
+            <rect x="3" y="4" width="18" height="12" rx="2" />
+            <path d="M8 20h8M12 16v4" />
+          </>
+        )}
+      </svg>
+      <span className="hidden text-xs xl:inline">{THEME_LABEL[theme]}</span>
+    </button>
   );
 }

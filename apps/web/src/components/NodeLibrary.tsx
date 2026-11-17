@@ -28,7 +28,7 @@ export function NodeLibrary({ manifests, mode, onAdd }: Props) {
   }, [manifests, mode, query]);
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div className="border-b border-slate-200 p-3">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Node library</div>
         <input

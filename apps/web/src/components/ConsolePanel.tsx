@@ -39,7 +39,7 @@ export function ConsolePanel(props: Props) {
   if (mode === "developer") tabs.push({ id: "ir", label: "IR (live)" });
 
   return (
-    <section className="flex h-64 shrink-0 flex-col border-t border-slate-200 bg-white">
+    <section className="flex h-64 shrink-0 flex-col border-t border-slate-200 bg-surface">
       <nav className="flex items-center gap-1 border-b border-slate-200 px-2" role="tablist">
         {tabs.map((t) => (
           <button
@@ -49,7 +49,7 @@ export function ConsolePanel(props: Props) {
             aria-selected={tab === t.id}
             onClick={() => onTab(t.id)}
             className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-medium ${
-              tab === t.id ? "border-sky-600 text-sky-700" : "border-transparent text-slate-500 hover:text-slate-800"
+              tab === t.id ? "border-fuchsia-600 text-fuchsia-700" : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
             {t.label}
@@ -102,7 +102,7 @@ function RunInputs({ inputNodes, runInputs, onRunInputs }: Props) {
               <span className="font-mono text-[10px] text-slate-400">{key}</span>
             </label>
             {type === "Boolean" ? (
-              <input id={id} type="checkbox" className="h-4 w-4 accent-sky-600" checked={Boolean(value ?? def)} onChange={(e) => set(key, e.target.checked)} />
+              <input id={id} type="checkbox" className="h-4 w-4 accent-fuchsia-600" checked={Boolean(value ?? def)} onChange={(e) => set(key, e.target.checked)} />
             ) : type === "Number" ? (
               <input
                 id={id}
@@ -154,7 +154,7 @@ function TraceTable({ events, onSelectNode }: { events: TraceEvent[]; onSelectNo
   if (events.length === 0) return <p className="text-xs text-slate-500">Run the graph to see its execution trace.</p>;
   return (
     <table className="w-full text-left font-mono text-[11px]">
-      <thead className="sticky top-0 bg-white text-slate-500">
+      <thead className="sticky top-0 bg-surface text-slate-500">
         <tr>
           <th className="py-1 pr-3 font-medium">#</th>
           <th className="py-1 pr-3 font-medium">+ms</th>

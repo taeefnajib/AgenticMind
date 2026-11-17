@@ -6,7 +6,7 @@ import { categoryStyle, portColor, STATUS_STYLE } from "../lib/theme";
 import { useWorkbench } from "../lib/workbench";
 
 function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
-  const { manifests, nodeStatus, diagnosticsByNode, mode } = useWorkbench();
+  const { manifests, nodeStatus, diagnosticsByNode, mode, dark } = useWorkbench();
   const ir = data.ir;
   const manifest = manifests.get(manifestKey(ir.type, ir.version));
   const status = nodeStatus[id];
@@ -20,8 +20,8 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
   return (
     <div
       className={[
-        "relative w-60 rounded-lg border bg-white text-left shadow-sm transition-shadow",
-        selected ? "border-sky-500 shadow-md" : "border-slate-200",
+        "relative w-60 rounded-lg border bg-surface text-left shadow-sm transition-shadow",
+        selected ? "border-fuchsia-500 shadow-md" : "border-slate-200",
         errors ? "border-red-400" : "",
         status ? STATUS_STYLE[status].ring : "",
       ].join(" ")}
@@ -72,7 +72,7 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
                   type="target"
                   position={Position.Left}
                   id={dataIn(p.name)}
-                  style={{ background: portColor(t) }}
+                  style={{ background: portColor(t, dark) }}
                   title={`${p.name}: ${t}${p.required ? " (required)" : ""}`}
                 />
                 <span className="text-xs text-slate-700">
@@ -80,7 +80,7 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
                   {p.required && <span className="text-red-500">*</span>}
                   {p.cardinality === "multiple" && <span className="text-slate-400"> [ ]</span>}
                 </span>
-                <span className="font-mono text-[10px]" style={{ color: portColor(t) }}>
+                <span className="font-mono text-[10px]" style={{ color: portColor(t, dark) }}>
                   {t}
                 </span>
               </div>
@@ -90,7 +90,7 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
             const t = effectivePortType(p, ir.config);
             return (
               <div key={`o-${p.name}`} className="relative flex items-center justify-between px-3 py-0.5">
-                <span className="font-mono text-[10px]" style={{ color: portColor(t) }}>
+                <span className="font-mono text-[10px]" style={{ color: portColor(t, dark) }}>
                   {t}
                 </span>
                 <span className="text-xs text-slate-700">{p.name}</span>
@@ -98,7 +98,7 @@ function AmNodeView({ id, data, selected }: NodeProps<AmFlowNode>) {
                   type="source"
                   position={Position.Right}
                   id={dataOut(p.name)}
-                  style={{ background: portColor(t) }}
+                  style={{ background: portColor(t, dark) }}
                   title={`${p.name}: ${t}`}
                 />
               </div>
