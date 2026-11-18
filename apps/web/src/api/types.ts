@@ -258,6 +258,161 @@ export interface AppPreview {
   layout: Record<string, number>;
 }
 
+// ---- Evaluation Lab (ADR-0017) ----
+export interface ExpectedSource {
+  id?: string | null;
+  filename?: string | null;
+  section?: string | null;
+}
+
+export interface EvalCase {
+  id: string;
+  inputs: Record<string, JsonValue>;
+  reference?: string | null;
+  expected_sources?: ExpectedSource[];
+  must_include?: string[];
+  must_not_include?: string[];
+  expected_tools?: string[];
+  tags?: string[];
+  metadata?: Record<string, JsonValue>;
+}
+
+export interface DatasetOut {
+  id: string;
+  project_id: string;
+  version: number;
+  name: string;
+  description: string;
+  content_hash: string;
+  cases_count: number;
+  created_at: string | null;
+  cases?: EvalCase[];
+  created_version?: boolean;
+}
+
+export interface EvaluatorInfo {
+  name: string;
+  version: string;
+  area: "retrieval" | "generation" | "safety" | "operations" | "agent";
+  title: string;
+  description: string;
+  requires: string[];
+  higher_is_better: boolean;
+  uses_judge: boolean;
+  aggregation: string;
+  unit: string;
+}
+
+export interface MetricSummary {
+  name: string;
+  version: string;
+  area: string;
+  title: string;
+  higher_is_better: boolean;
+  estimate: boolean;
+  aggregation: string;
+  unit: string;
+  n: number;
+  of: number;
+  mean: number | null;
+  passed: number | null;
+  p50?: number;
+  p95?: number;
+  total?: number;
+}
+
+export interface EvaluationConfig {
+  evaluators: string[];
+  answer_output?: string | null;
+  retrieval_node?: string | null;
+  k: number;
+  concurrency?: number;
+  judge?: { provider: string; model: string; api_key?: { $secret: string } | null } | null;
+}
+
+export interface EvaluationOut {
+  id: string;
+  project_id: string;
+  dataset_id: string;
+  dataset_version: number;
+  dataset_hash: string;
+  revision: number;
+  content_hash: string;
+  label: string;
+  config: EvaluationConfig;
+  status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+  total: number;
+  done: number;
+  summary: MetricSummary[] | null;
+  setup: {
+    answer_output: string;
+    retrieval_node: string | null;
+    k: number;
+    judge: { provider: string; model: string; prompts: Record<string, string>; note: string } | null;
+    judge_usage: { input_tokens: number; output_tokens: number; cost_usd: number } | null;
+  } | null;
+  error: { code: string; message: string } | null;
+  baseline: boolean;
+  created_at: string | null;
+  finished_at: string | null;
+}
+
+export interface CaseMetric {
+  name: string;
+  version: string;
+  value: number | null;
+  passed: boolean | null;
+  details: Record<string, JsonValue>;
+}
+
+export interface EvalCaseResult {
+  case_id: string;
+  run_id: string;
+  status: string;
+  error: { code: string; message: string } | null;
+  metrics: CaseMetric[];
+  observation: {
+    answer: string | null;
+    retrieved: { id: string; content: string; source?: { filename?: string; section?: string } }[];
+    retrieval_node: string | null;
+    latency_ms: number;
+  };
+}
+
+export interface ComparisonOut {
+  a: EvaluationOut;
+  b: EvaluationOut;
+  comparable: boolean;
+  warnings: string[];
+  metrics: {
+    name: string;
+    title: string;
+    area: string;
+    higher_is_better: boolean;
+    estimate: boolean;
+    unit: string;
+    a: number | null;
+    b: number | null;
+    n_a: number;
+    n_b: number;
+    delta: number | null;
+    better: boolean | null;
+  }[];
+  cases: {
+    case_id: string;
+    run_a: string;
+    run_b: string;
+    changes: { metric: string; a: number; b: number; better: boolean }[];
+    regressed: boolean;
+    improved: boolean;
+  }[];
+  regressions: number;
+  improvements: number;
+  only_in_a: string[];
+  only_in_b: string[];
+  note: string;
+}
+
 export type NodeRunStatus =
   | "pending"
   | "running"

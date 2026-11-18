@@ -34,6 +34,7 @@ import type {
 import { AmNode } from "./components/AmNode";
 import type { ChatResult } from "./components/ChatPanel";
 import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
+import { EvaluationLab } from "./components/EvaluationLab";
 import { ExportAppDialog } from "./components/ExportAppDialog";
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
@@ -108,6 +109,7 @@ export function App() {
   const [approvalsKey, setApprovalsKey] = useState(0);
   const [approvalCount, setApprovalCount] = useState(0);
   const [exportAppOpen, setExportAppOpen] = useState(false);
+  const [evalOpen, setEvalOpen] = useState(false);
   const [runInputs, setRunInputs] = useState<Record<string, JsonValue>>({});
   const [mode, setModeState] = useState<Mode>(() => (storage.get("am.mode") as Mode) || "low_code");
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>("problems");
@@ -606,6 +608,7 @@ export function App() {
   const selectedNode = nodes.find((n) => n.id === selected.node) ?? null;
   const selectedEdge = edges.find((e) => e.id === selected.edge) ?? null;
   const inputNodes = nodes.map((n) => n.data.ir).filter(isManualInput);
+  const outputNodes = nodes.map((n) => n.data.ir).filter((ir) => ir.type === "agenticmind.core.output");
   const runTargets: RunTargetOption[] = nodes
     .map((n) => n.data.ir)
     .filter((ir) => ir.type === "agenticmind.core.output")
@@ -646,6 +649,7 @@ export function App() {
           onCancel={() => void cancelRun()}
           onExport={() => void exportIR()}
           onExportApp={() => setExportAppOpen(true)}
+          onEvaluate={() => setEvalOpen(true)}
           onMode={setMode}
           theme={theme.preference}
           onTheme={theme.setPreference}
@@ -721,6 +725,16 @@ export function App() {
           />
         </div>
       </div>
+      <EvaluationLab
+        open={evalOpen}
+        projectId={project?.id ?? null}
+        projectName={meta.name}
+        inputNodes={inputNodes}
+        outputNodes={outputNodes}
+        ensureSaved={ensureSaved}
+        onClose={() => setEvalOpen(false)}
+        notify={notify}
+      />
       <ExportAppDialog
         open={exportAppOpen}
         projectId={project?.id ?? null}

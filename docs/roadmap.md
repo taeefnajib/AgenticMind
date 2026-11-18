@@ -9,7 +9,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M2 First-party runtime | **Done (core)**: plan, registry, handlers, traces, retries, timeouts, cancellation |
 | M3 RAG vertical slice | **Done**: ingestion, hybrid retrieval (vector + BM25), reranking, query rewriting, compression, cited answers |
 | M4 Compiler / API export | **Done (core)**: standalone FastAPI export with OpenAPI, tests, Docker assets, vendored runtime; Docker build not yet exercised |
-| M5 Evaluation Lab | Planned |
+| M5 Evaluation Lab | **Done (core)**: versioned datasets, 18 evaluators (retrieval, generation, safety, agent, operations, LLM judges), traced per-case runs, comparison and baseline |
 | M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join), 8c (memory), 8d (checkpoints, approval, resume) and 8e (multi-agent patterns) done |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
@@ -96,6 +96,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   third-party versions; bundled uploads; ruff-formatted and linted output; deterministic ZIP. *Export app*
   dialog in the IDE. Verified: all templates compile and pass their own tests; the Advanced RAG export was
   installed with `uv sync` from the ZIP alone and served real cited answers via Gemini.
+- **M5 – Evaluation Lab**: `agenticmind-evaluation` package (test cases, versioned evaluators, LLM judge
+  with stored model/prompt/rubric, runner, comparison); every case runs as a normal traced run; immutable
+  dataset versions; summaries disclose n/of and aggregation; comparison flags dataset/K/judge mismatches
+  and per-case regressions; baseline per dataset; Evaluation Lab UI (datasets editor + JSON import/export,
+  run form, results, compare); sample handbook dataset. Verified live with Gemini on two graph revisions.
 - **Node library hover cards**: description, ports, branches and permissions on hover or focus.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
@@ -124,6 +129,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   for chunk sizes is an approximation, not a model tokenizer.
 - Version history is available via the API (`/revisions`) but has no UI yet.
 - Chat does not render LaTeX math that models sometimes produce (`$...$` is shown as text).
+- Evaluation: no significance testing or CI gating yet; datasets are written by hand (no generation from
+  documents); agent scoring covers tool use only (not handoffs or approvals).
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI (neither for the platform nor for exported apps).
 - Exported apps: human-approval pauses answer 409, memory is in process, rate limits are per process; endpoints
@@ -131,8 +138,6 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two
-   revisions with per-case results.
-2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
-3. AuthN/Z, workspaces, audit log; Alembic migrations.
-4. Revision history UI and diff view (canonical IR makes this straightforward).
+1. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
+2. AuthN/Z, workspaces, audit log; Alembic migrations.
+3. Revision history UI and diff view (canonical IR makes this straightforward).

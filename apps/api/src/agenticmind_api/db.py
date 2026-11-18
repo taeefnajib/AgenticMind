@@ -106,6 +106,54 @@ class RunWaitRow(Base):
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class DatasetRow(Base):
+    """Evaluation dataset versions (ADR-0017). Editing creates a new version; old versions stay for audit."""
+
+    __tablename__ = "eval_datasets"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(String(2000), default="")
+    content: Mapped[dict[str, Any]]
+    content_hash: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class EvalRunRow(Base):
+    __tablename__ = "eval_runs"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    dataset_id: Mapped[str] = mapped_column(String(64), index=True)
+    dataset_version: Mapped[int] = mapped_column(Integer)
+    dataset_hash: Mapped[str] = mapped_column(String(80))
+    revision: Mapped[int] = mapped_column(Integer)
+    content_hash: Mapped[str] = mapped_column(String(80))
+    label: Mapped[str] = mapped_column(String(200), default="")
+    config: Mapped[dict[str, Any]]
+    status: Mapped[str] = mapped_column(String(20))
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    done: Mapped[int] = mapped_column(Integer, default=0)
+    summary: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
+    setup: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    baseline: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EvalCaseRow(Base):
+    """Raw per-case result (metrics with details, observation, linked run id) so aggregates can be audited."""
+
+    __tablename__ = "eval_case_results"
+    eval_run_id: Mapped[str] = mapped_column(ForeignKey("eval_runs.id", ondelete="CASCADE"), primary_key=True)
+    case_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    run_id: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict[str, Any]]
+
+
 class ConversationMessageRow(Base):
     """Short-term conversation state (ADR-0012). Deleted with the project or by retention."""
 

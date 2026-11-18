@@ -66,6 +66,10 @@ To ship a graph as a service: **Export app** generates a standalone FastAPI proj
 inputs/outputs, OpenAPI, tests, Dockerfile, the AgenticMind runtime vendored in). See
 [docs/architecture/compiler.md](docs/architecture/compiler.md).
 
+To measure quality: **Evaluate** opens the Evaluation Lab. Import `examples/datasets/employee-handbook-qa.json`,
+run it against the current graph, change the graph, run again and compare (recall, MRR, required facts,
+citations, LLM-judge correctness, latency, cost). See [docs/architecture/evaluation.md](docs/architecture/evaluation.md).
+
 Multi-agent templates: *Research team* (supervisor delegating to subagents), *Plan and execute*
 (planner + parallel workers + synthesizer) and *Write with a critic* (revise until a critic passes).
 

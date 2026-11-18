@@ -191,3 +191,115 @@ def test_advanced_rag_template_runs_offline(client):
     assert {("hybrid", "retrieved"), ("rerank", "reranked"), ("compress", "compressed")} <= kinds
     answer = final["outputs"]["answer"]
     assert answer["citations"] and "leave" in answer["citations"][0]["excerpt"].lower()
+
+
+def wait_eval(client, eval_id, timeout=60.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        ev = client.get(f"/api/evaluations/{eval_id}").json()
+        if ev["status"] in ("succeeded", "failed", "cancelled"):
+            return ev
+        time.sleep(0.1)
+    raise AssertionError("evaluation did not finish")
+
+
+CASES = [
+    {
+        "id": "leave",
+        "inputs": {"question": "How many days of annual leave do employees get?"},
+        "expected_sources": ["employee-handbook.md#annual leave"],
+        "must_include": ["25"],
+    },
+    {
+        "id": "hotel",
+        "inputs": {"question": "What is the hotel limit per night?"},
+        "expected_sources": ["employee-handbook.md#travel"],
+        "must_include": ["180"],
+    },
+    {
+        "id": "phishing",
+        "inputs": {"question": "Who do I report phishing emails to?"},
+        "expected_sources": ["employee-handbook.md#security"],
+    },
+]
+
+
+def test_evaluation_lab_two_revisions_compare_and_audit(client):
+    pid = client.post("/api/projects", json={"name": "Eval", "template": "rag-answers"}).json()["id"]
+    file_id = client.post(
+        f"/api/projects/{pid}/files", files={"file": ("employee-handbook.md", HANDBOOK, "text/markdown")}
+    ).json()["id"]
+    doc = client.get(f"/api/projects/{pid}").json()["document"]
+    nodes = {n["id"]: n for n in doc["nodes"]}
+    nodes["load"]["config"]["files"] = [file_id]
+    nodes["embedding"]["config"] = {"provider": "hash", "model": "hash", "dimensions": 384, "batch_size": 32}
+    nodes["llm"]["config"].update(provider="mock", model="mock-1")
+    nodes["llm"]["config"].pop("api_key")
+    rev_a = client.put(f"/api/projects/{pid}", json={"document": doc}).json()["revision"]
+    assert (
+        wait(client, client.post(f"/api/projects/{pid}/runs", json={"targets": ["index_report"]}).json()["id"])[
+            "status"
+        ]
+        == "succeeded"
+    )
+
+    # dataset: create, edit (new version), unchanged save keeps the version, invalid rejected
+    ds = client.post(f"/api/projects/{pid}/datasets", json={"name": "Handbook QA", "cases": CASES[:2]}).json()
+    assert ds["version"] == 1 and ds["cases_count"] == 2
+    v2 = client.put(f"/api/datasets/{ds['id']}", json={"name": "Handbook QA", "cases": CASES}).json()
+    assert v2["version"] == 2 and v2["created_version"] is True
+    same = client.put(f"/api/datasets/{ds['id']}", json={"name": "Handbook QA", "cases": CASES}).json()
+    assert same["version"] == 2 and same["created_version"] is False
+    bad = client.put(f"/api/datasets/{ds['id']}", json={"name": "x", "cases": [{"id": "a"}, {"id": "a"}]})
+    assert bad.status_code == 422
+    assert [v["version"] for v in client.get(f"/api/datasets/{ds['id']}/versions").json()] == [1, 2]
+    assert {e["name"] for e in client.get("/api/evaluators").json()} >= {"recall_at_k", "correctness_judge"}
+
+    config = {
+        "evaluators": ["recall_at_k", "mrr", "contains_required", "citation_validity", "success", "latency_ms"],
+        "k": 5,
+    }
+    ev_a = client.post(
+        f"/api/projects/{pid}/evaluations", json={"dataset_id": ds["id"], "label": "top 5", "config": config}
+    )
+    assert ev_a.status_code == 202
+    a = wait_eval(client, ev_a.json()["id"])
+    assert a["status"] == "succeeded", a["error"]
+    assert a["done"] == a["total"] == 3 and a["dataset_version"] == 2 and a["revision"] == rev_a
+    summary = {m["name"]: m for m in a["summary"]}
+    assert summary["success"]["mean"] == 1.0 and summary["recall_at_k"]["n"] == 3
+
+    # every case links to a normal, traced run
+    cases = client.get(f"/api/evaluations/{a['id']}/cases").json()
+    assert [c["case_id"] for c in cases] == ["leave", "hotel", "phishing"]
+    run = client.get(f"/api/runs/{cases[0]['run_id']}").json()
+    assert run["status"] == "succeeded" and run["inputs"] == CASES[0]["inputs"]
+    assert client.get(f"/api/runs/{cases[0]['run_id']}/events").json()[0]["event_type"] == "run_started"
+
+    # second version of the graph: retrieve only 1 chunk
+    nodes["retrieve"]["config"]["top_k"] = 1
+    rev_b = client.put(f"/api/projects/{pid}", json={"document": doc}).json()["revision"]
+    b = wait_eval(
+        client,
+        client.post(
+            f"/api/projects/{pid}/evaluations", json={"dataset_id": ds["id"], "label": "top 1", "config": config}
+        ).json()["id"],
+    )
+    assert b["status"] == "succeeded" and b["revision"] == rev_b
+    diff = client.get(f"/api/evaluations/compare?a={a['id']}&b={b['id']}").json()
+    assert diff["comparable"] is True and len(diff["cases"]) == 3
+    assert {m["name"] for m in diff["metrics"]} >= {"recall_at_k", "mrr"}
+
+    # baseline, and comparing across dataset versions is flagged
+    assert client.put(f"/api/evaluations/{a['id']}/baseline").json()["baseline"] is True
+    old = wait_eval(
+        client,
+        client.post(
+            f"/api/projects/{pid}/evaluations",
+            json={"dataset_id": ds["id"], "dataset_version": 1, "revision": rev_a, "config": config},
+        ).json()["id"],
+    )
+    flagged = client.get(f"/api/evaluations/compare?a={old['id']}&b={a['id']}").json()
+    assert flagged["comparable"] is False and flagged["only_in_b"] == ["phishing"]
+    listed = client.get(f"/api/projects/{pid}/evaluations").json()
+    assert sum(1 for e in listed if e["baseline"]) == 1 and len(listed) == 3

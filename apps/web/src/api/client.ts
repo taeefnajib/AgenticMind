@@ -1,9 +1,16 @@
 import type {
   AppPreview,
   ArtifactInfo,
+  ComparisonOut,
   ConversationSummary,
   ConversationTurn,
+  DatasetOut,
   Diagnostic,
+  EvalCase,
+  EvalCaseResult,
+  EvaluationConfig,
+  EvaluationOut,
+  EvaluatorInfo,
   JsonValue,
   MemoryRecord,
   NodeManifest,
@@ -158,6 +165,28 @@ export const api = {
   deleteConversation: (projectId: string, id: string) =>
     request<{ deleted: number }>(`/projects/${projectId}/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
   fileUrl: (projectId: string, fileId: string) => `/api/projects/${projectId}/files/${fileId}/content`,
+  revisions: (id: string) =>
+    request<{ revision: number; content_hash: string; created_at: string | null }[]>(`/projects/${id}/revisions`),
+  evaluators: () => request<EvaluatorInfo[]>("/evaluators"),
+  datasets: (projectId: string) => request<DatasetOut[]>(`/projects/${projectId}/datasets`),
+  dataset: (id: string, version?: number) =>
+    request<DatasetOut>(`/datasets/${id}${version ? `?version=${version}` : ""}`),
+  datasetVersions: (id: string) => request<DatasetOut[]>(`/datasets/${id}/versions`),
+  createDataset: (projectId: string, body: { name: string; description?: string; cases: EvalCase[] }) =>
+    request<DatasetOut>(`/projects/${projectId}/datasets`, { method: "POST", ...json(body) }),
+  saveDataset: (id: string, body: { name: string; description?: string; cases: EvalCase[] }) =>
+    request<DatasetOut>(`/datasets/${id}`, { method: "PUT", ...json(body) }),
+  deleteDataset: (id: string) => request<void>(`/datasets/${id}`, { method: "DELETE" }),
+  startEvaluation: (
+    projectId: string,
+    body: { dataset_id: string; dataset_version?: number; revision?: number; label: string; config: EvaluationConfig },
+  ) => request<EvaluationOut>(`/projects/${projectId}/evaluations`, { method: "POST", ...json(body) }),
+  evaluations: (projectId: string) => request<EvaluationOut[]>(`/projects/${projectId}/evaluations`),
+  evaluationCases: (id: string) => request<EvalCaseResult[]>(`/evaluations/${id}/cases`),
+  compareEvaluations: (a: string, b: string) => request<ComparisonOut>(`/evaluations/compare?a=${a}&b=${b}`),
+  setBaseline: (id: string) => request<EvaluationOut>(`/evaluations/${id}/baseline`, { method: "PUT" }),
+  cancelEvaluation: (id: string) => request<EvaluationOut>(`/evaluations/${id}/cancel`, { method: "POST" }),
+  deleteEvaluation: (id: string) => request<void>(`/evaluations/${id}`, { method: "DELETE" }),
   appPreview: (id: string) => request<AppPreview>(`/projects/${id}/app/preview`),
   async exportApp(id: string): Promise<{ blob: Blob; filename: string }> {
     const res = await send(`/api/projects/${id}/app`, undefined, REQUEST_TIMEOUT_MS * 4);

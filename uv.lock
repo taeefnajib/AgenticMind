@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "agenticmind-api",
     "agenticmind-compiler",
+    "agenticmind-evaluation",
     "agenticmind-ir",
     "agenticmind-node-sdk",
     "agenticmind-nodes-agents",
@@ -31,6 +32,7 @@ version = "0.1.0"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "agenticmind-compiler" },
+    { name = "agenticmind-evaluation" },
     { name = "agenticmind-ir" },
     { name = "agenticmind-node-sdk" },
     { name = "agenticmind-nodes-agents" },
@@ -56,6 +58,7 @@ postgres = [
 [package.metadata]
 requires-dist = [
     { name = "agenticmind-compiler", editable = "packages/compiler" },
+    { name = "agenticmind-evaluation", editable = "packages/evaluation" },
     { name = "agenticmind-ir", editable = "packages/ir" },
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
     { name = "agenticmind-nodes-agents", editable = "nodes/agents" },
@@ -94,6 +97,29 @@ requires-dist = [
     { name = "agenticmind-registry", editable = "packages/node-registry" },
     { name = "agenticmind-runtime", editable = "packages/runtime" },
     { name = "ruff", specifier = ">=0.6" },
+]
+
+[[package]]
+name = "agenticmind-evaluation"
+version = "0.1.0"
+source = { editable = "packages/evaluation" }
+dependencies = [
+    { name = "agenticmind-ir" },
+    { name = "agenticmind-node-sdk" },
+    { name = "agenticmind-providers" },
+    { name = "agenticmind-registry" },
+    { name = "agenticmind-runtime" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agenticmind-ir", editable = "packages/ir" },
+    { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
+    { name = "agenticmind-providers", editable = "packages/providers" },
+    { name = "agenticmind-registry", editable = "packages/node-registry" },
+    { name = "agenticmind-runtime", editable = "packages/runtime" },
+    { name = "pydantic", specifier = ">=2.7,<3" },
 ]
 
 [[package]]
@@ -287,6 +313,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "agenticmind-api" },
     { name = "agenticmind-compiler" },
+    { name = "agenticmind-evaluation" },
     { name = "agenticmind-ir" },
     { name = "agenticmind-node-sdk" },
     { name = "agenticmind-nodes-agents" },
@@ -311,6 +338,7 @@ dev = [
 requires-dist = [
     { name = "agenticmind-api", editable = "apps/api" },
     { name = "agenticmind-compiler", editable = "packages/compiler" },
+    { name = "agenticmind-evaluation", editable = "packages/evaluation" },
     { name = "agenticmind-ir", editable = "packages/ir" },
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
     { name = "agenticmind-nodes-agents", editable = "nodes/agents" },

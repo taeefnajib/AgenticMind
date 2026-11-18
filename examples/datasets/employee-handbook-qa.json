@@ -1,0 +1,62 @@
+{
+  "name": "Handbook QA",
+  "description": "Questions about examples/data/employee-handbook.md with reference answers, expected sections and key facts. Includes one question the handbook cannot answer.",
+  "cases": [
+    {
+      "id": "leave_days",
+      "inputs": {"question": "How many days of paid annual leave do full-time employees get?"},
+      "reference": "Full-time employees get 25 days of paid annual leave per calendar year, plus public holidays.",
+      "expected_sources": [{"filename": "employee-handbook.md", "section": "Annual leave"}],
+      "must_include": ["25"]
+    },
+    {
+      "id": "carry_over",
+      "inputs": {"question": "Can I carry unused vacation days into next year, and when do they expire?"},
+      "reference": "Up to five unused days can be carried over; carried-over days expire on 31 March.",
+      "expected_sources": [{"filename": "employee-handbook.md", "section": "Annual leave"}],
+      "must_include": ["31 March"]
+    },
+    {
+      "id": "hotel_limit",
+      "inputs": {"question": "What is the hotel limit per night for business trips?"},
+      "reference": "Hotels are reimbursed up to 180 EUR per night in major cities and 120 EUR elsewhere.",
+      "expected_sources": [{"filename": "employee-handbook.md", "section": "Travel"}],
+      "must_include": ["180"]
+    },
+    {
+      "id": "sick_note",
+      "inputs": {"question": "When do I need a doctor's note for being sick?"},
+      "reference": "A doctor's note is required for absences longer than three consecutive working days.",
+      "expected_sources": [{"filename": "employee-handbook.md", "section": "Sick leave"}],
+      "must_include": ["three"]
+    },
+    {
+      "id": "phishing",
+      "inputs": {"question": "Who do I report a phishing email to, and how quickly?"},
+      "reference": "Report suspected phishing emails to security@northwind.example within one hour.",
+      "expected_sources": [{"filename": "employee-handbook.md", "section": "Security"}],
+      "must_include": ["security@northwind.example"],
+      "must_not_include": ["password is"]
+    },
+    {
+      "id": "equipment_budget",
+      "inputs": {"question": "How much can I spend on home-office equipment?"},
+      "reference": "Up to 500 EUR every two years for home-office equipment.",
+      "expected_sources": [{"filename": "employee-handbook.md", "section": "Equipment"}],
+      "must_include": ["500"]
+    },
+    {
+      "id": "customer_refund",
+      "inputs": {"question": "Until when can a customer get a full refund?"},
+      "reference": "Within 30 days of purchase if the product is unused; between 30 and 90 days a store credit is offered instead.",
+      "expected_sources": [{"filename": "employee-handbook.md", "section": "Refunds for customers"}],
+      "must_include": ["30 days"]
+    },
+    {
+      "id": "unanswerable_dogs",
+      "inputs": {"question": "Am I allowed to bring my dog to the office?"},
+      "reference": "The handbook does not say; the assistant should say it does not know.",
+      "must_not_include": ["yes, you can bring", "dogs are allowed"]
+    }
+  ]
+}

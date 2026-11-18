@@ -28,6 +28,7 @@ interface Props {
   onCancel: () => void;
   onExport: () => void;
   onExportApp: () => void;
+  onEvaluate: () => void;
   onMode: (mode: Mode) => void;
   theme: ThemePreference;
   onTheme: (theme: ThemePreference) => void;
@@ -101,6 +102,15 @@ export function Toolbar(p: Props) {
       )}
       <button type="button" className="am-btn" onClick={p.onExport} disabled={!p.projectId || p.busy} title="Download canonical IR">
         Export IR
+      </button>
+      <button
+        type="button"
+        className="am-btn"
+        onClick={p.onEvaluate}
+        disabled={!p.projectId || p.busy}
+        title="Evaluation Lab: datasets, metrics and comparing versions of this graph"
+      >
+        Evaluate
       </button>
       <button
         type="button"
