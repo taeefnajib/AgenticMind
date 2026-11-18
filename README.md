@@ -69,6 +69,10 @@ The API loads a `.env` file from the directory it starts in (the repo root for `
 API after editing. In node configs, refer to a key by name (`$secret` → `OPENROUTER_API_KEY`); the value is
 resolved at run time and never stored in projects, traces or exports.
 
+Agents' **Web Fetch** tool identifies itself as `AgenticMind-WebFetch/0.1`. Many sites (Wikipedia among
+them) only answer automated clients whose User-Agent includes contact details, so set your own, e.g.
+`AGENTICMIND_HTTP_USER_AGENT=MyAgents/1.0 (https://example.org; you@example.org)`.
+
 ### Self-hosted (Docker)
 
 ```bash

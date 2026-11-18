@@ -303,3 +303,66 @@ async def test_third_party_tool_discovery(monkeypatch):
     finally:
         monkeypatch.undo()
         tools_mod.discover_third_party_tools(refresh=True)
+
+
+def test_web_fetch_user_agent_is_configurable(monkeypatch):
+    monkeypatch.delenv("AGENTICMIND_HTTP_USER_AGENT", raising=False)
+    assert tools_mod.web_user_agent() == "AgenticMind-WebFetch/0.1"
+    monkeypatch.setenv("AGENTICMIND_HTTP_USER_AGENT", "MyAgents/1.0 (https://example.org)")
+    assert tools_mod.web_user_agent() == "MyAgents/1.0 (https://example.org)"
+    monkeypatch.setenv("AGENTICMIND_HTTP_USER_AGENT", "bad\nvalue")
+    assert tools_mod.web_user_agent() == "AgenticMind-WebFetch/0.1"
+
+
+async def test_subagent_returns_partial_work_at_its_limit(monkeypatch):
+    class Looping:
+        """Subagent keeps calling its tool; supervisor answers once it gets the delegation result."""
+
+        async def chat(self, request, *, api_key=None, base_url=None):
+            usage = ModelUsage(provider="x", model="m")
+            if request.tools and request.tools[0].name == "worker":
+                if any(m.role == "tool" for m in request.messages):
+                    return ChatResponse(text="Partial is fine.", usage=usage)
+                return ChatResponse(
+                    text="", tool_calls=[ToolCall(id="s", name="worker", arguments={"task": "t"})], usage=usage
+                )
+            return ChatResponse(
+                text="still working",
+                tool_calls=[
+                    ToolCall(id=f"c{len(request.messages)}", name="calculator", arguments={"expression": "1+1"})
+                ],
+                usage=usage,
+            )
+
+    monkeypatch.setattr(agent_mod, "get_provider", lambda name: Looping())
+    calc = (await invoke_node(tools_mod.calculator_tool)).outputs["tool"]
+    worker = await _subagent("worker", tools=[calc], max_turns=2)
+    r = await invoke_node(agent_mod.agent, inputs={"task": "go", "tools": [worker]}, config=MOCK)
+    step = r.outputs["result"]["steps"][0]
+    assert step["ok"] is True and step["subreport"]["stop_reason"] == "max_turns"
+    assert '"stop_reason": "max_turns"' in step["result_summary"]
+    assert r.outputs["answer"] == "Partial is fine."
+
+
+async def test_wrap_up_turn_answers_after_a_limit(monkeypatch):
+    seen = []
+
+    class Greedy:
+        async def chat(self, request, *, api_key=None, base_url=None):
+            seen.append(request.tool_choice)
+            usage = ModelUsage(provider="x", model="m", input_tokens=3)
+            if request.tool_choice == "none":
+                return ChatResponse(text="Best answer so far: 2.", usage=usage)
+            return ChatResponse(
+                text="",
+                tool_calls=[ToolCall(id=str(len(seen)), name="calculator", arguments={"expression": "1+1"})],
+                usage=usage,
+            )
+
+    monkeypatch.setattr(agent_mod, "get_provider", lambda name: Greedy())
+    calc = (await invoke_node(tools_mod.calculator_tool)).outputs["tool"]
+    cfg = {**MOCK, "max_tool_calls": 2, "on_limit": "return_partial"}
+    r = await invoke_node(agent_mod.agent, inputs={"task": "go", "tools": [calc]}, config=cfg)
+    assert r.outputs["answer"] == "Best answer so far: 2."
+    assert r.outputs["result"]["report"]["stop_reason"] == "max_tool_calls"
+    assert seen[-1] == "none" and r.outputs["result"]["report"]["input_tokens"] == 3 * len(seen)

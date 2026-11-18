@@ -123,7 +123,13 @@ async def llm(ctx: NodeContext, inputs, config: LLMConfig) -> NodeResult:
     if not response.text.strip():
         raise NodeError(
             "MODEL_EMPTY_RESPONSE",
-            f"The model returned no text (finish reason: {response.finish_reason or 'unknown'})",
+            f"The model returned no text (finish reason: {response.finish_reason or 'unknown'})."
+            + (
+                f" It ran out of output tokens (max_tokens={config.max_tokens}); reasoning models spend part of "
+                "that budget thinking, so raise max_tokens."
+                if response.finish_reason == "length"
+                else ""
+            ),
         )
     return NodeResult(outputs={"text": response.text}, usage=response.usage)
 

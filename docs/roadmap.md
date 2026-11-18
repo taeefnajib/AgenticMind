@@ -79,7 +79,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **8e – multi-agent patterns**: Subagent tool (supervisor handoff, depth cap, usage roll-up, labelled
   traces), Planner, Critic (rule checks separate from model judgments), Loop End 1.1.0 `next_state`,
   `agenticmind.tools` entry points for third-party tool implementations; *Research team*, *Plan and
-  execute* and *Write with a critic* templates (tested offline with the mock provider).
+  execute* and *Write with a critic* templates; verified live with Gemini (critic loop revised a draft
+  that failed 'accurate' and passed on round 2; planner + 3 parallel workers + synthesis; supervisor
+  delegating to an analyst). Live testing added: subagents return partial work at limits, a wrap-up turn
+  after turn/tool-call limits, clearer errors when reasoning models run out of output tokens, and a
+  configurable Web Fetch User-Agent (`AGENTICMIND_HTTP_USER_AGENT`) for sites that require contact details.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -105,12 +109,13 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - OCR for scanned PDFs is not supported yet (loader reports `NO_TEXT_EXTRACTED`). The token measure used
   for chunk sizes is an approximation, not a model tokenizer.
 - Version history is available via the API (`/revisions`) but has no UI yet.
+- Chat does not render LaTeX math that models sometimes produce (`$...$` is shown as text).
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI.
 
 ## Next tasks (in order)
 
-1. Browser/live verification of the 8e templates with Gemini. Previously planned under section 8: planner/worker,
+1. Previously planned under section 8: planner/worker,
    supervisor, reflection/critic, handoff; third-party tools via an entry-point group.
 2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,
    context compression.

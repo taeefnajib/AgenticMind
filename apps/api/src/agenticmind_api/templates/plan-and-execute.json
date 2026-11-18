@@ -1,66 +1,349 @@
 {
-  "ir_version": "1.0",
-  "project": {
-    "id": "template",
-    "name": "Plan and execute (planner + workers)",
-    "description": "A Planner (Gemini) splits the goal into up to 3 independent tasks, a Loop runs a worker agent per task in parallel, and a synthesizer agent combines the findings. Click Run, or change the goal in Run inputs. Uses OPENROUTER_API_KEY."
+ "ir_version": "1.0",
+ "project": {
+  "id": "template",
+  "name": "Plan and execute (planner + workers)",
+  "description": "A Planner (Gemini) splits the goal into up to 3 independent tasks, a Loop runs a worker agent per task in parallel, and a synthesizer agent combines the findings. Click Run, or change the goal in Run inputs. Uses OPENROUTER_API_KEY."
+ },
+ "runtime": {
+  "engine": "agenticmind",
+  "profile": "development"
+ },
+ "nodes": [
+  {
+   "id": "goal",
+   "type": "agenticmind.core.manual_input",
+   "version": "1.0.0",
+   "config": {
+    "key": "goal",
+    "value_type": "String",
+    "required": true,
+    "default": "Compare an electric car and a petrol car for a 20 km daily commute: yearly running cost, maintenance, and CO2 emissions. Use typical European prices."
+   },
+   "ui": {
+    "position": {
+     "x": 0,
+     "y": 160
+    },
+    "label": "Goal"
+   }
   },
-  "runtime": {"engine": "agenticmind", "profile": "development"},
-  "nodes": [
-    {"id": "goal", "type": "agenticmind.core.manual_input", "version": "1.0.0",
-     "config": {"key": "goal", "value_type": "String", "required": true,
-                "default": "Compare an electric car and a petrol car for a 20 km daily commute: yearly running cost, maintenance, and CO2 emissions. Use typical European prices."},
-     "ui": {"position": {"x": 0, "y": 160}, "label": "Goal"}},
-    {"id": "planner", "type": "agenticmind.agents.planner", "version": "1.0.0",
-     "config": {"provider": "openrouter", "model": "google/gemini-3.8-flash", "api_key": {"$secret": "OPENROUTER_API_KEY"},
-                "max_tasks": 3, "temperature": 0.2, "max_tokens": 800,
-                "instructions": "You are a planner. Break the goal into the smallest set of independent tasks that together achieve it. Each task must be self-contained: a worker sees only that task (and the goal), not the other tasks. Do not include a final 'combine the results' task; that happens separately."},
-     "ui": {"position": {"x": 290, "y": 160}}},
-    {"id": "each", "type": "agenticmind.core.loop", "version": "1.0.0",
-     "config": {"mode": "for_each", "item_type": "String", "state_type": "Any", "max_items": 20, "on_too_many": "truncate",
-                "concurrency": 3, "on_item_error": "skip", "max_iterations": 5},
-     "ui": {"position": {"x": 590, "y": 160}, "label": "For each task"}},
-    {"id": "calc", "type": "agenticmind.agents.tool_calculator", "version": "1.0.0",
-     "config": {"name": "calculator"},
-     "ui": {"position": {"x": 590, "y": 400}}},
-    {"id": "worker", "type": "agenticmind.agents.agent", "version": "1.1.0",
-     "config": {"provider": "openrouter", "model": "google/gemini-3.8-flash", "api_key": {"$secret": "OPENROUTER_API_KEY"},
-                "instructions": "You are a specialist working on one part of a larger goal (given as background). Complete only your task, in under 120 words. Use the calculator for any arithmetic and state your assumptions.",
-                "max_turns": 4, "max_tool_calls": 4, "token_budget": 30000, "cost_budget_usd": 0.1, "on_limit": "return_partial",
-                "tool_timeout_seconds": 30, "temperature": 0.2, "max_tokens": 600},
-     "ui": {"position": {"x": 900, "y": 220}, "label": "Worker"}},
-    {"id": "each_end", "type": "agenticmind.core.loop_end", "version": "1.1.0",
-     "config": {},
-     "ui": {"position": {"x": 1200, "y": 160}, "label": "Collect findings"}},
-    {"id": "findings", "type": "agenticmind.core.to_text", "version": "1.0.0",
-     "config": {},
-     "ui": {"position": {"x": 1480, "y": 260}, "label": "Findings as text"}},
-    {"id": "synth", "type": "agenticmind.agents.agent", "version": "1.1.0",
-     "config": {"provider": "openrouter", "model": "google/gemini-3.8-flash", "api_key": {"$secret": "OPENROUTER_API_KEY"},
-                "instructions": "Combine the specialists' findings (given as background) into one clear answer to the goal: a short summary, then a compact comparison table. Do not add facts that are not in the findings; point out gaps.",
-                "max_turns": 2, "max_tool_calls": 0, "token_budget": 30000, "cost_budget_usd": 0.1, "on_limit": "fail",
-                "tool_timeout_seconds": 30, "temperature": 0.2, "max_tokens": 1000},
-     "ui": {"position": {"x": 1760, "y": 160}, "label": "Synthesizer"}},
-    {"id": "answer", "type": "agenticmind.core.output", "version": "1.0.0",
-     "config": {"key": "answer"},
-     "ui": {"position": {"x": 2060, "y": 100}, "label": "Answer"}},
-    {"id": "plan_out", "type": "agenticmind.core.output", "version": "1.0.0",
-     "config": {"key": "plan"},
-     "ui": {"position": {"x": 590, "y": 0}, "label": "Plan"}}
-  ],
-  "edges": [
-    {"id": "e01", "kind": "data", "source": {"node": "goal", "port": "value"}, "target": {"node": "planner", "port": "goal"}},
-    {"id": "e02", "kind": "data", "source": {"node": "planner", "port": "tasks"}, "target": {"node": "each", "port": "items"}},
-    {"id": "e03", "kind": "data", "source": {"node": "planner", "port": "plan"}, "target": {"node": "plan_out", "port": "value"}},
-    {"id": "e04", "kind": "data", "source": {"node": "each", "port": "scope"}, "target": {"node": "each_end", "port": "scope"}},
-    {"id": "e05", "kind": "data", "source": {"node": "each", "port": "item"}, "target": {"node": "worker", "port": "task"}},
-    {"id": "e06", "kind": "data", "source": {"node": "goal", "port": "value"}, "target": {"node": "worker", "port": "context"}},
-    {"id": "e07", "kind": "data", "source": {"node": "calc", "port": "tool"}, "target": {"node": "worker", "port": "tools"}},
-    {"id": "e08", "kind": "data", "source": {"node": "worker", "port": "answer"}, "target": {"node": "each_end", "port": "value"}},
-    {"id": "e09", "kind": "data", "source": {"node": "each_end", "port": "results"}, "target": {"node": "findings", "port": "value"}},
-    {"id": "e10", "kind": "data", "source": {"node": "goal", "port": "value"}, "target": {"node": "synth", "port": "task"}},
-    {"id": "e11", "kind": "data", "source": {"node": "findings", "port": "text"}, "target": {"node": "synth", "port": "context"}},
-    {"id": "e12", "kind": "data", "source": {"node": "synth", "port": "result"}, "target": {"node": "answer", "port": "value"}}
-  ],
-  "metadata": {}
+  {
+   "id": "planner",
+   "type": "agenticmind.agents.planner",
+   "version": "1.0.0",
+   "config": {
+    "provider": "openrouter",
+    "model": "google/gemini-3.8-flash",
+    "api_key": {
+     "$secret": "OPENROUTER_API_KEY"
+    },
+    "max_tasks": 3,
+    "temperature": 0.2,
+    "max_tokens": 4000,
+    "instructions": "You are a planner. Break the goal into the smallest set of independent tasks that together achieve it. Each task must be self-contained: a worker sees only that task (and the goal), not the other tasks. Do not include a final 'combine the results' task; that happens separately."
+   },
+   "ui": {
+    "position": {
+     "x": 290,
+     "y": 160
+    }
+   }
+  },
+  {
+   "id": "each",
+   "type": "agenticmind.core.loop",
+   "version": "1.0.0",
+   "config": {
+    "mode": "for_each",
+    "item_type": "String",
+    "state_type": "Any",
+    "max_items": 20,
+    "on_too_many": "truncate",
+    "concurrency": 3,
+    "on_item_error": "skip",
+    "max_iterations": 5
+   },
+   "ui": {
+    "position": {
+     "x": 590,
+     "y": 160
+    },
+    "label": "For each task"
+   }
+  },
+  {
+   "id": "calc",
+   "type": "agenticmind.agents.tool_calculator",
+   "version": "1.0.0",
+   "config": {
+    "name": "calculator"
+   },
+   "ui": {
+    "position": {
+     "x": 590,
+     "y": 400
+    }
+   }
+  },
+  {
+   "id": "worker",
+   "type": "agenticmind.agents.agent",
+   "version": "1.1.0",
+   "config": {
+    "provider": "openrouter",
+    "model": "google/gemini-3.8-flash",
+    "api_key": {
+     "$secret": "OPENROUTER_API_KEY"
+    },
+    "instructions": "You are a specialist working on one part of a larger goal (given as background). Complete only your task, in under 120 words. Use the calculator for any arithmetic and state your assumptions.",
+    "max_turns": 4,
+    "max_tool_calls": 4,
+    "token_budget": 30000,
+    "cost_budget_usd": 0.1,
+    "on_limit": "return_partial",
+    "tool_timeout_seconds": 30,
+    "temperature": 0.2,
+    "max_tokens": 1500
+   },
+   "ui": {
+    "position": {
+     "x": 900,
+     "y": 220
+    },
+    "label": "Worker"
+   }
+  },
+  {
+   "id": "each_end",
+   "type": "agenticmind.core.loop_end",
+   "version": "1.1.0",
+   "config": {},
+   "ui": {
+    "position": {
+     "x": 1200,
+     "y": 160
+    },
+    "label": "Collect findings"
+   }
+  },
+  {
+   "id": "findings",
+   "type": "agenticmind.core.to_text",
+   "version": "1.0.0",
+   "config": {},
+   "ui": {
+    "position": {
+     "x": 1480,
+     "y": 260
+    },
+    "label": "Findings as text"
+   }
+  },
+  {
+   "id": "synth",
+   "type": "agenticmind.agents.agent",
+   "version": "1.1.0",
+   "config": {
+    "provider": "openrouter",
+    "model": "google/gemini-3.8-flash",
+    "api_key": {
+     "$secret": "OPENROUTER_API_KEY"
+    },
+    "instructions": "Combine the specialists' findings (given as background) into one clear answer to the goal: a short summary, then a compact comparison table. Do not add facts that are not in the findings; point out gaps.",
+    "max_turns": 2,
+    "max_tool_calls": 0,
+    "token_budget": 30000,
+    "cost_budget_usd": 0.1,
+    "on_limit": "fail",
+    "tool_timeout_seconds": 30,
+    "temperature": 0.2,
+    "max_tokens": 2500
+   },
+   "ui": {
+    "position": {
+     "x": 1760,
+     "y": 160
+    },
+    "label": "Synthesizer"
+   }
+  },
+  {
+   "id": "answer",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "answer"
+   },
+   "ui": {
+    "position": {
+     "x": 2060,
+     "y": 100
+    },
+    "label": "Answer"
+   }
+  },
+  {
+   "id": "plan_out",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "plan"
+   },
+   "ui": {
+    "position": {
+     "x": 590,
+     "y": 0
+    },
+    "label": "Plan"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e01",
+   "kind": "data",
+   "source": {
+    "node": "goal",
+    "port": "value"
+   },
+   "target": {
+    "node": "planner",
+    "port": "goal"
+   }
+  },
+  {
+   "id": "e02",
+   "kind": "data",
+   "source": {
+    "node": "planner",
+    "port": "tasks"
+   },
+   "target": {
+    "node": "each",
+    "port": "items"
+   }
+  },
+  {
+   "id": "e03",
+   "kind": "data",
+   "source": {
+    "node": "planner",
+    "port": "plan"
+   },
+   "target": {
+    "node": "plan_out",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e04",
+   "kind": "data",
+   "source": {
+    "node": "each",
+    "port": "scope"
+   },
+   "target": {
+    "node": "each_end",
+    "port": "scope"
+   }
+  },
+  {
+   "id": "e05",
+   "kind": "data",
+   "source": {
+    "node": "each",
+    "port": "item"
+   },
+   "target": {
+    "node": "worker",
+    "port": "task"
+   }
+  },
+  {
+   "id": "e06",
+   "kind": "data",
+   "source": {
+    "node": "goal",
+    "port": "value"
+   },
+   "target": {
+    "node": "worker",
+    "port": "context"
+   }
+  },
+  {
+   "id": "e07",
+   "kind": "data",
+   "source": {
+    "node": "calc",
+    "port": "tool"
+   },
+   "target": {
+    "node": "worker",
+    "port": "tools"
+   }
+  },
+  {
+   "id": "e08",
+   "kind": "data",
+   "source": {
+    "node": "worker",
+    "port": "answer"
+   },
+   "target": {
+    "node": "each_end",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e09",
+   "kind": "data",
+   "source": {
+    "node": "each_end",
+    "port": "results"
+   },
+   "target": {
+    "node": "findings",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e10",
+   "kind": "data",
+   "source": {
+    "node": "goal",
+    "port": "value"
+   },
+   "target": {
+    "node": "synth",
+    "port": "task"
+   }
+  },
+  {
+   "id": "e11",
+   "kind": "data",
+   "source": {
+    "node": "findings",
+    "port": "text"
+   },
+   "target": {
+    "node": "synth",
+    "port": "context"
+   }
+  },
+  {
+   "id": "e12",
+   "kind": "data",
+   "source": {
+    "node": "synth",
+    "port": "result"
+   },
+   "target": {
+    "node": "answer",
+    "port": "value"
+   }
+  }
+ ],
+ "metadata": {}
 }

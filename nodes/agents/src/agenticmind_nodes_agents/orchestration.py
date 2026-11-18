@@ -51,7 +51,8 @@ class _ModelConfig(NodeConfig):
     api_key: SecretRef | None = secret_field("API key secret, e.g. OPENROUTER_API_KEY")
     base_url: str | None = Field(default=None, json_schema_extra=ui(advanced=True))
     temperature: float = Field(default=0.2, ge=0, le=2, json_schema_extra=ui(advanced=True))
-    max_tokens: int = Field(default=1500, ge=16, le=100_000, json_schema_extra=ui(advanced=True))
+    # generous by default: reasoning models (e.g. Gemini 3.x) spend output tokens thinking before answering
+    max_tokens: int = Field(default=4000, ge=16, le=100_000, json_schema_extra=ui(advanced=True))
 
     @model_validator(mode="after")
     def _check_provider(self) -> _ModelConfig:
@@ -83,6 +84,12 @@ async def _forced_call(
             raise TransientNodeError(exc.code, str(exc)) from exc
         raise NodeError(exc.code, str(exc)) from exc
     call = next((c for c in resp.tool_calls if c.name == tool.name), None)
+    if call is None and resp.finish_reason == "length":
+        raise TransientNodeError(
+            "MODEL_OUTPUT_TRUNCATED",
+            f"The model ran out of output tokens (max_tokens={config.max_tokens}) before answering; reasoning "
+            "models spend part of that budget thinking, so raise max_tokens.",
+        )
     return (call.arguments if call else None), resp.usage
 
 
@@ -97,6 +104,12 @@ class SubagentConfig(AgentConfig):
     token_budget: int = Field(default=30_000, ge=1_000, le=2_000_000)
     cost_budget_usd: float = Field(default=0.10, ge=0, le=100)
     timeout_seconds: float = Field(default=120, gt=0, le=600, description="Time limit for one delegated task.")
+    on_limit: Literal["fail", "return_partial"] = Field(
+        default="return_partial",
+        description="return_partial: hand back what the subagent has (with its stop reason) so the supervisor "
+        "can decide. fail: report the delegation as failed.",
+        json_schema_extra=ui(advanced=True),
+    )
 
 
 @define_node(
@@ -242,8 +255,15 @@ async def planner(ctx: NodeContext, inputs, config: PlannerConfig) -> NodeResult
     user += f"\n\nUse at most {config.max_tasks} tasks."
     args, usage = await _forced_call(ctx, config, system=config.instructions, user=user, tool=tool)
     raw = (args or {}).get("tasks")
+    if isinstance(raw, str):  # some models send the array JSON-encoded
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            pass
     if not isinstance(raw, list):
-        raise NodeError("PLAN_INVALID", "The model did not return a task list")
+        got = "no submit_plan call" if args is None else f"keys {sorted(args)} (tasks: {type(raw).__name__})"
+        # model output varies between calls, so a retry (max_attempts=2) is worthwhile
+        raise TransientNodeError("PLAN_INVALID", f"The model did not return a task list ({got})")
     tasks = [
         {"title": str(t.get("title", "")).strip(), "instructions": str(t.get("instructions", "")).strip()}
         for t in raw

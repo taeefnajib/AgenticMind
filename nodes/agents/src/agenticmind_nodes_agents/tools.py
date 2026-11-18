@@ -433,6 +433,20 @@ async def web_fetch_tool(ctx: NodeContext, inputs, config: WebFetchConfig) -> No
     return NodeResult(outputs={"tool": handle_value(handle)})
 
 
+DEFAULT_USER_AGENT = "AgenticMind-WebFetch/0.1"
+
+
+def web_user_agent() -> str:
+    """User-Agent for Web Fetch. Operators should add contact details, as many sites' bot policies require
+    (e.g. Wikimedia): ``AGENTICMIND_HTTP_USER_AGENT="MyApp/1.0 (https://example.org; ops@example.org)"``."""
+    import os
+
+    value = os.environ.get("AGENTICMIND_HTTP_USER_AGENT", "").strip()
+    if value and len(value) <= 300 and value.isprintable():
+        return value
+    return DEFAULT_USER_AGENT
+
+
 @implementation("web_fetch")
 async def _web_fetch(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]) -> Any:
     import httpx
@@ -450,7 +464,7 @@ async def _web_fetch(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]) -
         await _assert_public_host(parsed.hostname, port)
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-                resp = await client.get(url, headers={"User-Agent": "AgenticMind-WebFetch/0.1"})
+                resp = await client.get(url, headers={"User-Agent": web_user_agent()})
         except httpx.HTTPError as exc:
             raise ToolError(f"Request failed: {exc}") from exc
         if resp.is_redirect and resp.headers.get("location"):
@@ -459,6 +473,12 @@ async def _web_fetch(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]) -
         break
     else:
         raise ToolError("Too many redirects")
+    if resp.status_code in (403, 429) and "robot policy" in resp.text[:2000].lower():
+        raise ToolError(
+            f"The site refused the request (HTTP {resp.status_code}) under its bot policy, which requires a "
+            "User-Agent with contact details. The operator can set AGENTICMIND_HTTP_USER_AGENT. "
+            "Do not retry this site; report that the page could not be read."
+        )
     if resp.status_code >= 400:
         raise ToolError(f"The page returned HTTP {resp.status_code}")
     ctype = resp.headers.get("content-type", "")

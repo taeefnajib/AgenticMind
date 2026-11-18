@@ -247,9 +247,15 @@ async def run_agent_loop(
             if not resp.tool_calls:
                 answer = resp.text.strip()
                 if not answer:
+                    hint = (
+                        f" It ran out of output tokens (max_tokens={config.max_tokens}); reasoning models spend "
+                        "part of that budget thinking, so raise max_tokens."
+                        if resp.finish_reason == "length"
+                        else ""
+                    )
                     raise NodeError(
                         "MODEL_EMPTY_RESPONSE",
-                        f"The model returned no answer (finish reason: {resp.finish_reason or 'unknown'})",
+                        f"The model returned no answer (finish reason: {resp.finish_reason or 'unknown'}).{hint}",
                     )
                 break
 
@@ -280,8 +286,43 @@ async def run_agent_loop(
                 f"{limit} after {turns} turn(s) and {tool_calls_used} tool call(s). "
                 "Raise the limit or set on_limit to return_partial.",
             ) from limit
-        answer = next((m.content for m in reversed(messages) if m.role == "assistant" and m.content), "") or (
-            f"(stopped: {limit})"
+        answer = ""
+        if limit.reason in ("max_turns", "max_tool_calls"):
+            # wrap-up turn: one last call without tools so the work done so far is not lost
+            try:
+                resp = await provider.chat(
+                    ChatRequest(
+                        model=config.model,
+                        system=system,
+                        messages=[
+                            *messages,
+                            ChatMessage(
+                                role="user",
+                                content=f"Limit reached ({limit}). No more tool calls are possible. Give your best "
+                                "answer now from the information you already have, and say what is missing.",
+                            ),
+                        ],
+                        temperature=config.temperature,
+                        max_tokens=config.max_tokens,
+                        tools=specs,
+                        tool_choice="none" if specs else None,
+                    ),
+                    api_key=api_key,
+                    base_url=config.base_url,
+                )
+                tokens_in += resp.usage.input_tokens
+                tokens_out += resp.usage.output_tokens
+                if resp.usage.estimated_cost_usd is not None:
+                    cost += resp.usage.estimated_cost_usd
+                    cost_known = True
+                answer = resp.text.strip()
+                await emit_agent(ctx, "agent_wrap_up", {"reason": limit.reason, "answered": bool(answer)})
+            except ProviderError:
+                answer = ""
+        answer = (
+            answer
+            or next((m.content for m in reversed(messages) if m.role == "assistant" and m.content), "")
+            or f"(stopped: {limit})"
         )
 
     messages.append(ChatMessage(role="assistant", content=answer))
