@@ -168,3 +168,68 @@ def export_ir(project_id: str, revision: int | None = None, svc: Services = Depe
             "X-AgenticMind-Content-Hash": rev.content_hash,
         },
     )
+
+
+def _compile(project_id: str, revision: int | None, svc: Services) -> Any:
+    from agenticmind_compiler import CompileError, compile_project
+
+    row = svc.store.get_project(project_id)
+    rev = svc.store.get_revision(project_id, revision) if row else None
+    if row is None or rev is None:
+        raise HTTPException(404, "Project or revision not found")
+    try:
+        return rev, compile_project(load_project(rev.document), svc.registry, artifacts=svc.artifacts)
+    except CompileError as exc:
+        raise HTTPException(422, {"message": str(exc), "diagnostics": exc.diagnostics}) from exc
+
+
+@router.get("/{project_id}/app/preview")
+def app_preview(project_id: str, revision: int | None = None, svc: Services = Depends(services)) -> dict[str, Any]:
+    """What exporting as an app would produce: endpoints, requirements, warnings and files (ADR-0016)."""
+    rev, result = _compile(project_id, revision, svc)
+    sizes: dict[str, int] = {}
+    for path, data in result.files.items():
+        top = path.split("/", 1)[0] if "/" in path else path
+        sizes[top] = sizes.get(top, 0) + len(data)
+    return {
+        "revision": rev.revision,
+        "name": result.root,
+        "endpoints": [
+            {
+                "name": ep.name,
+                "method": "POST",
+                "path": ep.path,
+                "summary": ep.summary,
+                "auth": ep.auth,
+                "rate_limit_per_minute": ep.rate_limit_per_minute,
+                "request": [{"key": f.key, "type": f.value_type, "required": f.required} for f in ep.request],
+                "response": [{"key": r.key, "type": r.port_type} for r in ep.response],
+                "offline": ep.offline,
+            }
+            for ep in result.endpoints
+        ],
+        "requirements": result.manifest["requirements"],
+        "packages": result.manifest["packages"],
+        "checks": result.manifest["compiler"]["checks"],
+        "warnings": result.warnings,
+        "files": len(result.files),
+        "bytes": sum(sizes.values()),
+        "layout": dict(sorted(sizes.items())),
+    }
+
+
+@router.get("/{project_id}/app")
+def export_app(project_id: str, revision: int | None = None, svc: Services = Depends(services)) -> Response:
+    """Download the project as a standalone FastAPI app (ZIP; same IR → identical bytes)."""
+    from agenticmind_compiler import to_zip
+
+    rev, result = _compile(project_id, revision, svc)
+    return Response(
+        content=to_zip(result),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{result.root}.zip"',
+            "X-AgenticMind-Revision": str(rev.revision),
+            "X-AgenticMind-Content-Hash": rev.content_hash,
+        },
+    )

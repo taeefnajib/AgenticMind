@@ -34,6 +34,7 @@ import type {
 import { AmNode } from "./components/AmNode";
 import type { ChatResult } from "./components/ChatPanel";
 import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
+import { ExportAppDialog } from "./components/ExportAppDialog";
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
 import { DRAG_MIME, NodeLibrary } from "./components/NodeLibrary";
@@ -106,6 +107,7 @@ export function App() {
   const [iterations, setIterations] = useState<Record<string, number>>({});
   const [approvalsKey, setApprovalsKey] = useState(0);
   const [approvalCount, setApprovalCount] = useState(0);
+  const [exportAppOpen, setExportAppOpen] = useState(false);
   const [runInputs, setRunInputs] = useState<Record<string, JsonValue>>({});
   const [mode, setModeState] = useState<Mode>(() => (storage.get("am.mode") as Mode) || "low_code");
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>("problems");
@@ -442,6 +444,8 @@ export function App() {
     notify(`Exported ${filename}`, "success");
   }, [project, dirty, save, notify]);
 
+  const ensureSaved = useCallback(async () => !dirty || Boolean(await save()), [dirty, save]);
+
   const selectProject = useCallback(
     async (id: string) => {
       if (dirty) await save();
@@ -641,6 +645,7 @@ export function App() {
           onRun={() => void startRun()}
           onCancel={() => void cancelRun()}
           onExport={() => void exportIR()}
+          onExportApp={() => setExportAppOpen(true)}
           onMode={setMode}
           theme={theme.preference}
           onTheme={theme.setPreference}
@@ -716,6 +721,13 @@ export function App() {
           />
         </div>
       </div>
+      <ExportAppDialog
+        open={exportAppOpen}
+        projectId={project?.id ?? null}
+        ensureSaved={ensureSaved}
+        onClose={() => setExportAppOpen(false)}
+        notify={notify}
+      />
       <NewProjectDialog
         open={newOpen}
         templates={templates}

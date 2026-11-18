@@ -228,6 +228,36 @@ export interface ConversationTurn {
   run_id?: string | null;
 }
 
+/** Preview of "Export as app" (GET /projects/{id}/app/preview). */
+export interface AppPreview {
+  revision: number;
+  name: string;
+  endpoints: {
+    name: string;
+    method: string;
+    path: string;
+    summary: string;
+    auth: "api_key" | "none";
+    rate_limit_per_minute: number;
+    request: { key: string; type: string; required: boolean }[];
+    response: { key: string; type: string }[];
+    offline: boolean;
+  }[];
+  requirements: {
+    secrets: string[];
+    network: boolean;
+    local_models: string[];
+    services: string[];
+    bundled_files: string[];
+  };
+  packages: { name: string; version: string; extras: string[] }[];
+  checks: { formatter: string; lint: string };
+  warnings: string[];
+  files: number;
+  bytes: number;
+  layout: Record<string, number>;
+}
+
 export type NodeRunStatus =
   | "pending"
   | "running"

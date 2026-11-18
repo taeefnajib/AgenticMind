@@ -62,6 +62,10 @@ like and approve, or reject with a reason; the run continues from its checkpoint
 For better retrieval: **New** → *Advanced RAG* chains Query Rewriter → Hybrid Search (vectors + BM25
 keywords) → Reranker (local cross-encoder) → Context Compressor before answering with citations.
 
+To ship a graph as a service: **Export app** generates a standalone FastAPI project (endpoints from your
+inputs/outputs, OpenAPI, tests, Dockerfile, the AgenticMind runtime vendored in). See
+[docs/architecture/compiler.md](docs/architecture/compiler.md).
+
 Multi-agent templates: *Research team* (supervisor delegating to subagents), *Plan and execute*
 (planner + parallel workers + synthesizer) and *Write with a critic* (revise until a critic passes).
 

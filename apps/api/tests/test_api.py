@@ -359,3 +359,24 @@ def test_multi_agent_templates_run_offline(client):
     final = wait_for_run(client, run_id, timeout=10)
     assert final["status"] == "succeeded", final["error"]
     assert 1 <= final["outputs"]["rounds"]["iterations"] <= 3 and len(final["outputs"]["drafts"]) >= 1
+
+
+def test_export_app_preview_and_zip(client):
+    import io
+    import zipfile
+
+    pid = client.post("/api/projects", json={"name": "Greeter", "template": "hello-pipeline"}).json()["id"]
+    preview = client.get(f"/api/projects/{pid}/app/preview").json()
+    assert preview["name"] == "greeter" and preview["checks"]["lint"] == "ok"
+    assert [e["path"] for e in preview["endpoints"]] == ["/greeting"]
+    assert preview["endpoints"][0]["request"][0]["key"] == "name" and preview["layout"]["vendor"] > 0
+    r = client.get(f"/api/projects/{pid}/app")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
+    assert 'filename="greeter.zip"' in r.headers["content-disposition"]
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert "greeter/app/main.py" in names and "greeter/architecture/graph.json" in names
+    assert client.get(f"/api/projects/{pid}/app").content == r.content  # deterministic
+
+    blank = client.post("/api/projects", json={"name": "Empty"}).json()["id"]
+    bad = client.get(f"/api/projects/{blank}/app/preview")
+    assert bad.status_code == 422 and "Output" in bad.json()["detail"]["message"]

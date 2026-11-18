@@ -8,7 +8,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M1 Visual architecture | **Done (core)**: canvas, library, typed ports, inspector, live validation |
 | M2 First-party runtime | **Done (core)**: plan, registry, handlers, traces, retries, timeouts, cancellation |
 | M3 RAG vertical slice | **Done**: ingestion, hybrid retrieval (vector + BM25), reranking, query rewriting, compression, cited answers |
-| M4 Compiler / API export | Planned |
+| M4 Compiler / API export | **Done (core)**: standalone FastAPI export with OpenAPI, tests, Docker assets, vendored runtime; Docker build not yet exercised |
 | M5 Evaluation Lab | Planned |
 | M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join), 8c (memory), 8d (checkpoints, approval, resume) and 8e (multi-agent patterns) done |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
@@ -89,6 +89,14 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   Reranker (local cross-encoder by default, LLM or overlap); Query Rewriter (standalone + variants, falls
   back to the original); Context Compressor (extractive, or LLM limited to source sentences); *Advanced
   RAG* template; existing RAG templates build keyword indexes; verified live with Gemini.
+- **M4 – compiler / app export**: `agenticmind-compiler` generates a standalone FastAPI project from a saved
+  revision: endpoints derived from Output/Manual Input contracts (customisable via `metadata.api`), Pydantic
+  models, API-key auth, rate limit, OpenAPI 3.1, JSON schemas, examples, contract tests, Dockerfile, compose,
+  `.env.example` (names only), README and a build manifest; vendored AgenticMind packages with pinned
+  third-party versions; bundled uploads; ruff-formatted and linted output; deterministic ZIP. *Export app*
+  dialog in the IDE. Verified: all templates compile and pass their own tests; the Advanced RAG export was
+  installed with `uv sync` from the ZIP alone and served real cited answers via Gemini.
+- **Node library hover cards**: description, ports, branches and permissions on hover or focus.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -117,14 +125,14 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Version history is available via the API (`/revisions`) but has no UI yet.
 - Chat does not render LaTeX math that models sometimes produce (`$...$` is shown as text).
 - Licence not chosen.
-- The Docker image build is defined but was not exercised in CI.
+- The Docker image build is defined but was not exercised in CI (neither for the platform nor for exported apps).
+- Exported apps: human-approval pauses answer 409, memory is in process, rate limits are per process; endpoints
+  are customised by editing `metadata.api` in the IR (no UI yet).
 
 ## Next tasks (in order)
 
-1. Compiler (M4): IR → standalone FastAPI project embedding the runtime, OpenAPI, Dockerfile, tests,
-   build manifest; REST Trigger/Response nodes.
-2. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two
+1. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two
    revisions with per-case results.
-3. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
-4. AuthN/Z, workspaces, audit log; Alembic migrations.
-5. Revision history UI and diff view (canonical IR makes this straightforward).
+2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
+3. AuthN/Z, workspaces, audit log; Alembic migrations.
+4. Revision history UI and diff view (canonical IR makes this straightforward).

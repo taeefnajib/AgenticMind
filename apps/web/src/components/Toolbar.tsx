@@ -27,6 +27,7 @@ interface Props {
   onRun: () => void;
   onCancel: () => void;
   onExport: () => void;
+  onExportApp: () => void;
   onMode: (mode: Mode) => void;
   theme: ThemePreference;
   onTheme: (theme: ThemePreference) => void;
@@ -100,6 +101,15 @@ export function Toolbar(p: Props) {
       )}
       <button type="button" className="am-btn" onClick={p.onExport} disabled={!p.projectId || p.busy} title="Download canonical IR">
         Export IR
+      </button>
+      <button
+        type="button"
+        className="am-btn"
+        onClick={p.onExportApp}
+        disabled={!p.projectId || p.busy}
+        title="Generate a standalone FastAPI project (API, tests, Docker) from this graph"
+      >
+        Export app
       </button>
 
       <div className={`ml-2 min-w-0 flex-1 truncate text-xs ${p.message ? TONE[p.message.tone] : ""}`} role="status">

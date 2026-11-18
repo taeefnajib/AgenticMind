@@ -1,4 +1,5 @@
 import type {
+  AppPreview,
   ArtifactInfo,
   ConversationSummary,
   ConversationTurn,
@@ -157,6 +158,22 @@ export const api = {
   deleteConversation: (projectId: string, id: string) =>
     request<{ deleted: number }>(`/projects/${projectId}/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
   fileUrl: (projectId: string, fileId: string) => `/api/projects/${projectId}/files/${fileId}/content`,
+  appPreview: (id: string) => request<AppPreview>(`/projects/${id}/app/preview`),
+  async exportApp(id: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await send(`/api/projects/${id}/app`, undefined, REQUEST_TIMEOUT_MS * 4);
+    if (!res.ok) {
+      let detail: unknown = undefined;
+      try {
+        detail = (await res.json()).detail;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `${id}.zip`;
+    return { blob: await res.blob(), filename };
+  },
   async exportIR(id: string): Promise<{ blob: Blob; filename: string }> {
     const res = await send(`/api/projects/${id}/export`, undefined, REQUEST_TIMEOUT_MS);
     if (!res.ok) throw new ApiError(res.status, undefined);

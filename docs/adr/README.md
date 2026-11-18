@@ -17,5 +17,6 @@
 | [0013](0013-checkpoints-approval-resume.md) | Durable checkpoints, Human Approval suspension, resume | Accepted |
 | [0014](0014-multi-agent-patterns.md) | Subagent handoff, Planner, Critic, third-party tool discovery | Accepted |
 | [0015](0015-advanced-retrieval.md) | BM25 keyword index, hybrid fusion, reranker, query rewriting, compression | Accepted |
+| [0016](0016-compiler-and-app-export.md) | Compiler: IR to a standalone, vendored, tested FastAPI project | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

@@ -14,6 +14,7 @@ dependencies = [
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",
     "agenticmind-nodes-agents",
+    "agenticmind-compiler",
     "agenticmind-api",
 ]
 
@@ -42,6 +43,7 @@ agenticmind-nodes-core = { workspace = true }
 agenticmind-nodes-data = { workspace = true }
 agenticmind-nodes-rag = { workspace = true }
 agenticmind-nodes-agents = { workspace = true }
+agenticmind-compiler = { workspace = true }
 agenticmind-api = { workspace = true }
 
 [tool.pytest.ini_options]
