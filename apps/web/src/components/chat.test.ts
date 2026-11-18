@@ -94,3 +94,13 @@ describe("approval responses", () => {
     expect(buildResponse(wait({ a: 1 }), "approved", { ...form, edited: '{"a": 2}' })).toEqual({ decision: "approved", value: { a: 2 } });
   });
 });
+
+describe("NL-to-SQL answers", () => {
+  it("carry the SQL and rows into the chat message", async () => {
+    const { toMessage } = await import("./ChatPanel");
+    const run = { id: "r", status: "succeeded", outputs: { answer: { answer: "Revenue by category. (2 rows)", sql: "SELECT 1", columns: ["category", "revenue"], rows: [{ category: "Office", revenue: 10 }, { category: "Bags", revenue: 5 }], row_count: 2, truncated: false } } } as never;
+    const m = toMessage({ run, events: [] }, "answer");
+    expect(m.text).toBe("Revenue by category. (2 rows)");
+    expect(m.sql).toEqual({ query: "SELECT 1", columns: ["category", "revenue"], rows: [{ category: "Office", revenue: 10 }, { category: "Bags", revenue: 5 }], total: 2, truncated: false });
+  });
+});

@@ -23,6 +23,7 @@ class PortType(str, Enum):
     DOCUMENT_SET = "DocumentSet"
     EMBEDDING_VECTOR = "EmbeddingVector"
     VECTOR_STORE_HANDLE = "VectorStoreHandle"
+    DATABASE = "Database"
     EMBEDDING_MODEL = "EmbeddingModel"
     LOOP_SCOPE = "LoopScope"
     CHAT_MESSAGE = "ChatMessage"
@@ -90,6 +91,10 @@ def value_matches_type(value: Any, port_type: PortType) -> bool:
             from .handles import is_handle
 
             return is_handle(value, "vector_store")
+        case PortType.DATABASE:
+            from .handles import is_handle
+
+            return is_handle(value, "database")
         case PortType.LOOP_SCOPE:
             return isinstance(value, dict) and value.get("kind") == "loop_scope"
         case PortType.TOOL:

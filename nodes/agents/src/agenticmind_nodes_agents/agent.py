@@ -50,7 +50,9 @@ DEFAULT_INSTRUCTIONS = (
     "Answer concisely."
 )
 MAX_TOOL_RESULT_CHARS = 12_000
-AGENT_PERMISSIONS = Permissions(network=True, filesystem=True, credentials=True, database=True, memory=True)
+AGENT_PERMISSIONS = Permissions(
+    network=True, filesystem=True, credentials=True, database=True, memory=True, artifacts=True
+)
 #: Chain of agents currently running (node > subagent > ...), used to label trace events.
 CURRENT_AGENT: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar("agenticmind_agent", default=())
 

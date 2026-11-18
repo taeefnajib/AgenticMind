@@ -17,6 +17,7 @@ dependencies = [
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",
     "agenticmind-nodes-agents",
+    "agenticmind-nodes-semantic",
     "agenticmind-providers[local]",
     "agenticmind-vectorstores",
     "python-multipart>=0.0.34",

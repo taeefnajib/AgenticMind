@@ -19,6 +19,7 @@ members = [
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",
+    "agenticmind-nodes-semantic",
     "agenticmind-providers",
     "agenticmind-registry",
     "agenticmind-runtime",
@@ -39,6 +40,7 @@ dependencies = [
     { name = "agenticmind-nodes-core" },
     { name = "agenticmind-nodes-data" },
     { name = "agenticmind-nodes-rag" },
+    { name = "agenticmind-nodes-semantic" },
     { name = "agenticmind-providers", extra = ["local"] },
     { name = "agenticmind-registry" },
     { name = "agenticmind-runtime" },
@@ -65,6 +67,7 @@ requires-dist = [
     { name = "agenticmind-nodes-core", editable = "nodes/core" },
     { name = "agenticmind-nodes-data", editable = "nodes/data" },
     { name = "agenticmind-nodes-rag", editable = "nodes/rag" },
+    { name = "agenticmind-nodes-semantic", editable = "nodes/semantic" },
     { name = "agenticmind-providers", extras = ["local"], editable = "packages/providers" },
     { name = "agenticmind-registry", editable = "packages/node-registry" },
     { name = "agenticmind-runtime", editable = "packages/runtime" },
@@ -223,6 +226,30 @@ requires-dist = [
 ]
 
 [[package]]
+name = "agenticmind-nodes-semantic"
+version = "0.1.0"
+source = { editable = "nodes/semantic" }
+dependencies = [
+    { name = "agenticmind-node-sdk" },
+    { name = "agenticmind-providers" },
+    { name = "sqlglot" },
+]
+
+[package.optional-dependencies]
+postgres = [
+    { name = "psycopg", extra = ["binary"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
+    { name = "agenticmind-providers", editable = "packages/providers" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
+    { name = "sqlglot", specifier = "==30.29.0" },
+]
+provides-extras = ["postgres"]
+
+[[package]]
 name = "agenticmind-providers"
 version = "0.1.0"
 source = { editable = "packages/providers" }
@@ -320,6 +347,7 @@ dependencies = [
     { name = "agenticmind-nodes-core" },
     { name = "agenticmind-nodes-data" },
     { name = "agenticmind-nodes-rag" },
+    { name = "agenticmind-nodes-semantic", extra = ["postgres"] },
     { name = "agenticmind-providers", extra = ["local"] },
     { name = "agenticmind-registry" },
     { name = "agenticmind-runtime" },
@@ -345,6 +373,7 @@ requires-dist = [
     { name = "agenticmind-nodes-core", editable = "nodes/core" },
     { name = "agenticmind-nodes-data", editable = "nodes/data" },
     { name = "agenticmind-nodes-rag", editable = "nodes/rag" },
+    { name = "agenticmind-nodes-semantic", extras = ["postgres"], editable = "nodes/semantic" },
     { name = "agenticmind-providers", extras = ["local"], editable = "packages/providers" },
     { name = "agenticmind-registry", editable = "packages/node-registry" },
     { name = "agenticmind-runtime", editable = "packages/runtime" },
@@ -3606,6 +3635,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/16/9e/b86c9b7e02bb3142d6bf464262b3cf617522561515cebae298be35bd6f97/sqlalchemy-2.1.9-cp315-cp315t-win_amd64.whl", hash = "sha256:65b8257c62c6151f8c5f03680fe6e470153a94c92196e9e5d00be3f1510edae3", size = 2521333, upload-time = "2026-11-16T21:19:57.177Z" },
     { url = "https://files.pythonhosted.org/packages/8f/13/a7dd1788974530f5e402656d310e32b97606b684d82dbc57c885c97f518b/sqlalchemy-2.1.9-cp315-cp315t-win_arm64.whl", hash = "sha256:c7d8e10c1f9b82c21be141a21f3fb94469eec820d946c14544e0734de42e7614", size = 2443055, upload-time = "2026-11-16T21:53:43.918Z" },
     { url = "https://files.pythonhosted.org/packages/7a/ee/9926603a1f7e88b41bc0d1e068e889fc84981553fb4e6037426d6b174da3/sqlalchemy-2.1.9-py3-none-any.whl", hash = "sha256:449fed5c2caa3b278cc57499d09db001fb3f28dc7f18affc48142aee4dcc0cdf", size = 2071860, upload-time = "2026-11-16T21:16:28.413Z" },
+]
+
+[[package]]
+name = "sqlglot"
+version = "30.29.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cb/26/ede384f80617864ff6a87701b921f887c5b156976e10594cfb72d12f7545/sqlglot-30.29.0.tar.gz", hash = "sha256:67bef76a4cbd29607b8859c65c213f39c086246c35c96cb96140ca7f8e7515d1", size = 6177381, upload-time = "2026-11-03T11:49:51.324Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/b0/d7f3f0169fdf0261e924bfd37149aa5cb98798aec330fe0e94721a68a2a1/sqlglot-30.29.0-py3-none-any.whl", hash = "sha256:16e47cc30c48bbf66bd24a680cb6edc2203d4ed4644acf84dd377109ecbe70fc", size = 804206, upload-time = "2026-11-03T11:49:49.284Z" },
 ]
 
 [[package]]

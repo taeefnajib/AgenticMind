@@ -44,6 +44,7 @@ interface Message {
   steps?: AgentStep[];
   stopReason?: string;
   invalid?: number[];
+  sql?: { query: string; columns: string[]; rows: Record<string, unknown>[]; total: number; truncated: boolean };
   error?: string;
   meta?: { ms?: number; tokens?: number; cost?: number };
 }
@@ -61,6 +62,11 @@ type AnswerObject = {
   validation?: { invalid?: number[] };
   steps?: AgentStep[];
   report?: { stop_reason?: string };
+  sql?: string;
+  columns?: string[];
+  rows?: Record<string, unknown>[];
+  row_count?: number;
+  truncated?: boolean;
 };
 
 /** Citation Builder results ({answer, citations}) and Agent results ({answer, steps, report}). */
@@ -95,6 +101,16 @@ export function toMessage(result: ChatResult, outputKey: string): Message {
       invalid: value.validation?.invalid,
       steps: value.steps,
       stopReason: value.report?.stop_reason,
+      sql:
+        typeof value.sql === "string"
+          ? {
+              query: value.sql,
+              columns: value.columns ?? [],
+              rows: value.rows ?? [],
+              total: value.row_count ?? value.rows?.length ?? 0,
+              truncated: Boolean(value.truncated),
+            }
+          : undefined,
       meta,
     };
   }
@@ -279,6 +295,7 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
                 <AnswerText message={m} onCite={(n) => setActiveCite(`${i}:${n}`)} />
               )}
               {m.steps && m.steps.length > 0 && <AgentSteps steps={m.steps} stopReason={m.stopReason} />}
+              {m.sql && <SqlResult sql={m.sql} />}
               {m.citations && m.citations.length > 0 && (
                 <ol className="mt-2 space-y-1 border-t border-slate-100 pt-2">
                   {m.citations.map((c) => (
@@ -330,6 +347,52 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
           Send
         </button>
       </form>
+    </div>
+  );
+}
+
+/** NL-to-SQL answers: the exact SQL that ran and the first rows, so the number can be checked. */
+function SqlResult({ sql }: { sql: NonNullable<Message["sql"]> }) {
+  const [open, setOpen] = useState(true);
+  const shown = sql.rows.slice(0, 10);
+  return (
+    <div className="mt-2 border-t border-slate-100 pt-2 text-xs">
+      <button type="button" className="text-slate-500 hover:text-slate-800" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {open ? "▾" : "▸"} SQL and {sql.total} row{sql.total === 1 ? "" : "s"}
+        {sql.truncated && <span className="text-amber-700"> (truncated)</span>}
+      </button>
+      {open && (
+        <div className="mt-1.5 space-y-1.5">
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-slate-50 p-2 font-mono text-[11px] text-slate-700">{sql.query}</pre>
+          {shown.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse font-mono text-[11px]">
+                <thead>
+                  <tr>
+                    {sql.columns.map((c) => (
+                      <th key={c} className="border-b border-slate-200 px-2 py-1 text-left font-semibold text-slate-600">
+                        {c}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((row, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      {sql.columns.map((c) => (
+                        <td key={c} className="px-2 py-0.5 text-slate-700">
+                          {row[c] === null || row[c] === undefined ? "—" : String(row[c])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {sql.rows.length > shown.length && <div className="pt-1 text-slate-400">First {shown.length} of {sql.total} rows</div>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

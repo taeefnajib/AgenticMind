@@ -1,0 +1,198 @@
+{
+ "ir_version": "1.0",
+ "project": {
+  "id": "template",
+  "name": "Ask your database (NL-to-SQL)",
+  "description": "Ask questions about a SQL database in plain language. Gemini writes SQL grounded in the inspected schema; every query is checked by a read-only policy (one SELECT, known tables, row cap) and runs on a read-only connection. 1) Upload examples/data/sales.sqlite (or your own SQLite file) and select it in 'Sales database'. 2) Ask in the Chat tab, e.g. 'Which product category had the most revenue in 2025?'. 'Run → Schema' shows the tables. Uses OPENROUTER_API_KEY."
+ },
+ "runtime": {
+  "engine": "agenticmind",
+  "profile": "development"
+ },
+ "nodes": [
+  {
+   "id": "db",
+   "type": "agenticmind.semantic.database",
+   "version": "1.0.0",
+   "config": {
+    "engine": "sqlite",
+    "file": [],
+    "schemas": [],
+    "max_rows": 500,
+    "timeout_seconds": 15
+   },
+   "ui": {
+    "position": {
+     "x": 0,
+     "y": 160
+    },
+    "label": "Sales database"
+   }
+  },
+  {
+   "id": "schema",
+   "type": "agenticmind.semantic.schema_inspector",
+   "version": "1.0.0",
+   "config": {
+    "tables": [],
+    "row_counts": true,
+    "sample_rows": 0,
+    "max_tables": 200
+   },
+   "ui": {
+    "position": {
+     "x": 300,
+     "y": 20
+    }
+   }
+  },
+  {
+   "id": "schema_out",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "schema"
+   },
+   "ui": {
+    "position": {
+     "x": 620,
+     "y": 0
+    },
+    "label": "Schema"
+   }
+  },
+  {
+   "id": "question",
+   "type": "agenticmind.core.manual_input",
+   "version": "1.0.0",
+   "config": {
+    "key": "question",
+    "value_type": "String",
+    "required": true,
+    "default": "Which product category had the most revenue in 2025?"
+   },
+   "ui": {
+    "position": {
+     "x": 300,
+     "y": 300
+    },
+    "label": "Question"
+   }
+  },
+  {
+   "id": "nl2sql",
+   "type": "agenticmind.semantic.nl_to_sql",
+   "version": "1.0.0",
+   "config": {
+    "provider": "openrouter",
+    "model": "google/gemini-3.8-flash",
+    "api_key": {
+     "$secret": "OPENROUTER_API_KEY"
+    },
+    "instructions": "Prefer simple, correct SQL. Use only the tables and columns listed. Revenue = quantity * unit_price from order_items; exclude cancelled orders unless asked. Dates are ISO text (YYYY-MM-DD). For top-N questions, include rows tied at the cut-off (e.g. with a window function) or say that there are ties.",
+    "attempts": 3,
+    "execute": true,
+    "max_rows": 200,
+    "temperature": 0.0,
+    "max_tokens": 4000
+   },
+   "ui": {
+    "position": {
+     "x": 620,
+     "y": 200
+    },
+    "label": "NL-to-SQL"
+   }
+  },
+  {
+   "id": "answer",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "answer"
+   },
+   "ui": {
+    "position": {
+     "x": 940,
+     "y": 200
+    },
+    "label": "Answer"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "kind": "data",
+   "source": {
+    "node": "db",
+    "port": "database"
+   },
+   "target": {
+    "node": "schema",
+    "port": "database"
+   }
+  },
+  {
+   "id": "e2",
+   "kind": "data",
+   "source": {
+    "node": "schema",
+    "port": "schema"
+   },
+   "target": {
+    "node": "schema_out",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e3",
+   "kind": "data",
+   "source": {
+    "node": "db",
+    "port": "database"
+   },
+   "target": {
+    "node": "nl2sql",
+    "port": "database"
+   }
+  },
+  {
+   "id": "e4",
+   "kind": "data",
+   "source": {
+    "node": "schema",
+    "port": "text"
+   },
+   "target": {
+    "node": "nl2sql",
+    "port": "schema"
+   }
+  },
+  {
+   "id": "e5",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "nl2sql",
+    "port": "question"
+   }
+  },
+  {
+   "id": "e6",
+   "kind": "data",
+   "source": {
+    "node": "nl2sql",
+    "port": "result"
+   },
+   "target": {
+    "node": "answer",
+    "port": "value"
+   }
+  }
+ ],
+ "metadata": {}
+}

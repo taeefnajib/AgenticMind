@@ -10,8 +10,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M3 RAG vertical slice | **Done**: ingestion, hybrid retrieval (vector + BM25), reranking, query rewriting, compression, cited answers |
 | M4 Compiler / API export | **Done (core)**: standalone FastAPI export with OpenAPI, tests, Docker assets, vendored runtime; Docker build not yet exercised |
 | M5 Evaluation Lab | **Done (core)**: versioned datasets, 18 evaluators (retrieval, generation, safety, agent, operations, LLM judges), traced per-case runs, comparison and baseline |
-| M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join), 8c (memory), 8d (checkpoints, approval, resume) and 8e (multi-agent patterns) done |
-| M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | Planned: inspect upstream first |
+| M6 Agent Lab | **Done (core)**: tools + Agent, loops/router/join, memory, checkpoints/approval/resume, multi-agent patterns (8a–8e) |
+| M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | **In progress**: M7a database nodes done (connector, schema inspector, profiler, read-only SQL policy, NL-to-SQL, SQL tool); M7b Auto Ontology adapter next (upstream inspected: Apache-2.0, no releases, pin commit `778ccde`) |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
 
@@ -101,6 +101,12 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   dataset versions; summaries disclose n/of and aggregation; comparison flags dataset/K/judge mismatches
   and per-case regressions; baseline per dataset; Evaluation Lab UI (datasets editor + JSON import/export,
   run form, results, compare); sample handbook dataset. Verified live with Gemini on two graph revisions.
+- **M7a – semantic data nodes**: `agenticmind-nodes-semantic` (Database port/handle; Database Connector,
+  Schema Inspector, Table Profiler, SQL Validator/Executor, NL-to-SQL with retries and an explicit
+  "not answerable" path, SQL Tool for agents via the tool entry point); read-only enforced by a sqlglot
+  policy *and* read-only connections; SQLite uploads (content-addressed copies) and PostgreSQL (dsn secret);
+  chat shows the SQL and rows; sample `examples/data/sales.sqlite`; *Ask your database* template.
+  Verified live with Gemini against independently computed answers.
 - **Node library hover cards**: description, ports, branches and permissions on hover or focus.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
@@ -131,6 +137,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Chat does not render LaTeX math that models sometimes produce (`$...$` is shown as text).
 - Evaluation: no significance testing or CI gating yet; datasets are written by hand (no generation from
   documents); agent scoring covers tool use only (not handoffs or approvals).
+- Semantic: SQLite and PostgreSQL only (PostgreSQL not yet run against a live server); the SQL policy is a
+  guard, not a firewall (use a read-only database role); no PII masking or column-level permissions.
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI (neither for the platform nor for exported apps).
 - Exported apps: human-approval pauses answer 409, memory is in process, rate limits are per process; endpoints
@@ -138,6 +146,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
-2. AuthN/Z, workspaces, audit log; Alembic migrations.
-3. Revision history UI and diff view (canonical IR makes this straightforward).
+1. **M7b – NVIDIA Auto Ontology adapter**: connection/health/capability checks against a deployed
+   instance's public API (pinned commit `778ccde`, OpenAPI 1.3.0), term search/details, answerability,
+   ask-question, semantic context for NL-to-SQL, agent tool; contract tests against the pinned spec.
+2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
+3. AuthN/Z, workspaces, audit log; Alembic migrations.
+4. Revision history UI and diff view (canonical IR makes this straightforward).

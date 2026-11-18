@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import type { ArtifactInfo } from "../api/types";
 import { useWorkbench } from "../lib/workbench";
 
-export const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.html,.htm,.csv,.json";
+export const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.html,.htm,.csv,.json,.sqlite,.sqlite3,.db";
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -14,7 +14,7 @@ export function formatBytes(n: number): string {
 
 function fileIcon(name: string): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return { pdf: "PDF", docx: "DOC", md: "MD", markdown: "MD", html: "HTM", htm: "HTM", csv: "CSV", json: "JSN", txt: "TXT" }[ext] ?? "FILE";
+  return { pdf: "PDF", docx: "DOC", md: "MD", markdown: "MD", html: "HTM", htm: "HTM", csv: "CSV", json: "JSN", txt: "TXT", sqlite: "DB", sqlite3: "DB", db: "DB" }[ext] ?? "FILE";
 }
 
 /** Upload button + drop zone shared by the project Files panel and the file picker field. */
@@ -71,7 +71,7 @@ export function UploadZone({ onUploaded, compact = false }: { onUploaded?: (file
           }}
         />
       </div>
-      {!compact && <p className="mt-1 text-[11px] text-slate-400">PDF, DOCX, TXT, MD, HTML, CSV, JSON</p>}
+      {!compact && <p className="mt-1 text-[11px] text-slate-400">PDF, DOCX, TXT, MD, HTML, CSV, JSON, SQLite</p>}
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
     </div>
   );

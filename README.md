@@ -70,6 +70,10 @@ To measure quality: **Evaluate** opens the Evaluation Lab. Import `examples/data
 run it against the current graph, change the graph, run again and compare (recall, MRR, required facts,
 citations, LLM-judge correctness, latency, cost). See [docs/architecture/evaluation.md](docs/architecture/evaluation.md).
 
+To query a database in plain language: **New** → *Ask your database*, upload `examples/data/sales.sqlite`
+and ask in **Chat**; every answer shows its SQL, which runs read-only. See
+[docs/architecture/semantic.md](docs/architecture/semantic.md).
+
 Multi-agent templates: *Research team* (supervisor delegating to subagents), *Plan and execute*
 (planner + parallel workers + synthesizer) and *Write with a critic* (revise until a critic passes).
 

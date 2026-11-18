@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .config import SecretRef
 
 #: Port types whose values are handles (used by the runtime for secret delegation).
-HANDLE_PORT_TYPES = frozenset({"EmbeddingModel", "VectorStoreHandle", "Tool"})
+HANDLE_PORT_TYPES = frozenset({"EmbeddingModel", "VectorStoreHandle", "Tool", "Database"})
 
 
 class _Handle(BaseModel):
@@ -49,6 +49,23 @@ class VectorStoreHandle(_Handle):
     cloud: str | None = None
     region: str | None = None
     namespace: str | None = None
+
+
+class DatabaseHandle(_Handle):
+    """A read-only connection description (no credentials: ``dsn`` is a secret reference).
+
+    ``engine`` is ``sqlite`` (an uploaded project file, opened read-only) or ``postgresql`` (``dsn`` secret).
+    ``schemas`` limits which schemas/tables queries may touch; ``max_rows`` and ``timeout_seconds`` bound
+    every query. Writes are refused by the SQL policy *and* by a read-only connection.
+    """
+
+    kind: Literal["database"] = "database"
+    engine: Literal["sqlite", "postgresql"]
+    artifact_id: str | None = None
+    dsn: SecretRef | None = None
+    schemas: list[str] = Field(default_factory=list)
+    max_rows: int = Field(default=500, ge=1, le=100_000)
+    timeout_seconds: float = Field(default=15, gt=0, le=300)
 
 
 TOOL_NAME_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"

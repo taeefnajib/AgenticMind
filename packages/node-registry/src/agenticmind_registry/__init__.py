@@ -18,7 +18,13 @@ from agenticmind_node_sdk import NodeDefinition
 
 ENTRY_POINT_GROUP = "agenticmind.nodes"
 CORE_DISTRIBUTIONS = frozenset(
-    {"agenticmind-nodes-core", "agenticmind-nodes-data", "agenticmind-nodes-rag", "agenticmind-nodes-agents"}
+    {
+        "agenticmind-nodes-core",
+        "agenticmind-nodes-data",
+        "agenticmind-nodes-rag",
+        "agenticmind-nodes-agents",
+        "agenticmind-nodes-semantic",
+    }
 )
 
 

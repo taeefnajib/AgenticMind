@@ -40,6 +40,9 @@ ALLOWED_TYPES: dict[str, str] = {
     ".htm": "text/html",
     ".csv": "text/csv",
     ".json": "application/json",
+    ".sqlite": "application/vnd.sqlite3",
+    ".sqlite3": "application/vnd.sqlite3",
+    ".db": "application/vnd.sqlite3",
 }
 
 
