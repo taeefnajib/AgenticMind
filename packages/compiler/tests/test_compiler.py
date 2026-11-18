@@ -106,7 +106,7 @@ def test_zip_is_deterministic(registry):
 
 
 def test_secrets_are_referenced_never_embedded(registry, monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-very-secret-value")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fixture-secret-value-123")
     doc = load_project(
         {
             "ir_version": "1.0",
@@ -126,7 +126,7 @@ def test_secrets_are_referenced_never_embedded(registry, monkeypatch):
         }
     )
     r = compile_project(doc, registry)
-    assert all(b"sk-or-very-secret-value" not in data for data in r.files.values())
+    assert all(b"fixture-secret-value-123" not in data for data in r.files.values())
     assert "OPENROUTER_API_KEY=" in r.files[".env.example"].decode()
     assert r.manifest["requirements"]["secrets"] == ["OPENROUTER_API_KEY"] and r.manifest["requirements"]["network"]
     assert r.endpoints[0].offline is False
