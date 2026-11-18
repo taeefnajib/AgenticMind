@@ -36,6 +36,7 @@ const PORT_COLORS: Record<string, string> = {
   Tool: "#3f9483",
   LoopScope: "#b08a4f",
   Database: "#5b7fa8",
+  Ontology: "#7a6aa8",
   Any: "#7d8190",
 };
 
@@ -52,6 +53,7 @@ const PORT_COLORS_DARK: Record<string, string> = {
   Tool: "#7cc4b4",
   LoopScope: "#d8b47a",
   Database: "#93b4d8",
+  Ontology: "#b8a8e0",
   Any: "#a4a8b4",
 };
 export const portColor = (type: string, dark = false) =>

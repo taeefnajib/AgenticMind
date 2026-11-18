@@ -26,7 +26,8 @@ export type AmFlowEdge = Edge<AmEdgeData>;
 
 export const PORT_TYPES = new Set([
   "Any", "String", "Number", "Boolean", "JSON", "Document", "DocumentSet", "EmbeddingVector",
-  "VectorStoreHandle", "Database", "ChatMessage", "Tool", "AgentState", "EvaluationDataset", "HTTPRequest", "HTTPResponse",
+  "VectorStoreHandle", "Database", "Ontology",
+  "ChatMessage", "Tool", "AgentState", "EvaluationDataset", "HTTPRequest", "HTTPResponse",
 ]);
 const JSON_SUBTYPES = new Set(["String", "Number", "Boolean", "JSON"]);
 

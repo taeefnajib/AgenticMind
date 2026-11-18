@@ -1,13 +1,14 @@
 [project]
 name = "agenticmind-nodes-semantic"
 version = "0.1.0"
-description = "AgenticMind semantic data nodes: database connector, schema inspector, profiler, SQL policy and NL-to-SQL"
+description = "AgenticMind semantic data nodes: database connector, schema inspector, profiler, SQL policy, NL-to-SQL and the NVIDIA Auto Ontology adapter"
 requires-python = ">=3.11"
 dependencies = [
     "agenticmind-node-sdk",
     "agenticmind-providers",
     # SQL parsing for the read-only policy; pinned to a release older than two weeks at adoption time
     "sqlglot==30.29.0",
+    "httpx>=0.28.1",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +20,7 @@ semantic = "agenticmind_nodes_semantic:register"
 # Agent tool implementation, discovered through the tool plugin mechanism (ADR-0014).
 [project.entry-points."agenticmind.tools"]
 sql_query = "agenticmind_nodes_semantic.tools:run_sql_tool"
+auto_ontology = "agenticmind_nodes_semantic.tools:run_ontology_tool"
 
 [build-system]
 requires = ["hatchling"]

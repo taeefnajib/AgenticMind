@@ -1,0 +1,336 @@
+{
+ "ir_version": "1.0",
+ "project": {
+  "id": "template",
+  "name": "Ask Auto Ontology (NVIDIA semantic layer)",
+  "description": "Ask questions through an NVIDIA Auto Ontology deployment: its agent resolves business terms in the semantic layer, writes SQL and runs it. Needs a running Auto Ontology (see docs/architecture/auto-ontology.md) and an API token in AUTO_ONTOLOGY_API_KEY. 'Run → Status' checks reachability, the token and whether the semantic layer is compiled. Chat answers from 'Answer'. Optional: upload examples/data/sales.sqlite into 'Sales database' and pick 'Local answer' to compare with AgenticMind's NL-to-SQL grounded in the same ontology terms (uses OPENROUTER_API_KEY)."
+ },
+ "runtime": {
+  "engine": "agenticmind",
+  "profile": "development"
+ },
+ "nodes": [
+  {
+   "id": "ao",
+   "type": "agenticmind.semantic.auto_ontology",
+   "version": "1.0.0",
+   "config": {
+    "base_url": "http://localhost:3000",
+    "api_token": {
+     "$secret": "AUTO_ONTOLOGY_API_KEY"
+    },
+    "require_ready": true,
+    "timeout_seconds": 30,
+    "target_db": ""
+   },
+   "ui": {
+    "position": {
+     "x": 0,
+     "y": 140
+    },
+    "label": "Auto Ontology"
+   }
+  },
+  {
+   "id": "status_out",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "status"
+   },
+   "ui": {
+    "position": {
+     "x": 300,
+     "y": 0
+    },
+    "label": "Status"
+   }
+  },
+  {
+   "id": "question",
+   "type": "agenticmind.core.manual_input",
+   "version": "1.0.0",
+   "config": {
+    "key": "question",
+    "value_type": "String",
+    "required": true,
+    "default": "Which product category had the most revenue in 2025?"
+   },
+   "ui": {
+    "position": {
+     "x": 0,
+     "y": 360
+    },
+    "label": "Question"
+   }
+  },
+  {
+   "id": "ask",
+   "type": "agenticmind.semantic.ontology_ask",
+   "version": "1.0.0",
+   "config": {
+    "evidence": "",
+    "max_rows": 100,
+    "timeout_seconds": 300
+   },
+   "ui": {
+    "position": {
+     "x": 320,
+     "y": 180
+    }
+   }
+  },
+  {
+   "id": "answer",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "answer"
+   },
+   "ui": {
+    "position": {
+     "x": 640,
+     "y": 180
+    },
+    "label": "Answer"
+   }
+  },
+  {
+   "id": "ctx",
+   "type": "agenticmind.semantic.ontology_context",
+   "version": "1.0.0",
+   "config": {
+    "max_terms": 5
+   },
+   "ui": {
+    "position": {
+     "x": 320,
+     "y": 400
+    },
+    "label": "Ontology context"
+   }
+  },
+  {
+   "id": "db",
+   "type": "agenticmind.semantic.database",
+   "version": "1.0.0",
+   "config": {
+    "engine": "sqlite",
+    "file": [],
+    "schemas": [],
+    "max_rows": 500,
+    "timeout_seconds": 15
+   },
+   "ui": {
+    "position": {
+     "x": 0,
+     "y": 600
+    },
+    "label": "Sales database (optional)"
+   }
+  },
+  {
+   "id": "schema",
+   "type": "agenticmind.semantic.schema_inspector",
+   "version": "1.0.0",
+   "config": {
+    "tables": [],
+    "row_counts": true,
+    "sample_rows": 0,
+    "max_tables": 200
+   },
+   "ui": {
+    "position": {
+     "x": 320,
+     "y": 620
+    }
+   }
+  },
+  {
+   "id": "nl2sql",
+   "type": "agenticmind.semantic.nl_to_sql",
+   "version": "1.0.0",
+   "config": {
+    "provider": "openrouter",
+    "model": "google/gemini-3.8-flash",
+    "api_key": {
+     "$secret": "OPENROUTER_API_KEY"
+    },
+    "instructions": "Prefer simple, correct SQL. Use only the tables and columns listed. Revenue = quantity * unit_price from order_items; exclude cancelled orders unless asked. Dates are ISO text (YYYY-MM-DD). For top-N questions, include rows tied at the cut-off (e.g. with a window function) or say that there are ties.",
+    "attempts": 3,
+    "execute": true,
+    "max_rows": 200,
+    "temperature": 0.0,
+    "max_tokens": 4000
+   },
+   "ui": {
+    "position": {
+     "x": 640,
+     "y": 460
+    },
+    "label": "NL-to-SQL with ontology context"
+   }
+  },
+  {
+   "id": "local_answer",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "local_answer"
+   },
+   "ui": {
+    "position": {
+     "x": 960,
+     "y": 460
+    },
+    "label": "Local answer"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "kind": "data",
+   "source": {
+    "node": "ao",
+    "port": "status"
+   },
+   "target": {
+    "node": "status_out",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e2",
+   "kind": "data",
+   "source": {
+    "node": "ao",
+    "port": "ontology"
+   },
+   "target": {
+    "node": "ask",
+    "port": "ontology"
+   }
+  },
+  {
+   "id": "e3",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "ask",
+    "port": "question"
+   }
+  },
+  {
+   "id": "e4",
+   "kind": "data",
+   "source": {
+    "node": "ask",
+    "port": "result"
+   },
+   "target": {
+    "node": "answer",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e5",
+   "kind": "data",
+   "source": {
+    "node": "ao",
+    "port": "ontology"
+   },
+   "target": {
+    "node": "ctx",
+    "port": "ontology"
+   }
+  },
+  {
+   "id": "e6",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "ctx",
+    "port": "question"
+   }
+  },
+  {
+   "id": "e7",
+   "kind": "data",
+   "source": {
+    "node": "db",
+    "port": "database"
+   },
+   "target": {
+    "node": "schema",
+    "port": "database"
+   }
+  },
+  {
+   "id": "e8",
+   "kind": "data",
+   "source": {
+    "node": "db",
+    "port": "database"
+   },
+   "target": {
+    "node": "nl2sql",
+    "port": "database"
+   }
+  },
+  {
+   "id": "e9",
+   "kind": "data",
+   "source": {
+    "node": "schema",
+    "port": "text"
+   },
+   "target": {
+    "node": "nl2sql",
+    "port": "schema"
+   }
+  },
+  {
+   "id": "e10",
+   "kind": "data",
+   "source": {
+    "node": "ctx",
+    "port": "context"
+   },
+   "target": {
+    "node": "nl2sql",
+    "port": "context"
+   }
+  },
+  {
+   "id": "e11",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "nl2sql",
+    "port": "question"
+   }
+  },
+  {
+   "id": "e12",
+   "kind": "data",
+   "source": {
+    "node": "nl2sql",
+    "port": "result"
+   },
+   "target": {
+    "node": "local_answer",
+    "port": "value"
+   }
+  }
+ ]
+}

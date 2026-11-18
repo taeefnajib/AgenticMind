@@ -232,6 +232,7 @@ source = { editable = "nodes/semantic" }
 dependencies = [
     { name = "agenticmind-node-sdk" },
     { name = "agenticmind-providers" },
+    { name = "httpx" },
     { name = "sqlglot" },
 ]
 
@@ -244,6 +245,7 @@ postgres = [
 requires-dist = [
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
     { name = "agenticmind-providers", editable = "packages/providers" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.1" },
     { name = "sqlglot", specifier = "==30.29.0" },
 ]

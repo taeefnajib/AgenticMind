@@ -1,0 +1,1470 @@
+{
+ "components": {
+  "schemas": {
+   "DataResponse_TermDetail_": {
+    "additionalProperties": true,
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/TermDetail"
+     }
+    },
+    "required": [
+     "data"
+    ],
+    "title": "DataResponse[TermDetail]",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "PagedListResponse_SqlAttribute_": {
+    "additionalProperties": true,
+    "properties": {
+     "count": {
+      "title": "Count",
+      "type": "integer"
+     },
+     "data": {
+      "items": {
+       "$ref": "#/components/schemas/SqlAttribute"
+      },
+      "title": "Data",
+      "type": "array"
+     },
+     "total": {
+      "title": "Total",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "data",
+     "count",
+     "total"
+    ],
+    "title": "PagedListResponse[SqlAttribute]",
+    "type": "object"
+   },
+   "SemanticStatusResponse": {
+    "additionalProperties": true,
+    "properties": {
+     "calculated": {
+      "title": "Calculated",
+      "type": "boolean"
+     },
+     "last_failure_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Failure At"
+     },
+     "last_success_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Success At"
+     },
+     "running": {
+      "title": "Running",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "calculated",
+     "running",
+     "last_success_at",
+     "last_failure_at"
+    ],
+    "title": "SemanticStatusResponse",
+    "type": "object"
+   },
+   "SqlAttribute": {
+    "additionalProperties": true,
+    "description": "A SqlAttribute with its owning Term and the SQL text behind it.\n\n``zones`` is resolved only by the single-attribute read; ``sql_id`` and\n``database_name`` only by the create/update writes.",
+    "properties": {
+     "certified": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Certified"
+     },
+     "created": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created"
+     },
+     "created_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By"
+     },
+     "database_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Database Name"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "description_suggestion": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description Suggestion"
+     },
+     "expression": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Expression"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "modified": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Modified"
+     },
+     "modified_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Modified By"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner Id"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source"
+     },
+     "sql": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sql"
+     },
+     "sql_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sql Id"
+     },
+     "tags": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/TagChip"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tags"
+     },
+     "term_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Term Id"
+     },
+     "term_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Term Name"
+     },
+     "zones": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ZoneChip"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Zones"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "title": "SqlAttribute",
+    "type": "object"
+   },
+   "TagChip": {
+    "additionalProperties": true,
+    "description": "A tag as rendered beside the object it labels.\n\nDeliberately narrower than :class:`Tag`: a chip needs the name to show and\nthe id to remove itself by, and the timestamps describe the tag rather than\nthe labelling, so carrying them on every chip of every row would say\nnothing the tag's own page does not say better.\n\nHere rather than with the tag models below because every taggable thing\ncarries it, and the catalog ones are modelled before the tags themselves.",
+    "properties": {
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "name"
+    ],
+    "title": "TagChip",
+    "type": "object"
+   },
+   "TermCountEntry": {
+    "additionalProperties": true,
+    "description": "``{term_id, count}`` \u2014 one per-term breakdown row. Zeroes are omitted.",
+    "properties": {
+     "count": {
+      "title": "Count",
+      "type": "integer"
+     },
+     "term_id": {
+      "title": "Term Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "term_id",
+     "count"
+    ],
+    "title": "TermCountEntry",
+    "type": "object"
+   },
+   "TermDetail": {
+    "additionalProperties": true,
+    "description": "One Term with the tables that represent it and its related terms.\n\n``tags`` is resolved here and on the paged list. The list reads them once\nfor the page, which is what its cards draw.",
+    "properties": {
+     "certification": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Certification"
+     },
+     "created": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created"
+     },
+     "created_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Created By"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "description_certified": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description Certified"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "modified": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Modified"
+     },
+     "modified_by": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Modified By"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "name_certified": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name Certified"
+     },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner Id"
+     },
+     "related_terms": {
+      "items": {
+       "$ref": "#/components/schemas/TermSummary"
+      },
+      "title": "Related Terms",
+      "type": "array"
+     },
+     "synonyms": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Synonyms"
+     },
+     "table_count": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Table Count"
+     },
+     "tables": {
+      "items": {
+       "$ref": "#/components/schemas/TermTable"
+      },
+      "title": "Tables",
+      "type": "array"
+     },
+     "tags": {
+      "items": {
+       "$ref": "#/components/schemas/TagChip"
+      },
+      "title": "Tags",
+      "type": "array"
+     },
+     "zones": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ZoneChip"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Zones"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "title": "TermDetail",
+    "type": "object"
+   },
+   "TermListItem": {
+    "additionalProperties": true,
+    "description": "A Term as it appears in the paged ``/terms`` list.\n\n``tags`` travels with the page so a card can show its chips without a\nsecond read. An untagged term is an empty list, not a missing field.",
+    "properties": {
+     "certification": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Certification"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "description_certified": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description Certified"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "name_certified": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name Certified"
+     },
+     "owner_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Owner Id"
+     },
+     "schema_names": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Schema Names"
+     },
+     "synonyms": {
+      "anyOf": [
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Synonyms"
+     },
+     "tags": {
+      "items": {
+       "$ref": "#/components/schemas/TagChip"
+      },
+      "title": "Tags",
+      "type": "array"
+     },
+     "zones": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/ZoneChip"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Zones"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "title": "TermListItem",
+    "type": "object"
+   },
+   "TermSummary": {
+    "additionalProperties": true,
+    "description": "The three fields every Term projection carries.",
+    "properties": {
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "title": "TermSummary",
+    "type": "object"
+   },
+   "TermTable": {
+    "additionalProperties": true,
+    "description": "A table that REPRESENTS a Term, with its catalog path ids.",
+    "properties": {
+     "db_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Db Id"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     },
+     "schema_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Schema Id"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "title": "TermTable",
+    "type": "object"
+   },
+   "TermsPageResponse": {
+    "additionalProperties": true,
+    "description": "One page of the Terms list with its per-term count breakdowns.\n\n``total`` counts every matching term; the count lists cover only the\nterms on this page when a limit was given.",
+    "properties": {
+     "column_attribute_counts": {
+      "items": {
+       "$ref": "#/components/schemas/TermCountEntry"
+      },
+      "title": "Column Attribute Counts",
+      "type": "array"
+     },
+     "related_counts": {
+      "items": {
+       "$ref": "#/components/schemas/TermCountEntry"
+      },
+      "title": "Related Counts",
+      "type": "array"
+     },
+     "sql_attribute_counts": {
+      "items": {
+       "$ref": "#/components/schemas/TermCountEntry"
+      },
+      "title": "Sql Attribute Counts",
+      "type": "array"
+     },
+     "terms": {
+      "items": {
+       "$ref": "#/components/schemas/TermListItem"
+      },
+      "title": "Terms",
+      "type": "array"
+     },
+     "total": {
+      "title": "Total",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "terms",
+     "total",
+     "column_attribute_counts",
+     "sql_attribute_counts",
+     "related_counts"
+    ],
+    "title": "TermsPageResponse",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   },
+   "ZoneChip": {
+    "additionalProperties": true,
+    "description": "A zone as rendered next to something else it grants access to.\n\n``enabled`` is false for a zone whose ``Zone`` label was swapped for\n``disableZone``; those are returned to admins only.",
+    "properties": {
+     "color": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Color"
+     },
+     "enabled": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Enabled"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "title": "ZoneChip",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "description": "Public HTTP surface of Auto Ontology, served by the Next.js route handlers. Generated by `pnpm openapi` \u2014 do not edit by hand.",
+  "title": "Auto Ontology API",
+  "version": "1.3.0",
+  "x-agenticmind-source": {
+   "commit": "778ccdef75536bee5653306f8ded655924e4ada8",
+   "repo": "NVIDIA/auto-ontology"
+  }
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/chat/completions": {
+   "post": {
+    "description": "Ask a question and stream the answer back as Server-Sent Events.\n\nFastAPI emits the SQL plus the formatted answer first (`result`), then \u2014\nwhen that answer has an executed result \u2014 generates and persists the\nchart/table bubble itself and streams it back as its own `charts` event\nbefore the stream closes. No second request needed from this route or the\nbrowser. Passing `conversation_id` persists the turn and additionally\nrequires `conversation: ['write']`; the route answers 409 while that\nconversation already has a run in flight. Omitting it runs the question\nstatelessly, with no history and no chart step.",
+    "operationId": "post_api_chat_completions",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "properties": {
+         "conversation_id": {
+          "anyOf": [
+           {
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "evidence": {
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "prediction": {
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "question": {
+          "minLength": 1,
+          "type": "string"
+         },
+         "target_db": {
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         }
+        },
+        "required": [
+         "question"
+        ],
+        "type": "object"
+       }
+      }
+     },
+     "description": "SQL plus a formatted answer, streamed as SSE. When the answer has an executed result, the backend also generates and persists a chart (or fallback table) and streams it back on this same connection as its own `charts` event \u2014 no follow-up call needed. Reuse one `conversation_id` for follow-up turns; an unknown UUID creates a conversation, while an ID owned by another user returns 404. Omitting `conversation_id` runs the question statelessly, with no history and no chart step.",
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "text/event-stream": {
+        "schema": {
+         "type": "string"
+        }
+       }
+      },
+      "description": "Server-sent events; the stream ends with `data: [DONE]`"
+     },
+     "401": {
+      "description": "No authenticated caller could be resolved"
+     },
+     "403": {
+      "description": "The caller lacks the required permission"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": false,
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "detail"
+         ],
+         "type": "object"
+        }
+       }
+      },
+      "description": "Relayed from the backend: a run is already in flight for this conversation, or the semantic layer has not been compiled yet."
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "ApiToken": []
+     }
+    ],
+    "summary": "Ask a question and stream the answer back as Server-Sent Events.",
+    "tags": [
+     "chat"
+    ],
+    "x-auto-ontology-permissions": {
+     "chat": [
+      "use"
+     ]
+    },
+    "x-auto-ontology-proxied": false,
+    "x-auto-ontology-source": "frontend/app/api/chat/completions/route.ts",
+    "x-auto-ontology-upstream": "/api/chat/completions"
+   }
+  },
+  "/api/health": {
+   "get": {
+    "description": "Liveness/readiness probe for the Next.js tier, unauthenticated by design.\n\nProbes Postgres and answers 200 `{ status: 'ok' }`, or 503\n`{ status: 'degraded' }` carrying the failing check's error detail.",
+    "operationId": "get_api_health",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": false,
+         "properties": {
+          "postgres": {
+           "anyOf": [
+            {
+             "additionalProperties": false,
+             "properties": {
+              "status": {
+               "const": "ok",
+               "type": "string"
+              }
+             },
+             "required": [
+              "status"
+             ],
+             "type": "object"
+            },
+            {
+             "additionalProperties": false,
+             "description": "`detail` is the driver error, truncated to 200 characters.",
+             "properties": {
+              "detail": {
+               "type": "string"
+              },
+              "status": {
+               "const": "error",
+               "type": "string"
+              }
+             },
+             "required": [
+              "status",
+              "detail"
+             ],
+             "type": "object"
+            }
+           ]
+          },
+          "status": {
+           "const": "ok",
+           "type": "string"
+          }
+         },
+         "required": [
+          "status",
+          "postgres"
+         ],
+         "type": "object"
+        }
+       }
+      },
+      "description": "Postgres answered a `SELECT 1`."
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": false,
+         "properties": {
+          "postgres": {
+           "anyOf": [
+            {
+             "additionalProperties": false,
+             "properties": {
+              "status": {
+               "const": "ok",
+               "type": "string"
+              }
+             },
+             "required": [
+              "status"
+             ],
+             "type": "object"
+            },
+            {
+             "additionalProperties": false,
+             "description": "`detail` is the driver error, truncated to 200 characters.",
+             "properties": {
+              "detail": {
+               "type": "string"
+              },
+              "status": {
+               "const": "error",
+               "type": "string"
+              }
+             },
+             "required": [
+              "status",
+              "detail"
+             ],
+             "type": "object"
+            }
+           ]
+          },
+          "status": {
+           "const": "degraded",
+           "type": "string"
+          }
+         },
+         "required": [
+          "status",
+          "postgres"
+         ],
+         "type": "object"
+        }
+       }
+      },
+      "description": "Postgres is unreachable; the probe body carries the reason."
+     }
+    },
+    "security": [],
+    "summary": "Liveness/readiness probe for the Next.js tier, unauthenticated by design.",
+    "tags": [
+     "health"
+    ],
+    "x-auto-ontology-permissions": "public",
+    "x-auto-ontology-proxied": false,
+    "x-auto-ontology-source": "frontend/app/api/health/route.ts"
+   }
+  },
+  "/api/semantic-compilation/status": {
+   "get": {
+    "description": "Whether the semantic layer has been calculated (any Term exists). The chat\npage uses this to gate the conversation area when the layer is missing.",
+    "operationId": "get_api_semantic_compilation_status",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SemanticStatusResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "No authenticated caller could be resolved"
+     },
+     "403": {
+      "description": "The caller lacks the required permission"
+     }
+    },
+    "security": [
+     {
+      "ApiToken": []
+     }
+    ],
+    "summary": "Whether the semantic layer has been calculated (any Term exists).",
+    "tags": [
+     "semantic-compilation"
+    ],
+    "x-auto-ontology-permissions": {
+     "chat": [
+      "use"
+     ]
+    },
+    "x-auto-ontology-proxied": true,
+    "x-auto-ontology-source": "frontend/app/api/semantic-compilation/status/route.ts"
+   }
+  },
+  "/api/terms": {
+   "get": {
+    "description": "termsApi.list \u2014 one page of Terms and their per-card count breakdowns.\n`skip`/`limit` pass straight through.",
+    "operationId": "get_api_terms",
+    "parameters": [
+     {
+      "description": "Case-insensitive substring filter on the term name.",
+      "in": "query",
+      "name": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Case-insensitive substring filter on the term name.",
+       "title": "Query"
+      }
+     },
+     {
+      "description": "Rows to skip before the page starts.",
+      "in": "query",
+      "name": "skip",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "description": "Rows to skip before the page starts.",
+       "minimum": 0,
+       "title": "Skip",
+       "type": "integer"
+      }
+     },
+     {
+      "description": "Page size, at most 100. Omit to return every matching row in one response.",
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maximum": 100,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Page size, at most 100. Omit to return every matching row in one response.",
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TermsPageResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "No authenticated caller could be resolved"
+     },
+     "403": {
+      "description": "The caller lacks the required permission"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "ApiToken": []
+     }
+    ],
+    "summary": "termsApi.list \u2014 one page of Terms and their per-card count breakdowns.",
+    "tags": [
+     "terms"
+    ],
+    "x-auto-ontology-permissions": {
+     "catalog": [
+      "read"
+     ]
+    },
+    "x-auto-ontology-proxied": true,
+    "x-auto-ontology-source": "frontend/app/api/terms/route.ts"
+   }
+  },
+  "/api/terms/{term_id}": {
+   "get": {
+    "description": "termsApi.getById \u2014 fetch one Term node. Authors are resolved here so Last\nModified can name the person who saved it.",
+    "operationId": "get_api_terms_term_id_",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "term_id",
+      "required": true,
+      "schema": {
+       "title": "Term Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/DataResponse_TermDetail_"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "No authenticated caller could be resolved"
+     },
+     "403": {
+      "description": "The caller lacks the required permission"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "ApiToken": []
+     }
+    ],
+    "summary": "termsApi.getById \u2014 fetch one Term node.",
+    "tags": [
+     "terms"
+    ],
+    "x-auto-ontology-permissions": {
+     "catalog": [
+      "read"
+     ]
+    },
+    "x-auto-ontology-proxied": true,
+    "x-auto-ontology-source": "frontend/app/api/terms/[term_id]/route.ts"
+   }
+  },
+  "/api/terms/{term_id}/sql-attributes": {
+   "get": {
+    "description": "termsApi.getSqlAttributes \u2014 SqlAttribute nodes for one term.",
+    "operationId": "get_api_terms_term_id_sql_attributes",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "term_id",
+      "required": true,
+      "schema": {
+       "title": "Term Id",
+       "type": "string"
+      }
+     },
+     {
+      "description": "Rows to skip before the page starts.",
+      "in": "query",
+      "name": "skip",
+      "required": false,
+      "schema": {
+       "default": 0,
+       "description": "Rows to skip before the page starts.",
+       "minimum": 0,
+       "title": "Skip",
+       "type": "integer"
+      }
+     },
+     {
+      "description": "Page size, at most 100. Omit to return every matching row in one response.",
+      "in": "query",
+      "name": "limit",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "maximum": 100,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Page size, at most 100. Omit to return every matching row in one response.",
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PagedListResponse_SqlAttribute_"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "401": {
+      "description": "No authenticated caller could be resolved"
+     },
+     "403": {
+      "description": "The caller lacks the required permission"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "security": [
+     {
+      "ApiToken": []
+     }
+    ],
+    "summary": "List Term Sql Attributes By Id",
+    "tags": [
+     "terms"
+    ],
+    "x-auto-ontology-permissions": {
+     "catalog": [
+      "read"
+     ]
+    },
+    "x-auto-ontology-proxied": true,
+    "x-auto-ontology-source": "frontend/app/api/terms/[term_id]/sql-attributes/route.ts"
+   }
+  }
+ }
+}

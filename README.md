@@ -74,6 +74,10 @@ To query a database in plain language: **New** → *Ask your database*, upload `
 and ask in **Chat**; every answer shows its SQL, which runs read-only. See
 [docs/architecture/semantic.md](docs/architecture/semantic.md).
 
+With an NVIDIA Auto Ontology deployment, **New** → *Ask Auto Ontology* asks questions through its semantic
+layer (business terms, measures, relationships); see
+[docs/architecture/auto-ontology.md](docs/architecture/auto-ontology.md).
+
 Multi-agent templates: *Research team* (supervisor delegating to subagents), *Plan and execute*
 (planner + parallel workers + synthesizer) and *Write with a critic* (revise until a critic passes).
 

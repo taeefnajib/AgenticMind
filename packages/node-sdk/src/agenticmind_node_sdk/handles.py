@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .config import SecretRef
 
 #: Port types whose values are handles (used by the runtime for secret delegation).
-HANDLE_PORT_TYPES = frozenset({"EmbeddingModel", "VectorStoreHandle", "Tool", "Database"})
+HANDLE_PORT_TYPES = frozenset({"EmbeddingModel", "VectorStoreHandle", "Tool", "Database", "Ontology"})
 
 
 class _Handle(BaseModel):
@@ -69,6 +69,19 @@ class DatabaseHandle(_Handle):
 
 
 TOOL_NAME_PATTERN = r"^[a-z][a-z0-9_]{0,63}$"
+
+
+class OntologyHandle(_Handle):
+    """A connection to an NVIDIA Auto Ontology deployment's public API (ADR-0019).
+
+    ``api_token`` is a secret reference sent as ``x-api-key``; it never travels as a value.
+    """
+
+    kind: Literal["ontology"] = "ontology"
+    base_url: str = Field(min_length=1, description="The gateway URL (APP_URL), e.g. http://localhost:3000")
+    api_token: SecretRef | None = None
+    timeout_seconds: float = Field(default=30, gt=0, le=600, description="Per request (questions: see node)")
+    target_db: str | None = None
 
 
 class ToolHandle(_Handle):

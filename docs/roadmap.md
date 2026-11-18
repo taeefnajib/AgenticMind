@@ -11,7 +11,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M4 Compiler / API export | **Done (core)**: standalone FastAPI export with OpenAPI, tests, Docker assets, vendored runtime; Docker build not yet exercised |
 | M5 Evaluation Lab | **Done (core)**: versioned datasets, 18 evaluators (retrieval, generation, safety, agent, operations, LLM judges), traced per-case runs, comparison and baseline |
 | M6 Agent Lab | **Done (core)**: tools + Agent, loops/router/join, memory, checkpoints/approval/resume, multi-agent patterns (8a–8e) |
-| M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | **In progress**: M7a database nodes done (connector, schema inspector, profiler, read-only SQL policy, NL-to-SQL, SQL tool); M7b Auto Ontology adapter next (upstream inspected: Apache-2.0, no releases, pin commit `778ccde`) |
+| M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | **Done**: M7a database nodes (connector, schema inspector, profiler, read-only SQL policy, NL-to-SQL, SQL tool); M7b Auto Ontology adapter (pinned commit `778ccde`, OpenAPI 1.3.0 contract tests, capability checks, verified live) |
 | M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
 
@@ -107,6 +107,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   policy *and* read-only connections; SQLite uploads (content-addressed copies) and PostgreSQL (dsn secret);
   chat shows the SQL and rows; sample `examples/data/sales.sqlite`; *Ask your database* template.
   Verified live with Gemini against independently computed answers.
+- **M7b – NVIDIA Auto Ontology adapter**: `Ontology` port/handle (token as a secret reference); connection
+  node with health, token and semantic-layer readiness checks; Term Search, Term Details, Ontology Context
+  (grounds NL-to-SQL), Ask Auto Ontology (streamed, SQL + rows in Chat), Auto Ontology Tool for agents;
+  pinned commit with a vendored OpenAPI subset and contract tests; *Ask Auto Ontology* template.
 - **Node library hover cards**: description, ports, branches and permissions on hover or focus.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
@@ -139,6 +143,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   documents); agent scoring covers tool use only (not handoffs or approvals).
 - Semantic: SQLite and PostgreSQL only (PostgreSQL not yet run against a live server); the SQL policy is a
   guard, not a firewall (use a read-only database role); no PII masking or column-level permissions.
+- Auto Ontology: pinned to a commit (no upstream releases); `check_answerable` is MCP-only upstream and not
+  used; questions are stateless (no `conversation_id`).
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI (neither for the platform nor for exported apps).
 - Exported apps: human-approval pauses answer 409, memory is in process, rate limits are per process; endpoints
@@ -146,9 +152,6 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **M7b – NVIDIA Auto Ontology adapter**: connection/health/capability checks against a deployed
-   instance's public API (pinned commit `778ccde`, OpenAPI 1.3.0), term search/details, answerability,
-   ask-question, semantic context for NL-to-SQL, agent tool; contract tests against the pinned spec.
-2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
-3. AuthN/Z, workspaces, audit log; Alembic migrations.
-4. Revision history UI and diff view (canonical IR makes this straightforward).
+1. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
+2. AuthN/Z, workspaces, audit log; Alembic migrations.
+3. Revision history UI and diff view (canonical IR makes this straightforward).

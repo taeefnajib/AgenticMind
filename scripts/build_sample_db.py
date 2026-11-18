@@ -1,6 +1,6 @@
 """Regenerate examples/data/sales.sqlite (deterministic fictional sales data).
 
-    uv run python scripts/build_sample_db.py
+uv run python scripts/build_sample_db.py
 """
 
 from pathlib import Path

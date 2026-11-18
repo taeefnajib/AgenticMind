@@ -6,7 +6,14 @@ from .context import ModelUsage, NodeContext, NodeInputs, NodeResult
 from .define import NodeDefinition, define_node
 from .documents import Document, Offsets, RetrievedDocument, SourceRef
 from .errors import NodeError, SecretAccessError, SuspendNode, TransientNodeError
-from .handles import HANDLE_PORT_TYPES, DatabaseHandle, EmbeddingModelHandle, ToolHandle, VectorStoreHandle
+from .handles import (
+    HANDLE_PORT_TYPES,
+    DatabaseHandle,
+    EmbeddingModelHandle,
+    OntologyHandle,
+    ToolHandle,
+    VectorStoreHandle,
+)
 from .manifest import (
     Cardinality,
     Compatibility,
@@ -36,6 +43,7 @@ from .types import PortType, is_compatible, is_json_value, value_matches_type
 
 __all__ = [
     "DatabaseHandle",
+    "OntologyHandle",
     "SuspendNode",
     "MAX_MEMORY_CHARS",
     "MAX_MESSAGE_CHARS",

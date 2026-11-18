@@ -1,4 +1,4 @@
-"""AgenticMind semantic data nodes (blueprint §9, ADR-0018)."""
+"""AgenticMind semantic data nodes (blueprint §9, ADR-0018) and the Auto Ontology adapter (ADR-0019)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 from agenticmind_node_sdk import NodeDefinition
 
 from .nodes import database, nl_to_sql, schema_inspector, sql_executor, sql_tool, table_profiler
+from .ontology_nodes import ONTOLOGY_NODES
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     database,
@@ -15,6 +16,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     sql_executor,
     nl_to_sql,
     sql_tool,
+    *ONTOLOGY_NODES,
 )
 
 
