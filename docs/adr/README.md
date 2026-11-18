@@ -16,5 +16,6 @@
 | [0012](0012-memory.md) | Conversation state vs consented long-term memory, retention, deletion | Accepted |
 | [0013](0013-checkpoints-approval-resume.md) | Durable checkpoints, Human Approval suspension, resume | Accepted |
 | [0014](0014-multi-agent-patterns.md) | Subagent handoff, Planner, Critic, third-party tool discovery | Accepted |
+| [0015](0015-advanced-retrieval.md) | BM25 keyword index, hybrid fusion, reranker, query rewriting, compression | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

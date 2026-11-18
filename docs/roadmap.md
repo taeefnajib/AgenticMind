@@ -7,7 +7,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M0 Foundation | **Done**: monorepo, local dev, IR v1 + JSON Schema, node contract, persistence |
 | M1 Visual architecture | **Done (core)**: canvas, library, typed ports, inspector, live validation |
 | M2 First-party runtime | **Done (core)**: plan, registry, handlers, traces, retries, timeouts, cancellation |
-| M3 RAG vertical slice | **Core done**: ingestion, retrieval, cited answers with a real LLM; step 4 (hybrid search, reranking, query rewriting) pending |
+| M3 RAG vertical slice | **Done**: ingestion, hybrid retrieval (vector + BM25), reranking, query rewriting, compression, cited answers |
 | M4 Compiler / API export | Planned |
 | M5 Evaluation Lab | Planned |
 | M6 Agent Lab | **In progress**: 8a (tools + Agent), 8b (loops, router, join), 8c (memory), 8d (checkpoints, approval, resume) and 8e (multi-agent patterns) done |
@@ -84,6 +84,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   delegating to an analyst). Live testing added: subagents return partial work at limits, a wrap-up turn
   after turn/tool-call limits, clearer errors when reasoning models run out of output tokens, and a
   configurable Web Fetch User-Agent (`AGENTICMIND_HTTP_USER_AGENT`) for sites that require contact details.
+- **Step 4 – advanced retrieval**: BM25 keyword index maintained by Index Documents 1.1.0 (SQLite FTS5,
+  backfilled for older collections); Keyword Search; Hybrid Search (RRF or weighted fusion, multi-query);
+  Reranker (local cross-encoder by default, LLM or overlap); Query Rewriter (standalone + variants, falls
+  back to the original); Context Compressor (extractive, or LLM limited to source sentences); *Advanced
+  RAG* template; existing RAG templates build keyword indexes; verified live with Gemini.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
@@ -104,8 +109,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   status shows its last iteration (the IDE adds "ran ×N").
 - pgvector and Pinecone adapters share the contract tests but have not yet been run against live
   services (set `AGENTICMIND_TEST_PGVECTOR_DSN` / `AGENTICMIND_TEST_PINECONE_API_KEY`).
-- Pure vector search with the small default model can rank a related-but-wrong section first
-  (e.g. "vacation" → Travel just above Annual leave); reranking and hybrid search arrive in step 4.
+- The keyword index is a local SQLite file even for remote vector backends; deleting source documents does
+  not remove their chunks from either index. Retrieval quality has not yet been measured systematically
+  (that comes with the Evaluation Lab).
 - OCR for scanned PDFs is not supported yet (loader reports `NO_TEXT_EXTRACTED`). The token measure used
   for chunk sizes is an approximation, not a model tokenizer.
 - Version history is available via the API (`/revisions`) but has no UI yet.
@@ -115,14 +121,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. Previously planned under section 8: planner/worker,
-   supervisor, reflection/critic, handoff; third-party tools via an entry-point group.
-2. **Step 4 – advanced retrieval**: BM25 keyword search, hybrid fusion, reranker, query rewriting,
-   context compression.
-3. Compiler (M4): IR → standalone FastAPI project embedding the runtime, OpenAPI, Dockerfile, tests,
+1. Compiler (M4): IR → standalone FastAPI project embedding the runtime, OpenAPI, Dockerfile, tests,
    build manifest; REST Trigger/Response nodes.
-4. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two
+2. Evaluation Lab (M5): versioned datasets, evaluators (retrieval metrics first), runs comparing two
    revisions with per-case results.
-5. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
-6. AuthN/Z, workspaces, audit log; Alembic migrations.
-7. Revision history UI and diff view (canonical IR makes this straightforward).
+3. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
+4. AuthN/Z, workspaces, audit log; Alembic migrations.
+5. Revision history UI and diff view (canonical IR makes this straightforward).

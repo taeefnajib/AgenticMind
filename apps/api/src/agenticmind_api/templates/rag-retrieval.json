@@ -1,54 +1,304 @@
 {
-  "ir_version": "1.0",
-  "project": {
-    "id": "template",
-    "name": "RAG retrieval",
-    "description": "Two flows sharing one embedding model and vector store. 1) Choose 'Run → Index report' to load, chunk and index your files. 2) Choose 'Run → Results' to ask a question and get the most relevant chunks."
+ "ir_version": "1.0",
+ "project": {
+  "id": "template",
+  "name": "RAG retrieval",
+  "description": "Two flows sharing one embedding model and vector store. 1) Choose 'Run → Index report' to load, chunk and index your files. 2) Choose 'Run → Results' to ask a question and get the most relevant chunks."
+ },
+ "runtime": {
+  "engine": "agenticmind",
+  "profile": "development"
+ },
+ "nodes": [
+  {
+   "id": "load",
+   "type": "agenticmind.data.document_loader",
+   "version": "1.0.0",
+   "config": {
+    "files": [],
+    "split_pdf_pages": true,
+    "csv_mode": "file",
+    "skip_empty": true
+   },
+   "ui": {
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "label": "Load documents"
+   }
   },
-  "runtime": {"engine": "agenticmind", "profile": "development"},
-  "nodes": [
-    {"id": "load", "type": "agenticmind.data.document_loader", "version": "1.0.0",
-     "config": {"files": [], "split_pdf_pages": true, "csv_mode": "file", "skip_empty": true},
-     "ui": {"position": {"x": 0, "y": 0}, "label": "Load documents"}},
-    {"id": "clean", "type": "agenticmind.data.document_cleaner", "version": "1.0.0",
-     "config": {"normalize_unicode": true, "remove_control_chars": true, "dehyphenate": true, "collapse_whitespace": true, "drop_empty": true, "min_chars": 0},
-     "ui": {"position": {"x": 290, "y": 0}}},
-    {"id": "chunk", "type": "agenticmind.rag.chunker", "version": "1.0.0",
-     "config": {"strategy": "markdown", "unit": "tokens", "chunk_size": 200, "chunk_overlap": 30},
-     "ui": {"position": {"x": 580, "y": 0}}},
-    {"id": "embedding", "type": "agenticmind.rag.embedding_model", "version": "1.0.0",
-     "config": {"provider": "fastembed", "model": "BAAI/bge-small-en-v1.5", "batch_size": 32},
-     "ui": {"position": {"x": 580, "y": 200}}},
-    {"id": "store", "type": "agenticmind.rag.vector_store", "version": "1.0.0",
-     "config": {"backend": "qdrant", "collection": "documents", "namespace_by_project": true, "distance": "cosine"},
-     "ui": {"position": {"x": 580, "y": 330}}},
-    {"id": "index", "type": "agenticmind.rag.index_documents", "version": "1.0.0",
-     "config": {"skip_unchanged": true, "recreate": false, "upsert_batch_size": 128},
-     "ui": {"position": {"x": 900, "y": 60}}},
-    {"id": "index_report", "type": "agenticmind.core.output", "version": "1.0.0",
-     "config": {"key": "index_report"},
-     "ui": {"position": {"x": 1200, "y": 60}, "label": "Index report"}},
-    {"id": "question", "type": "agenticmind.core.manual_input", "version": "1.0.0",
-     "config": {"key": "question", "value_type": "String", "default": "How many days of annual leave do employees get?", "required": true},
-     "ui": {"position": {"x": 580, "y": 470}, "label": "Question"}},
-    {"id": "retrieve", "type": "agenticmind.rag.retriever", "version": "1.0.0",
-     "config": {"top_k": 4, "filters": {}},
-     "ui": {"position": {"x": 900, "y": 360}}},
-    {"id": "results", "type": "agenticmind.core.output", "version": "1.0.0",
-     "config": {"key": "results"},
-     "ui": {"position": {"x": 1200, "y": 360}, "label": "Results"}}
-  ],
-  "edges": [
-    {"id": "e01", "kind": "data", "source": {"node": "load", "port": "documents"}, "target": {"node": "clean", "port": "documents"}},
-    {"id": "e02", "kind": "data", "source": {"node": "clean", "port": "documents"}, "target": {"node": "chunk", "port": "documents"}},
-    {"id": "e03", "kind": "data", "source": {"node": "chunk", "port": "chunks"}, "target": {"node": "index", "port": "documents"}},
-    {"id": "e04", "kind": "data", "source": {"node": "embedding", "port": "model"}, "target": {"node": "index", "port": "model"}},
-    {"id": "e05", "kind": "data", "source": {"node": "store", "port": "store"}, "target": {"node": "index", "port": "store"}},
-    {"id": "e06", "kind": "data", "source": {"node": "index", "port": "report"}, "target": {"node": "index_report", "port": "value"}},
-    {"id": "e07", "kind": "data", "source": {"node": "question", "port": "value"}, "target": {"node": "retrieve", "port": "query"}},
-    {"id": "e08", "kind": "data", "source": {"node": "embedding", "port": "model"}, "target": {"node": "retrieve", "port": "model"}},
-    {"id": "e09", "kind": "data", "source": {"node": "store", "port": "store"}, "target": {"node": "retrieve", "port": "store"}},
-    {"id": "e10", "kind": "data", "source": {"node": "retrieve", "port": "documents"}, "target": {"node": "results", "port": "value"}}
-  ],
-  "metadata": {}
+  {
+   "id": "clean",
+   "type": "agenticmind.data.document_cleaner",
+   "version": "1.0.0",
+   "config": {
+    "normalize_unicode": true,
+    "remove_control_chars": true,
+    "dehyphenate": true,
+    "collapse_whitespace": true,
+    "drop_empty": true,
+    "min_chars": 0
+   },
+   "ui": {
+    "position": {
+     "x": 290,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "chunk",
+   "type": "agenticmind.rag.chunker",
+   "version": "1.0.0",
+   "config": {
+    "strategy": "markdown",
+    "unit": "tokens",
+    "chunk_size": 200,
+    "chunk_overlap": 30
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "embedding",
+   "type": "agenticmind.rag.embedding_model",
+   "version": "1.0.0",
+   "config": {
+    "provider": "fastembed",
+    "model": "BAAI/bge-small-en-v1.5",
+    "batch_size": 32
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 200
+    }
+   }
+  },
+  {
+   "id": "store",
+   "type": "agenticmind.rag.vector_store",
+   "version": "1.0.0",
+   "config": {
+    "backend": "qdrant",
+    "collection": "documents",
+    "namespace_by_project": true,
+    "distance": "cosine"
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 330
+    }
+   }
+  },
+  {
+   "id": "index",
+   "type": "agenticmind.rag.index_documents",
+   "version": "1.1.0",
+   "config": {
+    "skip_unchanged": true,
+    "recreate": false,
+    "upsert_batch_size": 128,
+    "keyword_index": true
+   },
+   "ui": {
+    "position": {
+     "x": 900,
+     "y": 60
+    }
+   }
+  },
+  {
+   "id": "index_report",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "index_report"
+   },
+   "ui": {
+    "position": {
+     "x": 1200,
+     "y": 60
+    },
+    "label": "Index report"
+   }
+  },
+  {
+   "id": "question",
+   "type": "agenticmind.core.manual_input",
+   "version": "1.0.0",
+   "config": {
+    "key": "question",
+    "value_type": "String",
+    "default": "How many days of annual leave do employees get?",
+    "required": true
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 470
+    },
+    "label": "Question"
+   }
+  },
+  {
+   "id": "retrieve",
+   "type": "agenticmind.rag.retriever",
+   "version": "1.0.0",
+   "config": {
+    "top_k": 4,
+    "filters": {}
+   },
+   "ui": {
+    "position": {
+     "x": 900,
+     "y": 360
+    }
+   }
+  },
+  {
+   "id": "results",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "results"
+   },
+   "ui": {
+    "position": {
+     "x": 1200,
+     "y": 360
+    },
+    "label": "Results"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e01",
+   "kind": "data",
+   "source": {
+    "node": "load",
+    "port": "documents"
+   },
+   "target": {
+    "node": "clean",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "e02",
+   "kind": "data",
+   "source": {
+    "node": "clean",
+    "port": "documents"
+   },
+   "target": {
+    "node": "chunk",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "e03",
+   "kind": "data",
+   "source": {
+    "node": "chunk",
+    "port": "chunks"
+   },
+   "target": {
+    "node": "index",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "e04",
+   "kind": "data",
+   "source": {
+    "node": "embedding",
+    "port": "model"
+   },
+   "target": {
+    "node": "index",
+    "port": "model"
+   }
+  },
+  {
+   "id": "e05",
+   "kind": "data",
+   "source": {
+    "node": "store",
+    "port": "store"
+   },
+   "target": {
+    "node": "index",
+    "port": "store"
+   }
+  },
+  {
+   "id": "e06",
+   "kind": "data",
+   "source": {
+    "node": "index",
+    "port": "report"
+   },
+   "target": {
+    "node": "index_report",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e07",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "retrieve",
+    "port": "query"
+   }
+  },
+  {
+   "id": "e08",
+   "kind": "data",
+   "source": {
+    "node": "embedding",
+    "port": "model"
+   },
+   "target": {
+    "node": "retrieve",
+    "port": "model"
+   }
+  },
+  {
+   "id": "e09",
+   "kind": "data",
+   "source": {
+    "node": "store",
+    "port": "store"
+   },
+   "target": {
+    "node": "retrieve",
+    "port": "store"
+   }
+  },
+  {
+   "id": "e10",
+   "kind": "data",
+   "source": {
+    "node": "retrieve",
+    "port": "documents"
+   },
+   "target": {
+    "node": "results",
+    "port": "value"
+   }
+  }
+ ],
+ "metadata": {}
 }

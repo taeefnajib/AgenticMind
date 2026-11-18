@@ -14,6 +14,7 @@ from .base import (
     filter_fields,
     normalize_filter,
 )
+from .keyword import KeywordHit, KeywordIndex, KeywordRecord, fts_query, index_path
 
 #: Backends and whether they can run fully locally (embedded) without a server.
 BACKENDS: dict[str, dict[str, object]] = {
@@ -68,6 +69,9 @@ __all__ = [
     "BACKENDS",
     "DEFAULT_BACKEND",
     "FILTER_FIELDS",
+    "KeywordHit",
+    "KeywordIndex",
+    "KeywordRecord",
     "StoreHit",
     "StoreRecord",
     "StoreSpec",
@@ -75,6 +79,8 @@ __all__ = [
     "VectorStoreError",
     "delete_local_collections",
     "filter_fields",
+    "fts_query",
+    "index_path",
     "normalize_filter",
     "open_store",
 ]

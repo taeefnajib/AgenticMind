@@ -158,3 +158,36 @@ def test_agent_template_end_to_end(client):
     assert "75" in result["answer"] and result["report"]["tool_calls"] == 1
     events = client.get(f"/api/runs/{run['id']}/events").json()
     assert any(e.get("data", {}).get("type") == "tool_call" for e in events)
+
+
+def test_advanced_rag_template_runs_offline(client):
+    pid = client.post("/api/projects", json={"name": "Adv", "template": "advanced-rag"}).json()["id"]
+    file_id = client.post(
+        f"/api/projects/{pid}/files", files={"file": ("employee-handbook.md", HANDBOOK, "text/markdown")}
+    ).json()["id"]
+    doc = client.get(f"/api/projects/{pid}").json()["document"]
+    nodes = {n["id"]: n for n in doc["nodes"]}
+    nodes["load"]["config"]["files"] = [file_id]
+    nodes["embedding"]["config"] = {"provider": "hash", "model": "hash", "dimensions": 384, "batch_size": 32}
+    nodes["rewrite"]["config"].update(llm_provider="mock", llm_model="mock-1", variants=0)
+    nodes["rewrite"]["config"].pop("api_key")
+    nodes["rerank"]["config"]["provider"] = "overlap"  # avoid downloading the cross-encoder in CI
+    nodes["llm"]["config"].update(provider="mock", model="mock-1")
+    nodes["llm"]["config"].pop("api_key")
+    assert client.put(f"/api/projects/{pid}", json={"document": doc}).status_code == 200
+
+    indexed = wait(client, client.post(f"/api/projects/{pid}/runs", json={"targets": ["index_report"]}).json()["id"])
+    assert indexed["status"] == "succeeded", indexed["error"]
+    assert indexed["outputs"]["index_report"]["keyword_indexed"] == indexed["outputs"]["index_report"]["documents"]
+
+    run_id = client.post(
+        f"/api/projects/{pid}/runs",
+        json={"inputs": {"question": "How many days of annual leave do employees get?"}, "targets": ["answer"]},
+    ).json()["id"]
+    final = wait(client, run_id)
+    assert final["status"] == "succeeded", final["error"]
+    events = client.get(f"/api/runs/{run_id}/events").json()
+    kinds = {(e.get("node_id"), (e.get("data") or {}).get("type")) for e in events}
+    assert {("hybrid", "retrieved"), ("rerank", "reranked"), ("compress", "compressed")} <= kinds
+    answer = final["outputs"]["answer"]
+    assert answer["citations"] and "leave" in answer["citations"][0]["excerpt"].lower()

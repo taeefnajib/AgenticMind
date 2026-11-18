@@ -59,6 +59,9 @@ To try human-in-the-loop: **New** → *Draft and approve*, then **Run**. Gemini 
 pauses (nothing keeps running, and it survives a server restart). Open **Approvals**, edit the text if you
 like and approve, or reject with a reason; the run continues from its checkpoint.
 
+For better retrieval: **New** → *Advanced RAG* chains Query Rewriter → Hybrid Search (vectors + BM25
+keywords) → Reranker (local cross-encoder) → Context Compressor before answering with citations.
+
 Multi-agent templates: *Research team* (supervisor delegating to subagents), *Plan and execute*
 (planner + parallel workers + synthesizer) and *Write with a critic* (revise until a critic passes).
 

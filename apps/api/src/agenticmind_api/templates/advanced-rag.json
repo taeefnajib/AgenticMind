@@ -1,0 +1,556 @@
+{
+ "ir_version": "1.0",
+ "project": {
+  "id": "template",
+  "name": "Advanced RAG (hybrid search + reranking)",
+  "description": "Answers with citations using the full retrieval pipeline: Query Rewriter (Gemini) makes the question standalone and adds variants, Hybrid Search combines meaning (vectors) and exact terms (BM25), a local cross-encoder reranks, and the Context Compressor keeps only relevant sentences. 1) Upload files in 'Load documents' and choose 'Run → Index report'. 2) Ask in the Chat tab. The reranker model (~80 MB) downloads on first use. Uses OPENROUTER_API_KEY."
+ },
+ "runtime": {
+  "engine": "agenticmind",
+  "profile": "development"
+ },
+ "nodes": [
+  {
+   "id": "load",
+   "type": "agenticmind.data.document_loader",
+   "version": "1.0.0",
+   "config": {
+    "files": [],
+    "split_pdf_pages": true,
+    "csv_mode": "file",
+    "skip_empty": true
+   },
+   "ui": {
+    "position": {
+     "x": 0,
+     "y": 0
+    },
+    "label": "Load documents"
+   }
+  },
+  {
+   "id": "clean",
+   "type": "agenticmind.data.document_cleaner",
+   "version": "1.0.0",
+   "config": {
+    "normalize_unicode": true,
+    "remove_control_chars": true,
+    "dehyphenate": true,
+    "collapse_whitespace": true,
+    "drop_empty": true,
+    "min_chars": 0
+   },
+   "ui": {
+    "position": {
+     "x": 290,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "chunk",
+   "type": "agenticmind.rag.chunker",
+   "version": "1.0.0",
+   "config": {
+    "strategy": "markdown",
+    "unit": "tokens",
+    "chunk_size": 200,
+    "chunk_overlap": 30
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 0
+    }
+   }
+  },
+  {
+   "id": "embedding",
+   "type": "agenticmind.rag.embedding_model",
+   "version": "1.0.0",
+   "config": {
+    "provider": "fastembed",
+    "model": "BAAI/bge-small-en-v1.5",
+    "batch_size": 32
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 190
+    }
+   }
+  },
+  {
+   "id": "store",
+   "type": "agenticmind.rag.vector_store",
+   "version": "1.0.0",
+   "config": {
+    "backend": "qdrant",
+    "collection": "documents",
+    "namespace_by_project": true,
+    "distance": "cosine"
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 310
+    }
+   }
+  },
+  {
+   "id": "index",
+   "type": "agenticmind.rag.index_documents",
+   "version": "1.1.0",
+   "config": {
+    "skip_unchanged": true,
+    "recreate": false,
+    "upsert_batch_size": 128,
+    "keyword_index": true
+   },
+   "ui": {
+    "position": {
+     "x": 900,
+     "y": 40
+    }
+   }
+  },
+  {
+   "id": "index_report",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "index_report"
+   },
+   "ui": {
+    "position": {
+     "x": 1200,
+     "y": 40
+    },
+    "label": "Index report"
+   }
+  },
+  {
+   "id": "question",
+   "type": "agenticmind.core.manual_input",
+   "version": "1.0.0",
+   "config": {
+    "key": "question",
+    "value_type": "String",
+    "default": "How many days of annual leave do employees get?",
+    "required": true
+   },
+   "ui": {
+    "position": {
+     "x": 580,
+     "y": 450
+    },
+    "label": "Question"
+   }
+  },
+  {
+   "id": "context",
+   "type": "agenticmind.rag.context_builder",
+   "version": "1.0.0",
+   "config": {
+    "token_budget": 2500,
+    "order": "relevance",
+    "deduplicate": true
+   },
+   "ui": {
+    "position": {
+     "x": 2100,
+     "y": 330
+    }
+   }
+  },
+  {
+   "id": "llm",
+   "type": "agenticmind.models.llm",
+   "version": "1.1.0",
+   "config": {
+    "provider": "openrouter",
+    "model": "google/gemini-3.8-flash",
+    "api_key": {
+     "$secret": "OPENROUTER_API_KEY"
+    },
+    "system_prompt": "You are a precise assistant that answers only from the provided sources.",
+    "temperature": 0.1,
+    "max_tokens": 2000
+   },
+   "ui": {
+    "position": {
+     "x": 2400,
+     "y": 330
+    }
+   }
+  },
+  {
+   "id": "cite",
+   "type": "agenticmind.rag.citation_builder",
+   "version": "1.0.0",
+   "config": {
+    "require_citations": false,
+    "remove_invalid": true
+   },
+   "ui": {
+    "position": {
+     "x": 2700,
+     "y": 330
+    }
+   }
+  },
+  {
+   "id": "answer",
+   "type": "agenticmind.core.output",
+   "version": "1.0.0",
+   "config": {
+    "key": "answer"
+   },
+   "ui": {
+    "position": {
+     "x": 3000,
+     "y": 330
+    },
+    "label": "Answer"
+   }
+  },
+  {
+   "id": "rewrite",
+   "type": "agenticmind.rag.query_rewriter",
+   "version": "1.0.0",
+   "config": {
+    "variants": 2,
+    "llm_provider": "openrouter",
+    "llm_model": "google/gemini-3.8-flash",
+    "api_key": {
+     "$secret": "OPENROUTER_API_KEY"
+    },
+    "temperature": 0.3,
+    "max_tokens": 2000
+   },
+   "ui": {
+    "position": {
+     "x": 900,
+     "y": 470
+    },
+    "label": "Rewrite query"
+   }
+  },
+  {
+   "id": "hybrid",
+   "type": "agenticmind.rag.hybrid_search",
+   "version": "1.0.0",
+   "config": {
+    "top_k": 12,
+    "candidates": 20,
+    "fusion": "rrf",
+    "vector_weight": 0.5,
+    "rrf_k": 60,
+    "filters": {}
+   },
+   "ui": {
+    "position": {
+     "x": 1200,
+     "y": 330
+    },
+    "label": "Hybrid search"
+   }
+  },
+  {
+   "id": "rerank",
+   "type": "agenticmind.rag.reranker",
+   "version": "1.0.0",
+   "config": {
+    "provider": "fastembed",
+    "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+    "candidates": 12,
+    "top_k": 4,
+    "score_threshold": null,
+    "llm_provider": "openrouter",
+    "llm_model": "google/gemini-3.8-flash"
+   },
+   "ui": {
+    "position": {
+     "x": 1500,
+     "y": 330
+    },
+    "label": "Rerank"
+   }
+  },
+  {
+   "id": "compress",
+   "type": "agenticmind.rag.context_compressor",
+   "version": "1.0.0",
+   "config": {
+    "method": "extractive",
+    "max_sentences": 4,
+    "neighbors": 1,
+    "drop_irrelevant": true,
+    "llm_provider": "openrouter",
+    "llm_model": "google/gemini-3.8-flash"
+   },
+   "ui": {
+    "position": {
+     "x": 1800,
+     "y": 330
+    },
+    "label": "Compress"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e01",
+   "kind": "data",
+   "source": {
+    "node": "load",
+    "port": "documents"
+   },
+   "target": {
+    "node": "clean",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "e02",
+   "kind": "data",
+   "source": {
+    "node": "clean",
+    "port": "documents"
+   },
+   "target": {
+    "node": "chunk",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "e03",
+   "kind": "data",
+   "source": {
+    "node": "chunk",
+    "port": "chunks"
+   },
+   "target": {
+    "node": "index",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "e04",
+   "kind": "data",
+   "source": {
+    "node": "embedding",
+    "port": "model"
+   },
+   "target": {
+    "node": "index",
+    "port": "model"
+   }
+  },
+  {
+   "id": "e05",
+   "kind": "data",
+   "source": {
+    "node": "store",
+    "port": "store"
+   },
+   "target": {
+    "node": "index",
+    "port": "store"
+   }
+  },
+  {
+   "id": "e06",
+   "kind": "data",
+   "source": {
+    "node": "index",
+    "port": "report"
+   },
+   "target": {
+    "node": "index_report",
+    "port": "value"
+   }
+  },
+  {
+   "id": "e12",
+   "kind": "data",
+   "source": {
+    "node": "context",
+    "port": "prompt"
+   },
+   "target": {
+    "node": "llm",
+    "port": "prompt"
+   }
+  },
+  {
+   "id": "e13",
+   "kind": "data",
+   "source": {
+    "node": "llm",
+    "port": "text"
+   },
+   "target": {
+    "node": "cite",
+    "port": "answer"
+   }
+  },
+  {
+   "id": "e14",
+   "kind": "data",
+   "source": {
+    "node": "context",
+    "port": "sources"
+   },
+   "target": {
+    "node": "cite",
+    "port": "sources"
+   }
+  },
+  {
+   "id": "e15",
+   "kind": "data",
+   "source": {
+    "node": "cite",
+    "port": "result"
+   },
+   "target": {
+    "node": "answer",
+    "port": "value"
+   }
+  },
+  {
+   "id": "r01",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "rewrite",
+    "port": "query"
+   }
+  },
+  {
+   "id": "r02",
+   "kind": "data",
+   "source": {
+    "node": "rewrite",
+    "port": "query"
+   },
+   "target": {
+    "node": "hybrid",
+    "port": "query"
+   }
+  },
+  {
+   "id": "r03",
+   "kind": "data",
+   "source": {
+    "node": "rewrite",
+    "port": "queries"
+   },
+   "target": {
+    "node": "hybrid",
+    "port": "queries"
+   }
+  },
+  {
+   "id": "r04",
+   "kind": "data",
+   "source": {
+    "node": "embedding",
+    "port": "model"
+   },
+   "target": {
+    "node": "hybrid",
+    "port": "model"
+   }
+  },
+  {
+   "id": "r05",
+   "kind": "data",
+   "source": {
+    "node": "store",
+    "port": "store"
+   },
+   "target": {
+    "node": "hybrid",
+    "port": "store"
+   }
+  },
+  {
+   "id": "r06",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "rerank",
+    "port": "query"
+   }
+  },
+  {
+   "id": "r07",
+   "kind": "data",
+   "source": {
+    "node": "hybrid",
+    "port": "documents"
+   },
+   "target": {
+    "node": "rerank",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "r08",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "compress",
+    "port": "query"
+   }
+  },
+  {
+   "id": "r09",
+   "kind": "data",
+   "source": {
+    "node": "rerank",
+    "port": "documents"
+   },
+   "target": {
+    "node": "compress",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "r10",
+   "kind": "data",
+   "source": {
+    "node": "compress",
+    "port": "documents"
+   },
+   "target": {
+    "node": "context",
+    "port": "documents"
+   }
+  },
+  {
+   "id": "r11",
+   "kind": "data",
+   "source": {
+    "node": "question",
+    "port": "value"
+   },
+   "target": {
+    "node": "context",
+    "port": "question"
+   }
+  }
+ ],
+ "metadata": {}
+}

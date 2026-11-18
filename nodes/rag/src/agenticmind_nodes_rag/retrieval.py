@@ -40,11 +40,14 @@ from agenticmind_providers.embeddings import (
     get_embedding_provider,
 )
 from agenticmind_vectorstores import (
+    KeywordIndex,
+    KeywordRecord,
     StoreRecord,
     StoreSpec,
     VectorStore,
     VectorStoreError,
     filter_fields,
+    index_path,
     open_store,
 )
 from pydantic import Field, JsonValue, model_validator
@@ -104,6 +107,11 @@ def open_vector_store(ctx: NodeContext, handle: VectorStoreHandle) -> VectorStor
         return open_store(spec)
     except VectorStoreError as exc:
         raise NodeError(exc.code, str(exc)) from exc
+
+
+def open_keyword_index(ctx: NodeContext, handle: VectorStoreHandle) -> KeywordIndex:
+    """The BM25 index kept next to a vector collection (local SQLite, ADR-0015)."""
+    return KeywordIndex(index_path(ctx.storage_path("keyword"), handle.backend, handle.collection, handle.namespace))
 
 
 async def store_call(fn: Any, *args: Any, **kwargs: Any) -> Any:
@@ -255,7 +263,7 @@ async def vector_store(ctx: NodeContext, inputs, config: VectorStoreConfig) -> N
 _STORE_PERMISSIONS = Permissions(network=True, filesystem=True, credentials=True, database=True)
 
 
-class IndexConfig(NodeConfig):
+class IndexConfigV1(NodeConfig):
     skip_unchanged: bool = Field(
         default=True, description="Only embed chunks that are new or changed since the last indexing run."
     )
@@ -267,25 +275,14 @@ class IndexConfig(NodeConfig):
     upsert_batch_size: int = Field(default=128, ge=1, le=5000, json_schema_extra=ui(advanced=True))
 
 
-@define_node(
-    type="agenticmind.rag.index_documents",
-    version="1.0.0",
-    display_name="Index Documents",
-    category="rag",
-    package=PACKAGE,
-    description="Embeds chunks and upserts them into the vector store (unchanged chunks are skipped).",
-    inputs=[
-        InputPort(name="documents", type=PortType.DOCUMENT_SET),
-        InputPort(name="model", type=PortType.EMBEDDING_MODEL),
-        InputPort(name="store", type=PortType.VECTOR_STORE_HANDLE),
-    ],
-    outputs=[OutputPort(name="report", type=PortType.JSON)],
-    config=IndexConfig,
-    permissions=_STORE_PERMISSIONS,
-    execution=ExecutionPolicy(timeout_seconds=1800, max_attempts=2, idempotent=True),
-    tags=["rag", "ingestion"],
-)
-async def index_documents(ctx: NodeContext, inputs, config: IndexConfig) -> NodeResult:
+class IndexConfig(IndexConfigV1):
+    keyword_index: bool = Field(
+        default=True,
+        description="Also keep a BM25 keyword index (local) for Keyword Search and Hybrid Search.",
+    )
+
+
+async def _index_documents(ctx: NodeContext, inputs, config: IndexConfigV1) -> NodeResult:
     t0 = time.perf_counter()
     docs = parse_documents(inputs["documents"])
     model = EmbeddingModelHandle.model_validate(inputs["model"])
@@ -293,8 +290,11 @@ async def index_documents(ctx: NodeContext, inputs, config: IndexConfig) -> Node
     store = open_vector_store(ctx, handle)
     model_id = model.model_id
 
+    keyword = open_keyword_index(ctx, handle) if getattr(config, "keyword_index", False) else None
     if config.recreate:
         await store_call(store.drop)
+        if keyword is not None:
+            await store_call(keyword.drop)
     if len({d.id for d in docs}) != len(docs):
         raise NodeError("DUPLICATE_DOCUMENT_IDS", "Documents must have unique IDs to be indexed")
 
@@ -331,6 +331,21 @@ async def index_documents(ctx: NodeContext, inputs, config: IndexConfig) -> Node
         embedded += len(batch)
         await ctx.emit("index_progress", {"embedded": embedded, "total": len(todo)})
 
+    keyword_added = 0
+    if keyword is not None:
+        # synced separately from the vectors so collections indexed before 1.1.0 gain a keyword index too
+        known = await store_call(keyword.existing, [d.id for d in docs])
+        pending = [d for d in docs if known.get(d.id) != hashes[d.id]]
+        for start in range(0, len(pending), 500):
+            batch = pending[start : start + 500]
+            records = []
+            for d in batch:
+                value = to_value(d)
+                text = " ".join(x for x in (d.source.section, d.source.filename, d.content) if x)
+                records.append(KeywordRecord(d.id, text, value, hashes[d.id], filter_fields(value)))
+            await store_call(keyword.upsert, records)
+        keyword_added = len(pending)
+
     report = {
         "backend": handle.backend,
         "collection": handle.collection,
@@ -342,12 +357,46 @@ async def index_documents(ctx: NodeContext, inputs, config: IndexConfig) -> Node
         "collection_size": await store_call(store.count) if docs else 0,
         "seconds": round(time.perf_counter() - t0, 3),
     }
+    if keyword is not None:
+        report["keyword_indexed"] = keyword_added
+        report["keyword_index_size"] = await store_call(keyword.count)
     usage = None
     if embedded:
         from agenticmind_node_sdk import ModelUsage
 
         usage = ModelUsage(provider=model.provider, model=model.model, input_tokens=tokens)
     return NodeResult(outputs={"report": report}, usage=usage)
+
+
+_INDEX: dict[str, Any] = {
+    "type": "agenticmind.rag.index_documents",
+    "display_name": "Index Documents",
+    "category": "rag",
+    "package": PACKAGE,
+    "inputs": [
+        InputPort(name="documents", type=PortType.DOCUMENT_SET),
+        InputPort(name="model", type=PortType.EMBEDDING_MODEL),
+        InputPort(name="store", type=PortType.VECTOR_STORE_HANDLE),
+    ],
+    "outputs": [OutputPort(name="report", type=PortType.JSON)],
+    "permissions": _STORE_PERMISSIONS,
+    "execution": ExecutionPolicy(timeout_seconds=1800, max_attempts=2, idempotent=True),
+}
+#: 1.1.0 also maintains the BM25 keyword index used by Keyword Search / Hybrid Search.
+index_documents = define_node(
+    **_INDEX,
+    version="1.1.0",
+    description="Embeds chunks into the vector store and keeps a keyword index (unchanged chunks are skipped).",
+    config=IndexConfig,
+    tags=["rag", "ingestion"],
+)(_index_documents)
+index_documents_v1 = define_node(
+    **_INDEX,
+    version="1.0.0",
+    description="Embeds chunks and upserts them into the vector store (unchanged chunks are skipped).",
+    config=IndexConfigV1,
+    tags=["rag", "ingestion", "legacy"],
+)(_index_documents)
 
 
 # -- Retriever ------------------------------------------------------------------------------------
