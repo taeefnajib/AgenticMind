@@ -42,6 +42,19 @@ class Settings:
     local_deploy: bool = field(
         default_factory=lambda: os.environ.get("AGENTICMIND_LOCAL_DEPLOY", "0").lower() in ("1", "true", "yes")
     )
+    #: AI workflow designer (ADR-0022): provider, model and the secret holding its API key.
+    assistant_provider: str = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_ASSISTANT_PROVIDER", "openrouter")
+    )
+    assistant_model: str = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_ASSISTANT_MODEL", "google/gemini-3.8-flash")
+    )
+    assistant_api_key_secret: str = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_ASSISTANT_API_KEY_SECRET", "OPENROUTER_API_KEY")
+    )
+    assistant_base_url: str | None = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_ASSISTANT_BASE_URL") or None
+    )
     #: Optional directory with the built web app, served at ``/`` (single-container deployments).
     web_dist: Path | None = field(
         default_factory=lambda: Path(p) if (p := os.environ.get("AGENTICMIND_WEB_DIST")) else None

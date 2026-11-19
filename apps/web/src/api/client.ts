@@ -1,5 +1,8 @@
 import type {
   AppPreview,
+  AssistantResult,
+  AssistantStatus,
+  AssistantTurn,
   Deployment,
   NodePackage,
   NodePackages,
@@ -114,8 +117,32 @@ export async function apiAlive(): Promise<boolean> {
   }
 }
 
+/** Designing a graph can take a model a minute or more (several repair rounds). */
+export const ASSISTANT_TIMEOUT_MS = 240_000;
+
 export const api = {
   nodes: () => request<NodeManifest[]>("/nodes"),
+  assistantStatus: () => request<AssistantStatus>("/assistant"),
+  async designWorkflow(
+    projectId: string,
+    body: { message: string; history: AssistantTurn[]; document?: ProjectDocument },
+  ): Promise<AssistantResult> {
+    const res = await send(
+      `/api/projects/${projectId}/assistant`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      ASSISTANT_TIMEOUT_MS,
+    );
+    if (!res.ok) {
+      let detail: unknown = undefined;
+      try {
+        detail = (await res.json()).detail;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    return (await res.json()) as AssistantResult;
+  },
   templates: () => request<TemplateInfo[]>("/templates"),
   projects: () => request<ProjectSummary[]>("/projects"),
   createProject: (body: { name: string; description?: string; template?: string; document?: unknown }) =>

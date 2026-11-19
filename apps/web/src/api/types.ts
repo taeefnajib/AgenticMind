@@ -563,3 +563,37 @@ export interface NodePackages {
   packages: NodePackage[];
   skipped_in_environment: string[];
 }
+
+// ---- AI workflow designer (ADR-0022) -------------------------------------------------------------
+export interface AssistantStatus {
+  provider: string;
+  model: string;
+  secret: string | null;
+  configured: boolean;
+}
+
+export interface AssistantChanges {
+  added?: { id: string; type: string }[];
+  removed?: { id: string; type: string }[];
+  modified?: { id: string; type: string }[];
+  edges_added?: number;
+  edges_removed?: number;
+}
+
+export interface AssistantResult {
+  reply: string;
+  document: ProjectDocument | null;
+  changes: AssistantChanges;
+  diagnostics: Diagnostic[];
+  valid: boolean | null;
+  /** No graph errors (environment warnings such as a missing secret allowed). */
+  applicable: boolean;
+  attempts: number;
+  model: string;
+  tokens: number;
+}
+
+export interface AssistantTurn {
+  role: "user" | "assistant";
+  content: string;
+}

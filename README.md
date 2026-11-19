@@ -74,6 +74,10 @@ To query a database in plain language: **New** → *Ask your database*, upload `
 and ask in **Chat**; every answer shows its SQL, which runs read-only. See
 [docs/architecture/semantic.md](docs/architecture/semantic.md).
 
+To design with AI: click the wings button at the bottom of the canvas and describe what you want (e.g. "take
+any question and answer yes or no"). The assistant builds or changes the graph in the selected project,
+validates it, saves it as a new revision and offers Undo. It uses `OPENROUTER_API_KEY`. See ADR-0022.
+
 To add third-party nodes: build a package with `agenticmind-node new|validate|test|pack` (see
 `examples/plugins/acme-text-nodes`), then Node library → **Node packages…** → install the wheel and approve
 its permissions. Package nodes run in isolated worker processes. See

@@ -31,6 +31,7 @@ import type {
   TemplateInfo,
   TraceEvent,
 } from "./api/types";
+import { AiAssistant } from "./components/AiAssistant";
 import { AmNode } from "./components/AmNode";
 import type { ChatResult } from "./components/ChatPanel";
 import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
@@ -452,6 +453,25 @@ export function App() {
 
   const ensureSaved = useCallback(async () => !dirty || Boolean(await save()), [dirty, save]);
 
+  /** AI designer: save a proposed graph as the next revision and load it onto the canvas (ADR-0022). */
+  const applyAssistantDocument = useCallback(
+    async (doc: ProjectDocument): Promise<ProjectOut | null> => {
+      if (!project) return null;
+      try {
+        const saved = await api.saveProject(project.id, doc, project.revision);
+        applyProject(saved);
+        await refreshProjects();
+        notify(`AI change saved as revision ${saved.revision}`, "success");
+        return saved;
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409) notify("This project changed elsewhere. Reload it first.", "error");
+        else reportError("Could not apply the AI change", err);
+        return null;
+      }
+    },
+    [project, applyProject, refreshProjects, notify, reportError],
+  );
+
   const selectProject = useCallback(
     async (id: string) => {
       if (dirty) await save();
@@ -688,6 +708,15 @@ export function App() {
                 <Controls position="bottom-left" />
                 <MiniMap pannable zoomable position="bottom-right" className="!bg-surface" />
               </ReactFlow>
+              <AiAssistant
+                projectId={project?.id ?? null}
+                projectName={meta.name}
+                empty={nodes.length === 0}
+                disabled={Boolean(apiDown)}
+                getDocument={currentDocument}
+                onApply={applyAssistantDocument}
+                onNewBlankProject={() => createProject("Untitled workflow", null)}
+              />
             </div>
             <ConsolePanel
               tab={consoleTab}

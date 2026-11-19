@@ -124,6 +124,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   node with health, token and semantic-layer readiness checks; Term Search, Term Details, Ontology Context
   (grounds NL-to-SQL), Ask Auto Ontology (streamed, SQL + rows in Chat), Auto Ontology Tool for agents;
   pinned commit with a vendored OpenAPI subset and contract tests; *Ask Auto Ontology* template.
+- **AI workflow designer** (ADR-0022): wings launcher on the canvas opens a chat over a blurred backdrop;
+  natural-language requests become whole-graph proposals validated with the editor's pipeline (up to 3
+  repair rounds), applied as a new revision with Undo; works on blank and existing projects.
 - **Node library hover cards**: description, ports, branches and permissions on hover or focus.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
@@ -164,6 +167,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Node packages: one process per invocation (~0.3–0.6 s); no OS-level network/filesystem enforcement on
   Windows workers (container workers next); no package signing (`verified` reserved); package nodes cannot
   use project files or memory, provide agent tools, or be exported in standalone apps yet.
+- AI designer: replies carry the whole graph (fine for small/medium graphs); validity is structural, not
+  semantic; chat threads are per browser session only.
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI (neither for the platform nor for exported apps).
 - Exported apps: human-approval pauses answer 409, memory is in process, rate limits are per process; endpoints

@@ -23,5 +23,6 @@
 | [0019](0019-auto-ontology-adapter.md) | NVIDIA Auto Ontology adapter: pinned commit, contract tests, capability checks | Accepted |
 | [0020](0020-deployment-center.md) | Deployment Center: capability checks, hash-bound plans, local Docker deploy, rollback | Accepted |
 | [0021](0021-node-packages-isolated-workers.md) | Node packages: installed wheels, isolated workers, approved permissions, SDK CLI | Accepted |
+| [0022](0022-ai-workflow-designer.md) | AI workflow designer: validated whole-graph proposals, repair loop, revision + undo | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

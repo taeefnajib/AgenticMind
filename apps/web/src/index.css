@@ -70,3 +70,136 @@ body {
 .am-running {
   animation: am-pulse 1.4s ease-in-out infinite;
 }
+
+/* ---- AI workflow designer: wings flap, blurred backdrop, pop-out panel -------------------------- */
+.am-wing {
+  transform-box: view-box;
+}
+.am-wing-l {
+  transform-origin: 22px 24px;
+}
+.am-wing-r {
+  transform-origin: 26px 24px;
+}
+
+@keyframes am-flap-l {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(-30deg) scaleX(0.92);
+  }
+  45% {
+    transform: rotate(22deg) scaleX(0.86);
+  }
+  70% {
+    transform: rotate(-16deg);
+  }
+}
+
+@keyframes am-flap-r {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20% {
+    transform: rotate(30deg) scaleX(0.92);
+  }
+  45% {
+    transform: rotate(-22deg) scaleX(0.86);
+  }
+  70% {
+    transform: rotate(16deg);
+  }
+}
+
+.am-flap .am-wing-l {
+  animation: am-flap-l 0.72s ease-in-out;
+}
+.am-flap .am-wing-r {
+  animation: am-flap-r 0.72s ease-in-out;
+}
+.am-fly .am-wing-l {
+  animation: am-flap-l 1.1s ease-in-out infinite;
+}
+.am-fly .am-wing-r {
+  animation: am-flap-r 1.1s ease-in-out infinite;
+}
+
+@keyframes am-launch {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  40% {
+    transform: translateY(-10px) scale(1.12);
+  }
+  100% {
+    transform: translateY(-4px) scale(1.18);
+    opacity: 0.85;
+  }
+}
+.am-launch {
+  animation: am-launch 0.72s ease-out forwards;
+}
+
+@keyframes am-backdrop-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes am-backdrop-out {
+  to {
+    opacity: 0;
+  }
+}
+.am-backdrop-in {
+  animation: am-backdrop-in 0.25s ease-out;
+}
+.am-backdrop-out {
+  animation: am-backdrop-out 0.2s ease-in forwards;
+}
+
+@keyframes am-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(45%) scale(0.2);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(-1%) scale(1.02);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes am-pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(35%) scale(0.3);
+  }
+}
+.am-pop-in {
+  transform-origin: 50% 100%;
+  animation: am-pop-in 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.am-pop-out {
+  transform-origin: 50% 100%;
+  animation: am-pop-out 0.2s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .am-flap .am-wing,
+  .am-fly .am-wing,
+  .am-launch,
+  .am-backdrop-in,
+  .am-backdrop-out,
+  .am-pop-in,
+  .am-pop-out {
+    animation: none !important;
+  }
+}

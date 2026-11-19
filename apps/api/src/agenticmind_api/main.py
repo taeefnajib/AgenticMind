@@ -19,6 +19,7 @@ from .eval_manager import EvaluationManager
 from .eval_store import EvalStore
 from .memory_store import SqlMemoryStore
 from .plugin_manager import PluginManager
+from .routers import assistant as assistant_routes
 from .routers import deployments as deployment_routes
 from .routers import evaluations as evaluation_routes
 from .routers import files, nodes, plugins, projects, runs
@@ -135,6 +136,7 @@ def create_app(
     app.include_router(evaluation_routes.router)
     app.include_router(deployment_routes.router)
     app.include_router(plugins.router)
+    app.include_router(assistant_routes.router)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app
