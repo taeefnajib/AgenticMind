@@ -35,11 +35,12 @@ validation.
   `..._BASE_URL`. `GET /api/assistant` reports the model and whether the key is configured (never its
   value). Generated LLM nodes reference secrets by name only.
 - **UI:**
-  - a round launcher centred at the bottom of the canvas: white sparkles on the logo's purple-to-magenta
-    gradient (`.am-brand-gradient`: #6b1bfd → #8a1dfc → #fd22c4) with a soft glow. The same gradient is used
-    for the header mark, user messages and Send;
-  - clicking it makes the sparkles blink (staggered), then the chat pops out from the launcher over a
-    blurred backdrop; the sparkles keep twinkling while the assistant works;
+  - a round "Build with AI" launcher floating in the bottom-right corner above the whole app: white
+    sparkles on the logo's purple-to-magenta gradient (`.am-brand-gradient`: #6b1bfd → #8a1dfc → #fd22c4)
+    with a soft glow. The same gradient is used for the header mark, user messages and Send;
+  - hovering makes the sparkles blink once; clicking warms the circle to the logo's red end
+    (#fd22c4 → #fd2079 → #fd3536 → #fd4216), turns the sparkles gold and blinks them, then the chat pops out
+    of that corner over a blurred backdrop; the sparkles keep twinkling while the assistant works;
   - replies render as markdown;
   - Esc or a backdrop click closes it, and reduced-motion preferences disable the animations;
   - threads are kept per project for the session; there is also a **New blank project** shortcut.

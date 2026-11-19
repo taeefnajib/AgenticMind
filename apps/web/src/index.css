@@ -79,6 +79,7 @@ body {
 
 .am-launcher {
   position: relative;
+  color: #fff;
   box-shadow:
     0 10px 28px -8px rgba(107, 27, 253, 0.55),
     0 4px 12px -4px rgba(253, 34, 196, 0.35),
@@ -121,6 +122,65 @@ body {
 .am-spark {
   transform-box: fill-box;
   transform-origin: center;
+}
+
+/* click: the circle warms towards the logo's red end and the sparkles turn gold */
+.am-launcher-warm {
+  background-image: linear-gradient(135deg, #fd22c4 0%, #fd2079 40%, #fd3536 75%, #fd4216 100%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.am-launcher-icon {
+  transition: color 0.25s ease;
+}
+.am-launcher-active .am-launcher-warm {
+  opacity: 1;
+}
+.am-launcher-active .am-launcher-icon {
+  color: #ffd84a;
+  filter: drop-shadow(0 0 4px rgba(255, 216, 74, 0.6));
+}
+.am-launcher-active {
+  box-shadow:
+    0 12px 30px -8px rgba(253, 53, 54, 0.6),
+    0 5px 14px -4px rgba(253, 66, 22, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* hover: the sparkles blink once each time the pointer arrives */
+.am-launcher:hover:not(:disabled) .am-spark {
+  animation: am-blink 0.55s ease-in-out both;
+}
+.am-launcher:hover:not(:disabled) .am-spark-2 {
+  animation-delay: 0.08s;
+}
+.am-launcher:hover:not(:disabled) .am-spark-3 {
+  animation-delay: 0.14s;
+}
+/* click: blink again (a separate keyframe name so it replays even right after the hover blink) */
+@keyframes am-blink-click {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  30% {
+    opacity: 0.15;
+    transform: scale(0.35) rotate(25deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.18) rotate(0deg);
+  }
+}
+.am-launcher.am-launcher-active:not(:disabled) .am-spark {
+  animation: am-blink-click 0.55s ease-in-out both;
+}
+.am-launcher.am-launcher-active:not(:disabled) .am-spark-2 {
+  animation-delay: 0.08s;
+}
+.am-launcher.am-launcher-active:not(:disabled) .am-spark-3 {
+  animation-delay: 0.14s;
 }
 
 /* one blink: each sparkle flashes and shrinks in turn, then pops back */
@@ -211,11 +271,11 @@ body {
 @keyframes am-pop-in {
   0% {
     opacity: 0;
-    transform: translateY(45%) scale(0.2);
+    transform: translate(8%, 12%) scale(0.12);
   }
   65% {
     opacity: 1;
-    transform: translateY(-1%) scale(1.02);
+    transform: scale(1.02);
   }
   100% {
     transform: none;
@@ -224,21 +284,23 @@ body {
 @keyframes am-pop-out {
   to {
     opacity: 0;
-    transform: translateY(35%) scale(0.3);
+    transform: translate(8%, 12%) scale(0.15);
   }
 }
 .am-pop-in {
-  transform-origin: 50% 100%;
+  transform-origin: 100% 100%;
   animation: am-pop-in 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 .am-pop-out {
-  transform-origin: 50% 100%;
+  transform-origin: 100% 100%;
   animation: am-pop-out 0.2s ease-in forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .am-blink .am-spark,
   .am-twinkle .am-spark,
+  .am-launcher:hover .am-spark,
+  .am-launcher-active .am-spark,
   .am-launcher::before,
   .am-launch,
   .am-backdrop-in,

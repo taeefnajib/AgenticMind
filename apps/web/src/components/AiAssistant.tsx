@@ -184,28 +184,30 @@ export function AiAssistant({ projectId, projectName, empty, disabled, getDocume
 
   return (
     <>
-      <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
+      {/* floats over everything in the bottom-right corner, like a chat bubble */}
+      <div className="pointer-events-none fixed bottom-6 right-6 z-40">
         <button
           type="button"
           onClick={open}
           disabled={disabled || !projectId}
-          aria-label="Design with AI"
+          aria-label="Build with AI"
           aria-expanded={showDialog}
-          title="Design with AI"
-          className={`am-launcher am-brand-gradient group pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-accent-400/60 disabled:cursor-not-allowed disabled:opacity-50 ${
-            phase === "flapping" ? "am-launch" : ""
+          className={`am-launcher am-brand-gradient group pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-accent-400/60 disabled:cursor-not-allowed disabled:opacity-50 ${
+            phase === "flapping" ? "am-launch am-launcher-active" : ""
           } ${showDialog ? "invisible" : ""}`}
         >
-          <SparklesIcon className="h-7 w-7" state={phase === "flapping" ? "blink" : undefined} />
-          <span className="pointer-events-none absolute bottom-full mb-2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-slate-50 opacity-0 shadow transition group-hover:opacity-100">
-            Design with AI
+          {/* the logo's warm end (magenta → red → orange), faded in on click */}
+          <span className="am-launcher-warm pointer-events-none absolute inset-0 rounded-full" aria-hidden="true" />
+          <SparklesIcon className="am-launcher-icon relative h-7 w-7" state={phase === "flapping" ? "blink" : undefined} />
+          <span className="pointer-events-none absolute bottom-full right-0 mb-2.5 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-slate-50 opacity-0 shadow transition group-hover:opacity-100 group-focus-visible:opacity-100">
+            Build with AI
           </span>
         </button>
       </div>
 
       {showDialog && (
         <div
-          className={`fixed inset-0 z-50 flex items-end justify-center bg-slate-900/25 p-4 backdrop-blur-md sm:items-center ${
+          className={`fixed inset-0 z-50 flex items-end justify-center bg-slate-900/25 p-4 backdrop-blur-md sm:justify-end sm:p-6 ${
             phase === "closing" ? "am-backdrop-out" : "am-backdrop-in"
           }`}
           onMouseDown={(e) => {
