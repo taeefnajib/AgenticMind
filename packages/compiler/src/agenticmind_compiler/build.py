@@ -24,7 +24,16 @@ from agenticmind_registry import NodeRegistry
 
 from . import render
 from .checks import format_sources
-from .spec import Endpoint, artifact_ids, build_endpoints, example_request, request_schema, response_schema, slug
+from .spec import (
+    CompileError,
+    Endpoint,
+    artifact_ids,
+    build_endpoints,
+    example_request,
+    request_schema,
+    response_schema,
+    slug,
+)
 from .vendor import closure, pins, vendor_files
 
 COMPILER_NAME = "agenticmind-compiler"
@@ -145,6 +154,16 @@ def compile_project(
     doc: ProjectDocument, registry: NodeRegistry, *, artifacts: Any = None, version: str = "0.1.0"
 ) -> CompileResult:
     """``artifacts``: optional ``ArtifactStore`` (``scoped(project_id)`` → reader) to bundle uploaded files."""
+    plugin_nodes = [
+        {"node_id": n.id, "message": f"'{n.type}' comes from the plugin package '{e.source}'"}
+        for n in doc.nodes
+        if (e := registry.get(n.type, n.version)) is not None and e.isolated
+    ]
+    if plugin_nodes:  # plugins run in AgenticMind's isolated workers; the standalone app has none yet
+        raise CompileError(
+            "Graphs that use installed node packages (plugins) cannot be exported as standalone apps yet",
+            plugin_nodes,
+        )
     endpoints = build_endpoints(doc, registry)
     req = analyze(doc, registry, endpoints)
     warnings: list[str] = list(req["notes"])

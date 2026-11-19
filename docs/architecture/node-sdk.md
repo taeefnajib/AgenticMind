@@ -186,6 +186,36 @@ def register(registrar):
         registrar(d)
 ```
 
-The registry assigns **trust** from the distribution, never from the package: `agenticmind-nodes-core` is
-`core`; everything else is `community`. Only `core` runs in-process today (ADR-0004); operators can opt
-other levels in with `AGENTICMIND_IN_PROCESS_TRUST` at their own risk.
+The registry assigns **trust** from the distribution, never from the package: the built-in
+`agenticmind-nodes-*` distributions are `core`. Everything else is a **node package** (plugin): installed
+from a wheel into its own folder, never imported into the platform, and run in an isolated worker once an
+operator approves its permissions (ADR-0021). Non-core packages pip-installed into the platform's own
+environment are not loaded unless the operator opts in with `AGENTICMIND_IN_PROCESS_TRUST` (at their own
+risk).
+
+## Building a node package (third party)
+
+```
+agenticmind-node new acme-text-nodes --namespace acme   # scaffold: package, example node, tests, README
+agenticmind-node validate acme-text-nodes                # contracts: namespace, semver, description, permissions, tests
+agenticmind-node test acme-text-nodes                    # pytest with agenticmind_node_sdk.testing
+agenticmind-node pack acme-text-nodes                    # validate + build dist/*.whl
+```
+
+Then in AgenticMind: Node library → **Node packages…** → **Install from .whl** → **Review & approve**.
+The working example is `examples/plugins/acme-text-nodes`. To test exactly as the platform runs it
+(built wheel, own folder, isolated worker), use `agenticmind_plugins.testing.build_wheel` and
+`install_isolated`.
+
+Rules for packages:
+- Node types use your own namespace (`acme.…`, at least three segments); `agenticmind.` is reserved.
+- Distribution names starting with `agenticmind` are reserved; `agenticmind-*` dependencies come from the
+  host and are not installed again.
+- Declare every permission a node uses. Available to packages: `network`, `credentials`, `filesystem` (a
+  storage folder per package), `subprocess`, `database`. Not yet: `artifacts`, `memory` (they need host
+  services).
+- Each invocation is a fresh process:
+  - inputs, config, the run input and outputs travel as JSON;
+  - `ctx.emit` events are replayed into the trace;
+  - the timeout comes from `ExecutionPolicy`.
+- Exporting a graph that uses package nodes as a standalone app is not supported yet.

@@ -17,6 +17,7 @@ dependencies = [
     "agenticmind-nodes-semantic[postgres]",
     "agenticmind-compiler",
     "agenticmind-deployment",
+    "agenticmind-plugins",
     "agenticmind-evaluation",
     "agenticmind-api",
 ]
@@ -49,6 +50,7 @@ agenticmind-nodes-agents = { workspace = true }
 agenticmind-nodes-semantic = { workspace = true }
 agenticmind-compiler = { workspace = true }
 agenticmind-deployment = { workspace = true }
+agenticmind-plugins = { workspace = true }
 agenticmind-evaluation = { workspace = true }
 agenticmind-api = { workspace = true }
 

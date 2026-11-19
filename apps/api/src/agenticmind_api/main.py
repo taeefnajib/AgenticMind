@@ -18,9 +18,10 @@ from .deps import Services
 from .eval_manager import EvaluationManager
 from .eval_store import EvalStore
 from .memory_store import SqlMemoryStore
+from .plugin_manager import PluginManager
 from .routers import deployments as deployment_routes
 from .routers import evaluations as evaluation_routes
-from .routers import files, nodes, projects, runs
+from .routers import files, nodes, plugins, projects, runs
 from .routers import memory as memory_routes
 from .run_manager import RunManager
 from .settings import Settings
@@ -65,6 +66,15 @@ def create_app(
         max_concurrency=settings.max_concurrency,
     )
 
+    plugins_manager = PluginManager(session_factory, registry, data_dir=settings.data_dir)
+    loaded = plugins_manager.load_all()  # from stored manifests: no plugin code runs in this process
+    if loaded:
+        log.info("registered %d node package(s) as isolated plugins", loaded)
+    if registry.skipped:
+        log.warning(
+            "not loading non-core node packages from this environment (install them as plugins instead): %s",
+            ", ".join(sorted(set(registry.skipped))),
+        )
     deployments = DeploymentManager(
         store,
         DeploymentStore(session_factory),
@@ -108,6 +118,7 @@ def create_app(
         evals=evals,
         eval_runs=eval_runs,
         deployments=deployments,
+        plugins=plugins_manager,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -123,6 +134,7 @@ def create_app(
     app.include_router(memory_routes.router)
     app.include_router(evaluation_routes.router)
     app.include_router(deployment_routes.router)
+    app.include_router(plugins.router)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app

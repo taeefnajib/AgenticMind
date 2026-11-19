@@ -20,7 +20,13 @@ def health(svc: Services = Depends(services)) -> dict[str, Any]:
 def list_nodes(svc: Services = Depends(services)) -> list[dict[str, Any]]:
     """All installed node manifests with registry trust metadata."""
     return [
-        {**entry.manifest.model_dump(mode="json"), "trust": entry.trust.value, "source": entry.source}
+        {
+            **entry.manifest.model_dump(mode="json"),
+            "trust": entry.trust.value,
+            "source": entry.source,
+            "isolated": entry.isolated,
+            "permitted": entry.permitted,
+        }
         for entry in svc.registry.entries()
     ]
 

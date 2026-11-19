@@ -282,6 +282,12 @@ async def test_third_party_tool_discovery(monkeypatch):
 
     monkeypatch.setattr(md, "entry_points", lambda group: eps if group == "agenticmind.tools" else [])
     try:
+        # by default non-core packages are not imported into the platform process (ADR-0021)
+        monkeypatch.delenv("AGENTICMIND_IN_PROCESS_TRUST", raising=False)
+        assert tools_mod.discover_third_party_tools(refresh=True) == {}
+        assert "not a core package" in " | ".join(tools_mod.DISCOVERY_PROBLEMS)
+        # an operator can opt in to in-process execution of community code
+        monkeypatch.setenv("AGENTICMIND_IN_PROCESS_TRUST", "core,community")
         found = tools_mod.discover_third_party_tools(refresh=True)
         assert set(found) == {"acme_weather"} and found["acme_weather"][1] == "acme-tools"
         problems = " | ".join(tools_mod.DISCOVERY_PROBLEMS)

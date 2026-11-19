@@ -65,9 +65,9 @@ DISCOVERY_PROBLEMS: list[str] = []
 def discover_third_party_tools(*, refresh: bool = False) -> dict[str, tuple[ToolFn, str]]:
     """Load tool implementations from installed packages: ``{tool_type: (fn, distribution)}``.
 
-    Built-in tool types can never be overridden. A third-party implementation is only reachable through
-    a handle produced by a tool *node*, and non-core nodes are refused by validation unless the operator
-    trusts them for in-process execution (ADR-0004), so discovery does not widen what can run.
+    Built-in tool types can never be overridden. Only core distributions are imported, unless the operator
+    opted in to in-process execution of other trust levels (ADR-0004, ADR-0021): importing a package runs its
+    code, so third-party tools are not loaded into this process.
     """
     global _third_party
     if _third_party is not None and not refresh:
@@ -77,8 +77,13 @@ def discover_third_party_tools(*, refresh: bool = False) -> dict[str, tuple[Tool
 
     found: dict[str, tuple[ToolFn, str]] = {}
     DISCOVERY_PROBLEMS.clear()
+    from agenticmind_node_sdk.trust import may_load_in_process
+
     for ep in entry_points(group=TOOL_ENTRY_POINT_GROUP):
         dist = ep.dist.name if ep.dist is not None else "unknown"
+        if not may_load_in_process(dist):  # importing would run third-party code in this process
+            DISCOVERY_PROBLEMS.append(f"{dist}: not a core package; its tools are not loaded in-process")
+            continue
         if ep.name in TOOL_IMPLEMENTATIONS:
             DISCOVERY_PROBLEMS.append(f"{dist}: tool type '{ep.name}' is built in and cannot be replaced")
             continue

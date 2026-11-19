@@ -134,7 +134,18 @@ def validate_document(
                     message=f"{node.type}@{node.version} does not support IR {IR_VERSION}",
                 )
             )
-        if entry.trust not in in_process_trust:
+        if entry.isolated:
+            if not entry.permitted:
+                add(
+                    Diagnostic(
+                        code=Code.NODE_NOT_PERMITTED,
+                        node_id=node.id,
+                        message=f"'{node.type}' comes from the plugin package '{entry.source}', whose permissions "
+                        "have not been approved",
+                        hint="Review and approve the package under Node packages (ADR-0021).",
+                    )
+                )
+        elif entry.trust not in in_process_trust:
             add(
                 Diagnostic(
                     code=Code.NODE_ISOLATION_UNAVAILABLE,

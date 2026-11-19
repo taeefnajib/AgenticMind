@@ -60,6 +60,10 @@ export interface NodeManifest {
   tags: string[];
   trust: string;
   source: string;
+  /** Installed node package (plugin): runs in an isolated worker process (ADR-0021). */
+  isolated?: boolean;
+  /** For plugins: whether the package's permissions were approved. */
+  permitted?: boolean;
 }
 
 export interface IRNode {
@@ -537,4 +541,25 @@ export interface DeployRequest {
   profile: string;
   env: Record<string, string>;
   image: string;
+}
+
+// ---- Node packages (ADR-0021) ---------------------------------------------------------------------
+export interface NodePackage {
+  name: string;
+  version: string;
+  sha256: string;
+  summary: string;
+  trust: "community" | "private";
+  status: "pending" | "approved" | "disabled";
+  requested: string[];
+  granted: string[];
+  unsupported: string[];
+  nodes: { type: string; version: string; display_name: string; description: string; permissions: string[] }[];
+  installed_at: string | null;
+  approved_at: string | null;
+}
+
+export interface NodePackages {
+  packages: NodePackage[];
+  skipped_in_environment: string[];
 }

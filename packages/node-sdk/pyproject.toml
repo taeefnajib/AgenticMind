@@ -5,6 +5,9 @@ description = "AgenticMind Node SDK: typed port system, node manifests, handler 
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.7,<3", "agenticmind-ir"]
 
+[project.scripts]
+agenticmind-node = "agenticmind_node_sdk.cli:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

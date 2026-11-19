@@ -21,6 +21,7 @@ members = [
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",
     "agenticmind-nodes-semantic",
+    "agenticmind-plugins",
     "agenticmind-providers",
     "agenticmind-registry",
     "agenticmind-runtime",
@@ -43,6 +44,7 @@ dependencies = [
     { name = "agenticmind-nodes-data" },
     { name = "agenticmind-nodes-rag" },
     { name = "agenticmind-nodes-semantic" },
+    { name = "agenticmind-plugins" },
     { name = "agenticmind-providers", extra = ["local"] },
     { name = "agenticmind-registry" },
     { name = "agenticmind-runtime" },
@@ -71,6 +73,7 @@ requires-dist = [
     { name = "agenticmind-nodes-data", editable = "nodes/data" },
     { name = "agenticmind-nodes-rag", editable = "nodes/rag" },
     { name = "agenticmind-nodes-semantic", editable = "nodes/semantic" },
+    { name = "agenticmind-plugins", editable = "packages/plugins" },
     { name = "agenticmind-providers", extras = ["local"], editable = "packages/providers" },
     { name = "agenticmind-registry", editable = "packages/node-registry" },
     { name = "agenticmind-runtime", editable = "packages/runtime" },
@@ -274,6 +277,25 @@ requires-dist = [
 provides-extras = ["postgres"]
 
 [[package]]
+name = "agenticmind-plugins"
+version = "0.1.0"
+source = { editable = "packages/plugins" }
+dependencies = [
+    { name = "agenticmind-ir" },
+    { name = "agenticmind-node-sdk" },
+    { name = "agenticmind-registry" },
+    { name = "jsonschema" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agenticmind-ir", editable = "packages/ir" },
+    { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
+    { name = "agenticmind-registry", editable = "packages/node-registry" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
+]
+
+[[package]]
 name = "agenticmind-providers"
 version = "0.1.0"
 source = { editable = "packages/providers" }
@@ -373,6 +395,7 @@ dependencies = [
     { name = "agenticmind-nodes-data" },
     { name = "agenticmind-nodes-rag" },
     { name = "agenticmind-nodes-semantic", extra = ["postgres"] },
+    { name = "agenticmind-plugins" },
     { name = "agenticmind-providers", extra = ["local"] },
     { name = "agenticmind-registry" },
     { name = "agenticmind-runtime" },
@@ -400,6 +423,7 @@ requires-dist = [
     { name = "agenticmind-nodes-data", editable = "nodes/data" },
     { name = "agenticmind-nodes-rag", editable = "nodes/rag" },
     { name = "agenticmind-nodes-semantic", extras = ["postgres"], editable = "nodes/semantic" },
+    { name = "agenticmind-plugins", editable = "packages/plugins" },
     { name = "agenticmind-providers", extras = ["local"], editable = "packages/providers" },
     { name = "agenticmind-registry", editable = "packages/node-registry" },
     { name = "agenticmind-runtime", editable = "packages/runtime" },

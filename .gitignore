@@ -24,3 +24,6 @@ apps/web/.tsbuild/
 Thumbs.db
 .idea/
 .vscode/
+
+# built node-package wheels (rebuild with `agenticmind-node pack`)
+examples/plugins/*/dist/

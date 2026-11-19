@@ -36,6 +36,7 @@ import type { ChatResult } from "./components/ChatPanel";
 import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
 import { EvaluationLab } from "./components/EvaluationLab";
 import { DeploymentCenter } from "./components/DeploymentCenter";
+import { NodePackages } from "./components/NodePackages";
 import { ExportAppDialog } from "./components/ExportAppDialog";
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
@@ -111,6 +112,7 @@ export function App() {
   const [approvalCount, setApprovalCount] = useState(0);
   const [exportAppOpen, setExportAppOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
+  const [packagesOpen, setPackagesOpen] = useState(false);
   const [evalOpen, setEvalOpen] = useState(false);
   const [runInputs, setRunInputs] = useState<Record<string, JsonValue>>({});
   const [mode, setModeState] = useState<Mode>(() => (storage.get("am.mode") as Mode) || "low_code");
@@ -236,7 +238,7 @@ export function App() {
     }, 400);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [changeTick, project?.id, manifestList.length]);
+  }, [changeTick, project?.id, manifestList]); // re-validate when node packages change (approval, disable)
 
   // ---- project files ------------------------------------------------------------------------
   const projectId = project?.id ?? null;
@@ -658,7 +660,12 @@ export function App() {
           onTheme={theme.setPreference}
         />
         <div className="flex min-h-0 flex-1">
-          <NodeLibrary manifests={manifestList} mode={mode} onAdd={(m) => addNode(m)} />
+          <NodeLibrary
+            manifests={manifestList}
+            mode={mode}
+            onAdd={(m) => addNode(m)}
+            onManagePackages={() => setPackagesOpen(true)}
+          />
           <main className="flex min-w-0 flex-1 flex-col">
             <div className="relative min-h-0 flex-1" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
               {apiDown && <ApiDownBanner reason={apiDown} onRetry={() => void loadWorkspace()} />}
@@ -743,6 +750,12 @@ export function App() {
         projectId={project?.id ?? null}
         ensureSaved={ensureSaved}
         onClose={() => setExportAppOpen(false)}
+        notify={notify}
+      />
+      <NodePackages
+        open={packagesOpen}
+        onClose={() => setPackagesOpen(false)}
+        onChanged={() => void api.nodes().then(setManifestList, () => undefined)}
         notify={notify}
       />
       <DeploymentCenter

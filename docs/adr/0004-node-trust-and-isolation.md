@@ -14,3 +14,7 @@ in-process: nodes may resolve only secrets referenced in their own config, and o
 permissions are declared but not OS-enforced in-process.
 
 **Revisit when.** Docker-based node workers land (planned before M9).
+
+**Update (M9).** Superseded in part by ADR-0021: third-party nodes now run as installed packages in
+isolated worker processes with approved permissions, and non-core packages in the host environment are no
+longer imported by default.

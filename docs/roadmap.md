@@ -13,7 +13,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M6 Agent Lab | **Done (core)**: tools + Agent, loops/router/join, memory, checkpoints/approval/resume, multi-agent patterns (8a–8e) |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | **Done**: M7a database nodes (connector, schema inspector, profiler, read-only SQL policy, NL-to-SQL, SQL tool); M7b Auto Ontology adapter (pinned commit `778ccde`, OpenAPI 1.3.0 contract tests, capability checks, verified live) |
 | M8 Deployment Center | **Done (first slice)**: capability checks for 7 targets, dev/prod/enterprise profiles, Compose/Kubernetes/Cloud Run artifacts, hash-bound confirmation, local Docker deploy with health, switch-over and rollback; AWS/Azure/Vercel plan-only |
-| M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
+| M9 Ecosystem | **Done (first slice)**: `agenticmind-node` CLI (new/validate/test/pack), node packages installed from wheels into their own folder and run in isolated worker processes, approval of exact permissions (NODE_NOT_PERMITTED until approved), trust levels, import/export of wheels, Node packages UI |
 
 ## Implemented
 
@@ -107,6 +107,13 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   policy *and* read-only connections; SQLite uploads (content-addressed copies) and PostgreSQL (dsn secret);
   chat shows the SQL and rows; sample `examples/data/sales.sqlite`; *Ask your database* template.
   Verified live with Gemini against independently computed answers.
+- **M9 – Ecosystem**: third-party node packages end to end. The `agenticmind-node` CLI scaffolds,
+  validates, tests and packs a package (lint-clean scaffold with tests); the platform installs the wheel into its own
+  folder without importing it, reads manifests in an isolated worker, and runs every invocation in a fresh
+  worker process (scrubbed environment, own directory, only the node's own secrets, storage only with
+  `filesystem`, network guard, timeout). Packages need an approval of exactly their requested permissions;
+  new versions need re-approval; disable/enable/remove/download. Non-core packages in the host environment
+  and their agent tools are no longer imported in-process by default. Example: `examples/plugins/acme-text-nodes`.
 - **M8 – Deployment Center**: `agenticmind-deployment` derives requirements (persistent data, in-process
   state, longest request, local models, secrets) and checks them against Local Docker, Docker server,
   Kubernetes, Cloud Run, AWS ECS, Azure Container Apps and Vercel (cited vendor limits); profiles;
@@ -154,6 +161,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Deployment: no direct cloud provisioning yet (guided files or plan only); AWS/Azure/Vercel artifacts not
   generated; no built-in image scanning; Kubernetes/Cloud Run manifests validated structurally (Kustomize
   build), not against a live cluster; local deploy needs AGENTICMIND_LOCAL_DEPLOY=1 (no API auth yet).
+- Node packages: one process per invocation (~0.3–0.6 s); no OS-level network/filesystem enforcement on
+  Windows workers (container workers next); no package signing (`verified` reserved); package nodes cannot
+  use project files or memory, provide agent tools, or be exported in standalone apps yet.
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI (neither for the platform nor for exported apps).
 - Exported apps: human-approval pauses answer 409, memory is in process, rate limits are per process; endpoints
@@ -161,8 +171,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. **M9 – Ecosystem**: node SDK packaging, registry with trust levels, installing and permissioning a
-   third-party node package end to end (blueprint exit: developed, tested, installed and permissioned).
+1. Version history panel and visual diff of revisions; MCP client tools and an MCP Server node (both
+   requested in the blueprint, not yet built).
 2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
 3. AuthN/Z, workspaces, audit log; Alembic migrations.
-4. Revision history UI and diff view (canonical IR makes this straightforward).

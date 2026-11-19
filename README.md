@@ -74,6 +74,11 @@ To query a database in plain language: **New** → *Ask your database*, upload `
 and ask in **Chat**; every answer shows its SQL, which runs read-only. See
 [docs/architecture/semantic.md](docs/architecture/semantic.md).
 
+To add third-party nodes: build a package with `agenticmind-node new|validate|test|pack` (see
+`examples/plugins/acme-text-nodes`), then Node library → **Node packages…** → install the wheel and approve
+its permissions. Package nodes run in isolated worker processes. See
+[docs/architecture/node-sdk.md](docs/architecture/node-sdk.md) and ADR-0021.
+
 To deploy a project: **Deploy** checks it against Local Docker, a Docker server, Kubernetes, Cloud Run, AWS,
 Azure and Vercel, shows the plan, and after you confirm deploys locally (opt-in) or generates the files;
 history keeps health and rollback. See [docs/architecture/deployment.md](docs/architecture/deployment.md).

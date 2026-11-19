@@ -134,6 +134,7 @@ A waiting run's SSE stream ends with `event: end` (status `waiting`); clients re
 | `NODE_UNKNOWN_VERSION` | error | Type installed but not that version (`hint` lists available) |
 | `NODE_INCOMPATIBLE_IR` | error | Node package does not support this IR version |
 | `NODE_ISOLATION_UNAVAILABLE` | error | Node's trust level requires isolation not provided by this runtime |
+| `NODE_NOT_PERMITTED` | error | Node comes from a plugin package whose permissions have not been approved (ADR-0021) |
 | `CONFIG_INVALID` | error | Config fails the node's schema |
 | `EDGE_UNKNOWN_NODE` | error | Edge references a missing node |
 | `EDGE_UNKNOWN_PORT` | error | Missing data port or control branch |

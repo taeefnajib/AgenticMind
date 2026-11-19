@@ -103,6 +103,12 @@ export function NodeHoverCard({ manifest, top, left }: { manifest: NodeManifest;
           ))}
         </div>
       )}
+      {manifest.isolated && (
+        <div className={`mt-2 rounded px-1.5 py-1 text-[11px] ${manifest.permitted ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-900"}`}>
+          From the package <span className="font-mono">{manifest.source}</span> ({manifest.trust}); runs in an isolated worker.
+          {!manifest.permitted && " Its permissions are not approved yet, so graphs using it won't run."}
+        </div>
+      )}
       <div className="mt-2 border-t border-slate-100 pt-1.5 font-mono text-[10px] text-slate-400">
         {manifest.type}@{manifest.version} · click to add, or drag onto the canvas
       </div>
@@ -114,9 +120,10 @@ interface Props {
   manifests: NodeManifest[];
   mode: Mode;
   onAdd: (manifest: NodeManifest) => void;
+  onManagePackages?: () => void;
 }
 
-export function NodeLibrary({ manifests, mode, onAdd }: Props) {
+export function NodeLibrary({ manifests, mode, onAdd, onManagePackages }: Props) {
   const [query, setQuery] = useState("");
   const [hover, setHover] = useState<{ manifest: NodeManifest; top: number; left: number } | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -201,7 +208,16 @@ export function NodeLibrary({ manifests, mode, onAdd }: Props) {
               >
                 <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: categoryStyle(m.category).color }} />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-slate-800">{m.display_name}</span>
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-slate-800">
+                    {m.display_name}
+                    {m.isolated && (
+                      <span
+                        className={`rounded px-1 text-[9px] font-semibold uppercase tracking-wide ${m.permitted ? "bg-slate-100 text-slate-500" : "bg-amber-100 text-amber-800"}`}
+                      >
+                        {m.permitted ? "package" : "not approved"}
+                      </span>
+                    )}
+                  </span>
                   <span className="block truncate text-xs text-slate-500">{m.description}</span>
                 </span>
               </button>
@@ -212,6 +228,11 @@ export function NodeLibrary({ manifests, mode, onAdd }: Props) {
       {hover && <NodeHoverCard manifest={hover.manifest} top={hover.top} left={hover.left} />}
       <div className="border-t border-slate-200 p-3 text-[11px] leading-relaxed text-slate-500">
         Drag nodes onto the canvas. Connect coloured ports for data; amber squares for control flow.
+        {onManagePackages && (
+          <button type="button" className="mt-1.5 block font-medium text-accent-700 hover:underline" onClick={onManagePackages}>
+            Node packages…
+          </button>
+        )}
       </div>
     </aside>
   );

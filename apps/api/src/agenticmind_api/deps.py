@@ -10,6 +10,7 @@ from .deploy_manager import DeploymentManager
 from .eval_manager import EvaluationManager
 from .eval_store import EvalStore
 from .memory_store import SqlMemoryStore
+from .plugin_manager import PluginManager
 from .run_manager import RunManager
 from .settings import Settings
 from .store import Store
@@ -27,6 +28,7 @@ class Services:
     evals: EvalStore
     eval_runs: EvaluationManager
     deployments: DeploymentManager
+    plugins: PluginManager
 
 
 def services(request: Request) -> Services:

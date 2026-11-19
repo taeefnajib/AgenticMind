@@ -154,6 +154,28 @@ class EvalCaseRow(Base):
     payload: Mapped[dict[str, Any]]
 
 
+class PluginRow(Base):
+    """An installed third-party node package (ADR-0021): what it requests, what was approved, its manifests.
+
+    One active version per package name; installing another version replaces it and needs a new approval."""
+
+    __tablename__ = "plugins"
+    name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    version: Mapped[str] = mapped_column(String(50))
+    sha256: Mapped[str] = mapped_column(String(64))
+    summary: Mapped[str] = mapped_column(String(500), default="")
+    trust: Mapped[str] = mapped_column(String(20), default="community")
+    status: Mapped[str] = mapped_column(String(20))  # pending | approved | disabled
+    requested: Mapped[list[Any]] = mapped_column(JSON)
+    granted: Mapped[list[Any]] = mapped_column(JSON)
+    unsupported: Mapped[list[Any]] = mapped_column(JSON)
+    nodes: Mapped[list[Any]] = mapped_column(JSON)  # manifests as read by the isolated worker
+    path: Mapped[str] = mapped_column(String(500))
+    wheel_path: Mapped[str] = mapped_column(String(500))
+    installed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class DeploymentRow(Base):
     """A deployment (ADR-0020): what was confirmed (plan hash), where, its status, endpoint and health.
 

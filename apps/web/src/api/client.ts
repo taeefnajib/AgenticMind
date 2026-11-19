@@ -1,6 +1,8 @@
 import type {
   AppPreview,
   Deployment,
+  NodePackage,
+  NodePackages,
   DeployPlan,
   DeployRequest,
   DeployTargets,
@@ -155,6 +157,38 @@ export const api = {
       throw new ApiError(res.status, detail);
     }
     return (await res.json()) as ArtifactInfo;
+  },
+  nodePackages: () => request<NodePackages>("/plugins"),
+  async installNodePackage(file: File, trust: string): Promise<NodePackage> {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    body.append("trust", trust);
+    const res = await send(`/api/plugins`, { method: "POST", body }, UPLOAD_TIMEOUT_MS * 4);
+    if (!res.ok) {
+      let detail: unknown = undefined;
+      try {
+        detail = (await res.json()).detail;
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    return (await res.json()) as NodePackage;
+  },
+  approveNodePackage: (name: string, permissions: string[], sha256: string) =>
+    request<NodePackage>(`/plugins/${encodeURIComponent(name)}/approve`, {
+      method: "POST",
+      ...json({ permissions, sha256, confirm: true }),
+    }),
+  setNodePackageEnabled: (name: string, enabled: boolean) =>
+    request<NodePackage>(`/plugins/${encodeURIComponent(name)}/${enabled ? "enable" : "disable"}`, { method: "POST" }),
+  removeNodePackage: (name: string) => request<void>(`/plugins/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  async nodePackageWheel(name: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await send(`/api/plugins/${encodeURIComponent(name)}/wheel`, undefined, REQUEST_TIMEOUT_MS * 4);
+    if (!res.ok) throw new ApiError(res.status, undefined);
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `${name}.whl`;
+    return { blob: await res.blob(), filename };
   },
   deleteFile: (projectId: string, fileId: string) =>
     request<void>(`/projects/${projectId}/files/${fileId}`, { method: "DELETE" }),
