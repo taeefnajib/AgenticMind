@@ -55,6 +55,13 @@ class Settings:
     assistant_base_url: str | None = field(
         default_factory=lambda: os.environ.get("AGENTICMIND_ASSISTANT_BASE_URL") or None
     )
+    #: Sign-in (ADR-0023): "required" (default) or "off" (single-user tinkering; every request is anonymous).
+    auth_mode: str = field(default_factory=lambda: os.environ.get("AGENTICMIND_AUTH", "required").strip().lower())
+    session_days: int = field(default_factory=lambda: int(os.environ.get("AGENTICMIND_SESSION_DAYS", "14")))
+    #: Mark the session cookie ``Secure`` (set when the app is served over HTTPS).
+    cookie_secure: bool = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_COOKIE_SECURE", "0").lower() in ("1", "true", "yes")
+    )
     #: Optional directory with the built web app, served at ``/`` (single-container deployments).
     web_dist: Path | None = field(
         default_factory=lambda: Path(p) if (p := os.environ.get("AGENTICMIND_WEB_DIST")) else None

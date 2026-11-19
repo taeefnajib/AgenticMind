@@ -76,7 +76,8 @@ and ask in **Chat**; every answer shows its SQL, which runs read-only. See
 
 To design with AI: click the sparkle button at the bottom of the canvas and describe what you want (e.g. "take
 any question and answer yes or no"). The assistant builds or changes the graph in the selected project,
-validates it, saves it as a new revision and offers Undo. It uses `OPENROUTER_API_KEY`. See ADR-0022.
+validates it, saves it as a new revision and offers Undo. It uses `OPENROUTER_API_KEY`; choose another
+model under avatar → **Settings** → *AI assistant*. See ADR-0022.
 
 To add third-party nodes: build a package with `agenticmind-node new|validate|test|pack` (see
 `examples/plugins/acme-text-nodes`), then Node library → **Node packages…** → install the wheel and approve
@@ -93,6 +94,13 @@ layer (business terms, measures, relationships); see
 
 Multi-agent templates: *Research team* (supervisor delegating to subagents), *Plan and execute*
 (planner + parallel workers + synthesizer) and *Write with a critic* (revise until a critic passes).
+
+### Accounts and sign-in
+
+The first time you open the IDE it asks you to create the admin account. Admins add more people under
+avatar → **Settings** → *People* (members build and run workflows; admins also manage people, workspace
+settings and node packages). Profile, password and theme are in the same dialog. For a throwaway
+single-user setup, `AGENTICMIND_AUTH=off` turns sign-in off. See ADR-0023.
 
 ### API keys and settings (`.env`)
 

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from ..assistant import AssistantError, WorkflowDesigner
 from ..deps import Services, services
+from ..workspace_settings import effective_assistant
 
 router = APIRouter(prefix="/api", tags=["assistant"])
 
@@ -28,31 +29,31 @@ class DesignRequest(BaseModel):
 
 
 def _designer(svc: Services) -> WorkflowDesigner:
-    s = svc.settings
+    cfg, _source = effective_assistant(svc.settings, svc.auth)  # Settings page overrides the environment
     try:
-        provider = get_provider(s.assistant_provider)
+        provider = get_provider(cfg.provider)
     except ProviderError as exc:
-        raise HTTPException(400, f"Unknown assistant provider {s.assistant_provider!r}") from exc
+        raise HTTPException(400, f"Unknown assistant provider {cfg.provider!r}") from exc
     return WorkflowDesigner(
         registry=svc.registry,
         secrets=svc.secrets,
         provider=provider,
-        model=s.assistant_model,
-        api_key_secret=s.assistant_api_key_secret,
-        base_url=s.assistant_base_url,
-        in_process_trust=s.in_process_trust,
+        model=cfg.model,
+        api_key_secret=cfg.api_key_secret,
+        base_url=cfg.base_url,
+        in_process_trust=svc.settings.in_process_trust,
+        max_attempts=cfg.max_attempts,
     )
 
 
 @router.get("/assistant")
 def assistant_status(svc: Services = Depends(services)) -> dict[str, Any]:
-    s = svc.settings
-    needs_key = s.assistant_provider == "openrouter"
+    cfg, _source = effective_assistant(svc.settings, svc.auth)
     return {
-        "provider": s.assistant_provider,
-        "model": s.assistant_model,
-        "secret": s.assistant_api_key_secret if needs_key else None,
-        "configured": (not needs_key) or bool(svc.secrets.get(s.assistant_api_key_secret)),
+        "provider": cfg.provider,
+        "model": cfg.model,
+        "secret": cfg.api_key_secret if cfg.needs_key else None,
+        "configured": (not cfg.needs_key) or bool(svc.secrets.get(cfg.api_key_secret)),
     }
 
 

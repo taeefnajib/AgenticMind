@@ -233,6 +233,44 @@ class MemoryRow(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class UserRow(Base):
+    """A person who can sign in (ADR-0023). The first account is created by setup and is an admin."""
+
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(200))
+    email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(300))
+    role: Mapped[str] = mapped_column(String(20), default="member")  # admin | member
+    active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SessionRow(Base):
+    """A signed-in browser. Only the SHA-256 of the session token is stored, never the token itself."""
+
+    __tablename__ = "user_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    user_agent: Mapped[str] = mapped_column(String(300), default="")
+
+
+class AppSettingRow(Base):
+    """Workspace settings changed in the Settings page (override the environment defaults)."""
+
+    __tablename__ = "app_settings"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict[str, Any]]
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
 def make_engine(url: str) -> Engine:
     kwargs: dict[str, Any] = {}
     if url.startswith("sqlite"):

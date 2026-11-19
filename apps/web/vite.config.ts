@@ -8,7 +8,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": { target: apiTarget, changeOrigin: true },
+      // keep the browser's Host: the API checks that writes come from the page's own origin (ADR-0023)
+      "/api": { target: apiTarget, changeOrigin: false },
     },
   },
   test: {

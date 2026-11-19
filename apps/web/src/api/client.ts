@@ -1,7 +1,14 @@
 import type {
   AppPreview,
   AssistantResult,
+  AssistantSettings,
   AssistantStatus,
+  AssistantConfig,
+  AssistantTestResult,
+  AuthStatus,
+  ProviderModel,
+  Role,
+  User,
   AssistantTurn,
   Deployment,
   NodePackage,
@@ -57,6 +64,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired on any 401 outside the sign-in endpoints, so the app can show the sign-in screen again. */
+export const AUTH_REQUIRED_EVENT = "am:auth-required";
+
 /** Requests that get no answer within this time fail instead of waiting forever. */
 export const REQUEST_TIMEOUT_MS = 15_000;
 const UPLOAD_TIMEOUT_MS = 180_000;
@@ -77,6 +87,10 @@ async function send(url: string, init: RequestInit | undefined, timeoutMs: numbe
         ? `The API did not respond within ${Math.round(timeoutMs / 1000)} s`
         : "The API is not reachable",
     });
+  }
+  // A session that expired (or was revoked elsewhere): the sign-in gate listens for this.
+  if (res.status === 401 && !url.startsWith("/api/auth/") && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
   }
   // The Vite dev proxy answers 502/503/504 (or a plain-text 500) when it cannot reach the API.
   const plainText = !(res.headers.get("content-type") ?? "").includes("application/json");
@@ -119,6 +133,54 @@ export async function apiAlive(): Promise<boolean> {
 
 /** Designing a graph can take a model a minute or more (several repair rounds). */
 export const ASSISTANT_TIMEOUT_MS = 240_000;
+
+type AssistantForm = Omit<AssistantConfig, "base_url"> & { base_url: string | null };
+
+export const auth = {
+  status: () => request<AuthStatus>("/auth/status"),
+  setup: (body: { username: string; display_name: string; password: string; email?: string | null }) =>
+    request<User>("/auth/setup", { method: "POST", ...json(body) }),
+  login: (username: string, password: string) =>
+    request<User>("/auth/login", { method: "POST", ...json({ username, password }) }),
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
+  me: () => request<User>("/auth/me"),
+  updateMe: (body: { display_name?: string; email?: string | null }) =>
+    request<User>("/auth/me", { method: "PATCH", ...json(body) }),
+  changePassword: (current_password: string, new_password: string) =>
+    request<void>("/auth/me/password", { method: "POST", ...json({ current_password, new_password }) }),
+  revokeOtherSessions: () => request<{ revoked: number }>("/auth/me/sessions/revoke-others", { method: "POST" }),
+  users: () => request<User[]>("/users"),
+  createUser: (body: { username: string; display_name: string; password: string; role: Role; email?: string | null }) =>
+    request<User>("/users", { method: "POST", ...json(body) }),
+  updateUser: (id: string, body: { display_name?: string; role?: Role; active?: boolean; password?: string }) =>
+    request<User>(`/users/${id}`, { method: "PATCH", ...json(body) }),
+};
+
+export const settings = {
+  assistant: () => request<AssistantSettings>("/settings/assistant"),
+  saveAssistant: (body: AssistantForm) =>
+    request<AssistantSettings>("/settings/assistant", { method: "PUT", ...json(body) }),
+  resetAssistant: () => request<AssistantSettings>("/settings/assistant", { method: "DELETE" }),
+  async testAssistant(body: AssistantForm): Promise<AssistantTestResult> {
+    const res = await send(
+      "/api/settings/assistant/test",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+      120_000,
+    );
+    if (!res.ok) {
+      let detail: unknown = undefined;
+      try {
+        detail = (await res.json()).detail;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    return (await res.json()) as AssistantTestResult;
+  },
+  models: (body: AssistantForm) =>
+    request<{ models: ProviderModel[]; total?: number }>("/settings/assistant/models", { method: "POST", ...json(body) }),
+};
 
 export const api = {
   nodes: () => request<NodeManifest[]>("/nodes"),

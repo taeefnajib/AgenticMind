@@ -140,7 +140,8 @@ class DeploymentManager:
         if not self.local_enabled:
             return False, (
                 "Local deployment is off. Set AGENTICMIND_LOCAL_DEPLOY=1 in the server's .env to let AgenticMind "
-                "run Docker on this machine (the API has no authentication yet, so only do this on a trusted machine)."
+                "run Docker on this machine (it lets signed-in users build and run containers, so only do this "
+                "on a trusted machine)."
             )
         return docker_status()
 

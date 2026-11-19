@@ -248,3 +248,16 @@ body {
     animation: none !important;
   }
 }
+
+/* ---- Sign-in screen (ADR-0023): soft brand glow behind the card ---------------------------------- */
+.am-auth-bg {
+  background-image:
+    radial-gradient(40rem 28rem at 15% 10%, rgba(107, 27, 253, 0.12), transparent 70%),
+    radial-gradient(36rem 26rem at 90% 95%, rgba(253, 34, 196, 0.1), transparent 70%);
+}
+
+.dark .am-auth-bg {
+  background-image:
+    radial-gradient(40rem 28rem at 15% 10%, rgba(107, 27, 253, 0.22), transparent 70%),
+    radial-gradient(36rem 26rem at 90% 95%, rgba(253, 34, 196, 0.14), transparent 70%);
+}

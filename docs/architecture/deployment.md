@@ -37,7 +37,7 @@ Every profile needs `APP_API_KEYS`: without keys the deployed API answers 503 (f
 
 ## Local Docker
 
-Off by default, because the API has no authentication yet. To enable it on a trusted machine:
+Off by default, because building and running containers is a privilege (any signed-in member can deploy). To enable it on a trusted machine:
 
 ```
 AGENTICMIND_LOCAL_DEPLOY=1        # in .env, then restart the server

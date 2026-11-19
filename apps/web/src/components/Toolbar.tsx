@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { Mode, ProjectSummary } from "../api/types";
 import { MODE_LABEL } from "../lib/theme";
 import { NEXT_THEME, type ThemePreference } from "../lib/useTheme";
@@ -33,6 +35,8 @@ interface Props {
   onMode: (mode: Mode) => void;
   theme: ThemePreference;
   onTheme: (theme: ThemePreference) => void;
+  /** Account menu (avatar), rendered at the right end. */
+  account?: ReactNode;
 }
 
 const TONE = { info: "text-slate-600", error: "text-red-600", success: "text-emerald-700" } as const;
@@ -151,6 +155,7 @@ export function Toolbar(p: Props) {
         ))}
       </div>
       <ThemeToggle theme={p.theme} onTheme={p.onTheme} />
+      {p.account}
     </header>
   );
 }

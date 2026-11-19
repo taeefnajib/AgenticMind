@@ -597,3 +597,52 @@ export interface AssistantTurn {
   role: "user" | "assistant";
   content: string;
 }
+
+/** Sign-in (ADR-0023). */
+export type Role = "admin" | "member";
+
+export interface User {
+  id: string;
+  username: string;
+  display_name: string;
+  email: string | null;
+  role: Role;
+  active: boolean;
+  created_at: string;
+  last_login_at: string | null;
+  sessions?: number;
+}
+
+export interface AuthStatus {
+  mode: "required" | "off";
+  setup_required: boolean;
+  user: User | null;
+}
+
+export interface AssistantConfig {
+  provider: string;
+  model: string;
+  api_key_secret: string;
+  base_url: string | null;
+  max_attempts: number;
+}
+
+export interface AssistantSettings {
+  assistant: AssistantConfig;
+  source: "workspace" | "environment";
+  defaults: AssistantConfig;
+  configured: boolean;
+  providers: { name: string; needs_key: boolean }[];
+  can_edit: boolean;
+  updated_at: string | null;
+}
+
+export type AssistantTestResult =
+  | { ok: true; reply: string; model: string; latency_ms: number }
+  | { ok: false; code: string; message: string };
+
+export interface ProviderModel {
+  id: string;
+  name: string;
+  context_length?: number | null;
+}

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from ..deps import Services, services
 from ..plugin_manager import MAX_WHEEL_BYTES, PluginManagerError, to_json
+from ..security import require_admin
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
@@ -32,7 +33,7 @@ def list_plugins(svc: Services = Depends(services)) -> dict[str, Any]:
     }
 
 
-@router.post("", status_code=201)
+@router.post("", status_code=201, dependencies=[Depends(require_admin)])
 async def install_plugin(
     file: UploadFile = File(...), trust: str = Form("community"), svc: Services = Depends(services)
 ) -> dict[str, Any]:
@@ -44,7 +45,7 @@ async def install_plugin(
     return to_json(row)
 
 
-@router.post("/{name}/approve")
+@router.post("/{name}/approve", dependencies=[Depends(require_admin)])
 def approve(name: str, body: ApproveIn, svc: Services = Depends(services)) -> dict[str, Any]:
     try:
         return to_json(svc.plugins.approve(name, body.permissions, sha256=body.sha256, confirm=body.confirm))
@@ -52,7 +53,7 @@ def approve(name: str, body: ApproveIn, svc: Services = Depends(services)) -> di
         raise _err(exc) from exc
 
 
-@router.post("/{name}/disable")
+@router.post("/{name}/disable", dependencies=[Depends(require_admin)])
 def disable(name: str, svc: Services = Depends(services)) -> dict[str, Any]:
     try:
         return to_json(svc.plugins.set_enabled(name, False))
@@ -60,7 +61,7 @@ def disable(name: str, svc: Services = Depends(services)) -> dict[str, Any]:
         raise _err(exc) from exc
 
 
-@router.post("/{name}/enable")
+@router.post("/{name}/enable", dependencies=[Depends(require_admin)])
 def enable(name: str, svc: Services = Depends(services)) -> dict[str, Any]:
     try:
         return to_json(svc.plugins.set_enabled(name, True))
@@ -68,7 +69,7 @@ def enable(name: str, svc: Services = Depends(services)) -> dict[str, Any]:
         raise _err(exc) from exc
 
 
-@router.delete("/{name}", status_code=204)
+@router.delete("/{name}", status_code=204, dependencies=[Depends(require_admin)])
 def remove(name: str, svc: Services = Depends(services)) -> Response:
     try:
         svc.plugins.remove(name)

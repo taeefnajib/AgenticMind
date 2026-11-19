@@ -127,6 +127,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **AI workflow designer** (ADR-0022): sparkle launcher (brand gradient) on the canvas opens a chat over a blurred backdrop;
   natural-language requests become whole-graph proposals validated with the editor's pipeline (up to 3
   repair rounds), applied as a new revision with Undo; works on blank and existing projects.
+- **Sign-in and settings** (ADR-0023): first-run admin setup, username/password sign-in (scrypt, rate
+  limited), HttpOnly session cookies stored as hashes, admin/member roles, People management, profile and
+  password change, sign out other browsers, cross-site write guard; Settings page to choose the AI
+  assistant's provider and model (browse the provider's models, test the connection), and the theme.
 - **Node library hover cards**: description, ports, branches and permissions on hover or focus.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
@@ -142,7 +146,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Memory recall is keyword-based (plus recency), not semantic; memory isolation is per project and
   namespace only (no user identity yet). Text is not scanned for secrets before it is stored. Citation validation checks that cited sources exist,
   not that they support the claim (faithfulness evaluation comes with the Evaluation Lab).
-- No authentication, workspaces or roles yet; the API must not be exposed publicly.
+- Sign-in is local accounts in one shared workspace: no SSO/OIDC, MFA, password-reset email, API tokens,
+  per-project permissions or audit log yet; the login rate limiter is per process. Serve over HTTPS
+  (`AGENTICMIND_COOKIE_SECURE=1`) before exposing the API beyond localhost.
 - Schema is created with `create_all`; Alembic migrations needed before production databases.
 - No subgraphs or streaming execution mode. Loop iterations are not checkpointed; a body node's final
   status shows its last iteration (the IDE adds "ran ×N").
@@ -163,7 +169,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   used; questions are stateless (no `conversation_id`).
 - Deployment: no direct cloud provisioning yet (guided files or plan only); AWS/Azure/Vercel artifacts not
   generated; no built-in image scanning; Kubernetes/Cloud Run manifests validated structurally (Kustomize
-  build), not against a live cluster; local deploy needs AGENTICMIND_LOCAL_DEPLOY=1 (no API auth yet).
+  build), not against a live cluster; local deploy needs AGENTICMIND_LOCAL_DEPLOY=1 (any signed-in member may deploy).
 - Node packages: one process per invocation (~0.3–0.6 s); no OS-level network/filesystem enforcement on
   Windows workers (container workers next); no package signing (`verified` reserved); package nodes cannot
   use project files or memory, provide agent tools, or be exported in standalone apps yet.
@@ -179,4 +185,4 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 1. Version history panel and visual diff of revisions; MCP client tools and an MCP Server node (both
    requested in the blueprint, not yet built).
 2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
-3. AuthN/Z, workspaces, audit log; Alembic migrations.
+3. Workspaces and per-project permissions, OIDC/SSO, API tokens, audit log; Alembic migrations.

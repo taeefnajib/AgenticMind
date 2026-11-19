@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from .auth import AuthStore
 from .db import make_engine, make_session_factory
 from .deploy_manager import DeploymentManager, DeploymentStore
 from .deps import Services
@@ -20,11 +21,14 @@ from .eval_store import EvalStore
 from .memory_store import SqlMemoryStore
 from .plugin_manager import PluginManager
 from .routers import assistant as assistant_routes
+from .routers import auth as auth_routes
 from .routers import deployments as deployment_routes
 from .routers import evaluations as evaluation_routes
 from .routers import files, nodes, plugins, projects, runs
 from .routers import memory as memory_routes
+from .routers import settings as settings_routes
 from .run_manager import RunManager
+from .security import ApiGuard
 from .settings import Settings
 from .store import Store
 
@@ -42,6 +46,7 @@ def create_app(
     secrets = secrets or EnvSecretResolver(prefix=settings.secret_env_prefix)
     session_factory = make_session_factory(make_engine(settings.database_url))
     store = Store(session_factory)
+    auth = AuthStore(session_factory, session_days=settings.session_days)
     memory = SqlMemoryStore(session_factory)
     evals = EvalStore(session_factory)
     artifacts = LocalArtifactStore(settings.data_dir / "artifacts", max_bytes=settings.max_upload_bytes)
@@ -120,7 +125,14 @@ def create_app(
         eval_runs=eval_runs,
         deployments=deployments,
         plugins=plugins_manager,
+        auth=auth,
     )
+    if settings.auth_mode not in ("required", "off"):
+        raise ValueError(f"AGENTICMIND_AUTH must be 'required' or 'off', not {settings.auth_mode!r}")
+    if settings.auth_mode == "off":
+        log.warning("sign-in is OFF (AGENTICMIND_AUTH=off): anyone who can reach this API can use it")
+    # inner to CORS (added below, so it wraps this): refusals still carry CORS headers
+    app.add_middleware(ApiGuard, auth=auth, settings=settings)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origins),
@@ -137,6 +149,8 @@ def create_app(
     app.include_router(deployment_routes.router)
     app.include_router(plugins.router)
     app.include_router(assistant_routes.router)
+    app.include_router(auth_routes.router)
+    app.include_router(settings_routes.router)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app

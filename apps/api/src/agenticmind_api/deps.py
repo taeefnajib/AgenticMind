@@ -6,6 +6,7 @@ from agenticmind_registry import NodeRegistry
 from agenticmind_runtime import LocalArtifactStore, SecretResolver
 from fastapi import Request
 
+from .auth import AuthStore
 from .deploy_manager import DeploymentManager
 from .eval_manager import EvaluationManager
 from .eval_store import EvalStore
@@ -29,6 +30,7 @@ class Services:
     eval_runs: EvaluationManager
     deployments: DeploymentManager
     plugins: PluginManager
+    auth: AuthStore
 
 
 def services(request: Request) -> Services:

@@ -42,7 +42,9 @@ import { ExportAppDialog } from "./components/ExportAppDialog";
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
 import { DRAG_MIME, NodeLibrary } from "./components/NodeLibrary";
+import { SettingsDialog, type SettingsSection } from "./components/SettingsDialog";
 import { Toolbar, type RunTargetOption } from "./components/Toolbar";
+import { UserMenu } from "./components/UserMenu";
 import {
   checkConnection,
   defaultConfig,
@@ -115,6 +117,7 @@ export function App() {
   const [deployOpen, setDeployOpen] = useState(false);
   const [packagesOpen, setPackagesOpen] = useState(false);
   const [evalOpen, setEvalOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [runInputs, setRunInputs] = useState<Record<string, JsonValue>>({});
   const [mode, setModeState] = useState<Mode>(() => (storage.get("am.mode") as Mode) || "low_code");
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>("problems");
@@ -678,6 +681,7 @@ export function App() {
           onMode={setMode}
           theme={theme.preference}
           onTheme={theme.setPreference}
+          account={<UserMenu onOpen={setSettingsSection} />}
         />
         <div className="flex min-h-0 flex-1">
           <NodeLibrary
@@ -792,6 +796,15 @@ export function App() {
         projectId={project?.id ?? null}
         ensureSaved={ensureSaved}
         onClose={() => setDeployOpen(false)}
+        notify={notify}
+      />
+      <SettingsDialog
+        open={settingsSection !== null}
+        section={settingsSection ?? "profile"}
+        onSection={setSettingsSection}
+        onClose={() => setSettingsSection(null)}
+        theme={theme.preference}
+        onTheme={theme.setPreference}
         notify={notify}
       />
       <NewProjectDialog
