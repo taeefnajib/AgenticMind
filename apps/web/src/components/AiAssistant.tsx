@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "../api/client";
 import type { AssistantResult, AssistantStatus, AssistantTurn, ProjectDocument, ProjectOut } from "../api/types";
+import { Markdown } from "../lib/markdown";
 import {
   describeChanges,
   shortType,
@@ -43,25 +44,29 @@ interface AssistantMsg {
 }
 type Msg = UserMsg | AssistantMsg;
 
-const FLAP_MS = 720;
+const BLINK_MS = 650;
 const CLOSE_MS = 200;
 
 const reducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-/** The AgenticMind wings mark. `flap` plays one flap; `fly` keeps flapping (while thinking). */
-export function WingsIcon({ className = "h-7 w-7", state }: { className?: string; state?: "flap" | "fly" }) {
-  const wing = "M21 23 C16 14 8 11.5 2.5 13.5 C7.5 16 9.5 18.5 11.5 20.5 C7.5 20.8 4.8 22.8 3.8 26 C8.5 25.8 12.5 26 15.5 27 C12.8 29 11 31.4 10.8 34.6 C15 32.6 18.8 29.6 21 26.5 Z";
+/** A four-point sparkle centred on (cx, cy) with radius r (concave sides, like ✦). */
+function sparkle(cx: number, cy: number, r: number): string {
+  const k = r * 0.18; // how far the sides bow in towards the centre
+  return `M${cx} ${cy - r} C${cx + k} ${cy - k} ${cx + k} ${cy - k} ${cx + r} ${cy} C${cx + k} ${cy + k} ${cx + k} ${cy + k} ${cx} ${cy + r} C${cx - k} ${cy + k} ${cx - k} ${cy + k} ${cx - r} ${cy} C${cx - k} ${cy - k} ${cx - k} ${cy - k} ${cx} ${cy - r} Z`;
+}
+
+/** The AI mark: three white sparkles. `blink` twinkles once (on open); `twinkle` keeps twinkling (thinking). */
+export function SparklesIcon({ className = "h-7 w-7", state }: { className?: string; state?: "blink" | "twinkle" }) {
   return (
-    <svg viewBox="0 0 48 48" className={`${className} ${state === "flap" ? "am-flap" : state === "fly" ? "am-fly" : ""}`} aria-hidden="true">
-      <g className="am-wing am-wing-l">
-        <path d={wing} fill="currentColor" opacity="0.92" />
-      </g>
-      <g className="am-wing am-wing-r">
-        <path d={wing} fill="currentColor" opacity="0.92" transform="matrix(-1 0 0 1 48 0)" />
-      </g>
-      <ellipse cx="24" cy="26" rx="2.6" ry="6.2" fill="currentColor" />
-      <circle cx="24" cy="16.6" r="2.6" fill="currentColor" />
+    <svg
+      viewBox="0 0 48 48"
+      className={`${className} ${state === "blink" ? "am-blink" : state === "twinkle" ? "am-twinkle" : ""}`}
+      aria-hidden="true"
+    >
+      <path className="am-spark am-spark-1" d={sparkle(20, 27, 15)} fill="currentColor" />
+      <path className="am-spark am-spark-2" d={sparkle(36.5, 11.5, 6.5)} fill="currentColor" />
+      <path className="am-spark am-spark-3" d={sparkle(38, 34, 3.6)} fill="currentColor" opacity="0.9" />
     </svg>
   );
 }
@@ -92,7 +97,7 @@ export function AiAssistant({ projectId, projectName, empty, disabled, getDocume
       return;
     }
     setPhase("flapping");
-    window.setTimeout(() => setPhase("open"), FLAP_MS);
+    window.setTimeout(() => setPhase("open"), BLINK_MS);
   }, [phase]);
 
   const close = useCallback(() => {
@@ -187,11 +192,11 @@ export function AiAssistant({ projectId, projectName, empty, disabled, getDocume
           aria-label="Design with AI"
           aria-expanded={showDialog}
           title="Design with AI"
-          className={`am-launcher group pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-accent-700 text-white shadow-lg ring-4 ring-accent-500/15 transition hover:scale-105 focus:outline-none focus-visible:ring-accent-400/60 disabled:cursor-not-allowed disabled:opacity-50 ${
+          className={`am-launcher am-brand-gradient group pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-accent-400/60 disabled:cursor-not-allowed disabled:opacity-50 ${
             phase === "flapping" ? "am-launch" : ""
           } ${showDialog ? "invisible" : ""}`}
         >
-          <WingsIcon className="h-8 w-8" state={phase === "flapping" ? "flap" : undefined} />
+          <SparklesIcon className="h-7 w-7" state={phase === "flapping" ? "blink" : undefined} />
           <span className="pointer-events-none absolute bottom-full mb-2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-slate-50 opacity-0 shadow transition group-hover:opacity-100">
             Design with AI
           </span>
@@ -216,8 +221,8 @@ export function AiAssistant({ projectId, projectName, empty, disabled, getDocume
             }`}
           >
             <header className="flex items-center gap-3 border-b border-slate-200 px-5 py-3.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-accent-700 text-white">
-                <WingsIcon className="h-6 w-6" state={busy ? "fly" : undefined} />
+              <span className="am-brand-gradient flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white">
+                <SparklesIcon className="h-5 w-5" state={busy ? "twinkle" : undefined} />
               </span>
               <div className="min-w-0 flex-1">
                 <h2 id="ai-title" className="text-sm font-semibold text-slate-900">
@@ -269,7 +274,7 @@ export function AiAssistant({ projectId, projectName, empty, disabled, getDocume
               {messages.map((m) =>
                 m.role === "user" ? (
                   <div key={m.id} className="flex justify-end">
-                    <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-accent-600 px-3.5 py-2 text-sm text-white">{m.text}</div>
+                    <div className="max-w-[85%] whitespace-pre-wrap am-brand-gradient rounded-2xl rounded-br-md px-3.5 py-2 text-sm text-white shadow-sm">{m.text}</div>
                   </div>
                 ) : (
                   <AssistantBubble
@@ -284,8 +289,10 @@ export function AiAssistant({ projectId, projectName, empty, disabled, getDocume
               )}
               {busy && (
                 <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <WingsIcon className="h-5 w-5 text-accent-600" state="fly" />
-                  Designing and checking the graph…
+                  <span className="am-brand-gradient flex h-6 w-6 items-center justify-center rounded-full text-white">
+                    <SparklesIcon className="h-3.5 w-3.5" state="twinkle" />
+                  </span>
+                  Thinking…
                 </div>
               )}
             </div>
@@ -313,7 +320,11 @@ export function AiAssistant({ projectId, projectName, empty, disabled, getDocume
                 disabled={busy}
                 aria-label="Message the AI workflow designer"
               />
-              <button type="submit" className="am-btn-primary" disabled={busy || !input.trim()}>
+              <button
+                type="submit"
+                className="am-brand-gradient inline-flex h-10 shrink-0 items-center rounded-lg px-4 text-sm font-medium text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={busy || !input.trim()}
+              >
                 Send
               </button>
             </form>
@@ -349,7 +360,9 @@ function AssistantBubble({
   const nodesTouched = [...(r?.changes.added ?? []).map((n) => ["+", n] as const), ...(r?.changes.modified ?? []).map((n) => ["~", n] as const), ...(r?.changes.removed ?? []).map((n) => ["−", n] as const)];
   return (
     <div className="max-w-[90%] space-y-2">
-      <div className="whitespace-pre-wrap rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2 text-sm text-slate-800">{msg.text || "(no reply)"}</div>
+      <div className="rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2 text-sm text-slate-800">
+        <Markdown text={msg.text || "(no reply)"} />
+      </div>
       {r?.document && (
         <div className="rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs">
           <div className="flex items-center justify-between gap-2">

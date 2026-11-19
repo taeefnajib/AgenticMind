@@ -124,7 +124,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   node with health, token and semantic-layer readiness checks; Term Search, Term Details, Ontology Context
   (grounds NL-to-SQL), Ask Auto Ontology (streamed, SQL + rows in Chat), Auto Ontology Tool for agents;
   pinned commit with a vendored OpenAPI subset and contract tests; *Ask Auto Ontology* template.
-- **AI workflow designer** (ADR-0022): wings launcher on the canvas opens a chat over a blurred backdrop;
+- **AI workflow designer** (ADR-0022): sparkle launcher (brand gradient) on the canvas opens a chat over a blurred backdrop;
   natural-language requests become whole-graph proposals validated with the editor's pipeline (up to 3
   repair rounds), applied as a new revision with Undo; works on blank and existing projects.
 - **Node library hover cards**: description, ports, branches and permissions on hover or focus.
