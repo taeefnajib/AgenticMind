@@ -28,8 +28,9 @@ configurable through environment variables.
   - Failed sign-ins are rate limited: 5 failures per username or per client address within 15 minutes
     returns `429` with `Retry-After`. The limiter is in memory, per process.
 - **Sessions:**
-  - A random 256-bit token in an `HttpOnly`, `SameSite=Lax` cookie (`am_session`); `Secure` when
-    `AGENTICMIND_COOKIE_SECURE=1`.
+  - A random 256-bit token in an `HttpOnly`, `SameSite=Lax` cookie named after the browser-facing port
+    (`am_session_5173`; ADR-0024): browsers share cookies across all ports of `localhost`, so two instances
+    would otherwise sign each other out. `Secure` when `AGENTICMIND_COOKIE_SECURE=1`.
   - The database stores only the token's SHA-256.
   - Sessions slide: 14 days by default (`AGENTICMIND_SESSION_DAYS`), refreshed at most every 5 minutes.
   - Each sign-in issues a new token. Signing out deletes the session.

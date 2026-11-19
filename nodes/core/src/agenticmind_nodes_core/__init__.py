@@ -10,7 +10,7 @@ from .approval import human_approval
 from .control import conditional
 from .flow import join, loop, loop_end, loop_end_v1, router
 from .io import delay, manual_input, output
-from .models import llm, llm_v1
+from .models import llm, llm_v1, model_router
 from .transform import collect, json_select, parse_json, text_template, text_transform, to_text
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
@@ -32,6 +32,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     human_approval,
     llm,
     llm_v1,
+    model_router,
 )
 
 

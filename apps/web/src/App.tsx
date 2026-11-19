@@ -806,6 +806,20 @@ export function App() {
         theme={theme.preference}
         onTheme={theme.setPreference}
         notify={notify}
+        currentProjectId={project?.id ?? null}
+        onOpenProject={(id) => {
+          setSettingsSection(null);
+          void selectProject(id);
+        }}
+        onProjectDeleted={async (id) => {
+          if (id === project?.id) {
+            resetRunState();
+            setRunInputs({});
+            await loadWorkspace(); // opens another project (or creates a starter one)
+          } else {
+            await refreshProjects();
+          }
+        }}
       />
       <NewProjectDialog
         open={newOpen}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from agenticmind_api.auth import SESSION_COOKIE, hash_password, verify_password
+from agenticmind_api.auth import SESSION_COOKIE, hash_password, session_cookie_name, verify_password
 from agenticmind_api.db import SessionRow
 from agenticmind_api.main import create_app
 from agenticmind_api.settings import Settings
@@ -79,6 +79,22 @@ def test_cookie_is_httponly_and_only_a_hash_is_stored(app):
     assert hash_password("same password") != hash_password("same password")
 
 
+def test_instances_on_other_ports_keep_separate_cookies(app):
+    assert session_cookie_name("localhost:5173") == "am_session_5173"
+    assert session_cookie_name("[::1]:5199") == "am_session_5199"
+    assert (
+        session_cookie_name("[::1]") == session_cookie_name("example.org") == session_cookie_name(None) == "am_session"
+    )
+    client = TestClient(app, base_url="http://localhost:5199")
+    r = client.post("/api/auth/setup", json=ADMIN)
+    assert r.headers["set-cookie"].startswith("am_session_5199=")
+    assert client.get("/api/projects").status_code == 200
+    # the same token under another port's name is not this instance's session
+    other = TestClient(app, base_url="http://localhost:5173")
+    other.cookies.set("am_session_5199", client.cookies["am_session_5199"])
+    assert other.get("/api/projects").status_code == 401
+
+
 def test_login_logout_and_rate_limit(app):
     signed_in(app, setup=True)
     client = TestClient(app)
@@ -134,6 +150,7 @@ def test_admins_manage_people_and_members_cannot(app):
         ("put", "/api/settings/assistant", {"json": {"provider": "mock", "model": "mock-1"}}),
         ("post", "/api/plugins/x/approve", {"json": {"sha256": "0", "permissions": []}}),
         ("delete", "/api/plugins/x", {}),
+        ("delete", "/api/projects/anything?confirm=DELETE", {}),
     ]:
         r = getattr(bob, method)(path, **kw)
         assert r.status_code == 403 and r.json()["detail"]["code"] == "ADMIN_REQUIRED", (path, r.text)

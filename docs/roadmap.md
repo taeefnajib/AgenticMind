@@ -38,7 +38,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   import, new-from-template.
 - **Step 1 – ingestion**: `Document`/`RetrievedDocument` schemas with runtime port checks; project file
   storage (`LocalArtifactStore`, upload/list/download/delete API, type allowlist, size limit, `artifacts`
-  permission); Document Loader (PDF per page, DOCX headings → Markdown, TXT/MD/HTML/CSV/JSON); Document
+  permission); Document Loader (PDF per page, DOCX headings → Markdown, XLSX sheets, PPTX slides + notes, EPUB chapters,
+  TXT/MD/RST/HTML/CSV/TSV/JSON/JSONL/XML/YAML; ADR-0024); Document
   Cleaner; Chunker (recursive / fixed / markdown, tokens or characters, exact offsets, section paths);
   file picker + Files panel + document viewer in the IDE; *Document ingestion* template;
   `examples/data/employee-handbook.md`; GitHub Actions CI.
@@ -131,6 +132,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   limited), HttpOnly session cookies stored as hashes, admin/member roles, People management, profile and
   password change, sign out other browsers, cross-site write guard; Settings page to choose the AI
   assistant's provider and model (browse the provider's models, test the connection), and the theme.
+- **Model Router** (ADR-0024): one node picks a model per request by keywords, a small classifier model, or
+  both (hybrid), with a default route, a forced-route input, a `model_route` trace event and summed usage;
+  route editor in the inspector.
+- **Projects in Settings** (ADR-0024): searchable list with Open and Delete; deleting needs `DELETE` typed
+  in the UI and `?confirm=DELETE` plus an admin at the API.
 - **Node library hover cards**: description, ports, branches and permissions on hover or focus.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
@@ -173,6 +179,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Node packages: one process per invocation (~0.3–0.6 s); no OS-level network/filesystem enforcement on
   Windows workers (container workers next); no package signing (`verified` reserved); package nodes cannot
   use project files or memory, provide agent tools, or be exported in standalone apps yet.
+- Model Router: one provider for all routes; no per-route providers, fallback chains or cost budgets.
+  Spreadsheet dates are read as serial numbers; legacy .xls/.ppt/.doc and scanned images (OCR) unsupported.
 - AI designer: replies carry the whole graph (fine for small/medium graphs); validity is structural, not
   semantic; chat threads are per browser session only.
 - Licence not chosen.

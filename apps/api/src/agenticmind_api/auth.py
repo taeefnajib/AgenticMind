@@ -33,6 +33,18 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MIN_PASSWORD = 8
 MAX_PASSWORD = 256
 SESSION_COOKIE = "am_session"
+
+
+def session_cookie_name(host: str | None) -> str:
+    """The session cookie's name for the host the browser talks to, e.g. ``am_session_5173``.
+
+    Browsers share cookies between all ports of a host, so two AgenticMind instances on ``localhost``
+    (or a dev server next to a deployed one) would otherwise overwrite each other's sign-in.
+    """
+    port = host.rsplit(":", 1)[1] if host and ":" in host and not host.endswith("]") else ""
+    return f"{SESSION_COOKIE}_{port}" if port.isdigit() else SESSION_COOKIE
+
+
 #: Refresh ``last_seen_at``/``expires_at`` at most this often (avoids a write per request).
 TOUCH_EVERY = timedelta(minutes=5)
 

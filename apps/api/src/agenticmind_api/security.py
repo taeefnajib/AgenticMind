@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from .auth import SESSION_COOKIE, AuthStore
+from .auth import AuthStore, session_cookie_name
 from .db import UserRow
 from .settings import Settings
 
@@ -59,7 +59,9 @@ class ApiGuard:
             return
         user: UserRow | None = None
         if self.settings.auth_mode != "off":
-            user = await run_in_threadpool(self.auth.resolve, request.cookies.get(SESSION_COOKIE))
+            user = await run_in_threadpool(
+                self.auth.resolve, request.cookies.get(session_cookie_name(request.headers.get("host")))
+            )
             if user is None and scope["path"] not in PUBLIC_PATHS:
                 response = JSONResponse(
                     {"detail": {"code": "AUTH_REQUIRED", "message": "Sign in to continue."}}, status_code=401

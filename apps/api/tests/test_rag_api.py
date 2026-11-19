@@ -71,7 +71,7 @@ def test_index_then_query_with_run_targets(client, tmp_path):
     assert all(r["retrieval_method"] == "vector" for r in results)
 
     assert (tmp_path / "data" / "vectors" / "qdrant").is_dir()
-    client.delete(f"/api/projects/{pid}")
+    client.delete(f"/api/projects/{pid}?confirm=DELETE")
     from agenticmind_vectorstores import StoreSpec, open_store
 
     store = open_store(

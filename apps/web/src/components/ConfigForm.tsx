@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { JsonValue, Mode, NodeManifest } from "../api/types";
 import { fieldsFromSchema, type FieldSpec } from "../lib/schemaForm";
 import { ArtifactsControl } from "./Files";
+import { RouteRefControl, RoutesControl } from "./RoutesControl";
 
 interface Props {
   manifest: NodeManifest;
@@ -29,7 +30,14 @@ export function ConfigForm({ manifest, config, mode, errorsByField, onChange }: 
   return (
     <div className="space-y-3">
       {visible.map((f) => (
-        <Field key={`${manifest.type}:${f.name}`} spec={f} value={config[f.name]} errors={errorsByField.get(f.name)} onChange={(v) => set(f.name, v)} />
+        <Field
+          key={`${manifest.type}:${f.name}`}
+          spec={f}
+          value={config[f.name]}
+          siblings={(name) => (config[name] !== undefined ? config[name] : (fields.find((x) => x.name === name)?.default as JsonValue | undefined))}
+          errors={errorsByField.get(f.name)}
+          onChange={(v) => set(f.name, v)}
+        />
       ))}
       {hidden > 0 && (
         <p className="text-[11px] text-slate-400">
@@ -43,11 +51,14 @@ export function ConfigForm({ manifest, config, mode, errorsByField, onChange }: 
 function Field({
   spec,
   value,
+  siblings,
   errors,
   onChange,
 }: {
   spec: FieldSpec;
   value: JsonValue | undefined;
+  /** Another field's effective value (e.g. the routes a default_route picks from). */
+  siblings: (name: string) => JsonValue | undefined;
   errors?: string[];
   onChange: (v: JsonValue | undefined) => void;
 }) {
@@ -62,7 +73,7 @@ function Field({
         </span>
         {spec.advanced && <span className="text-[10px] font-normal uppercase text-slate-400">advanced</span>}
       </label>
-      <Control id={id} spec={spec} value={effective} onChange={onChange} />
+      <Control id={id} spec={spec} value={effective} siblings={siblings} onChange={onChange} />
       {spec.description && <p className="mt-1 text-[11px] leading-snug text-slate-500">{spec.description}</p>}
       {errors?.map((e) => (
         <p key={e} className="mt-1 text-[11px] text-red-600">
@@ -77,11 +88,13 @@ function Control({
   id,
   spec,
   value,
+  siblings,
   onChange,
 }: {
   id: string;
   spec: FieldSpec;
   value: JsonValue | undefined;
+  siblings: (name: string) => JsonValue | undefined;
   onChange: (v: JsonValue | undefined) => void;
 }) {
   switch (spec.kind) {
@@ -133,6 +146,10 @@ function Control({
           onChange={(e) => onChange(e.target.value)}
         />
       );
+    case "routes":
+      return <RoutesControl value={value} onChange={onChange} />;
+    case "route_ref":
+      return <RouteRefControl id={id} value={value} routes={siblings("routes")} onChange={onChange} />;
     case "artifacts":
       return <ArtifactsControl value={value} onChange={(ids) => onChange(ids)} />;
     case "secret":

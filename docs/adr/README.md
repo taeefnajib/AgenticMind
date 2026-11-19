@@ -25,5 +25,6 @@
 | [0021](0021-node-packages-isolated-workers.md) | Node packages: installed wheels, isolated workers, approved permissions, SDK CLI | Accepted |
 | [0022](0022-ai-workflow-designer.md) | AI workflow designer: validated whole-graph proposals, repair loop, revision + undo | Accepted |
 | [0023](0023-authentication-and-settings.md) | Sign-in, profiles, admin/member roles, hashed-cookie sessions, workspace settings (assistant model) | Accepted |
+| [0024](0024-model-router-formats-project-deletion.md) | Model Router node (keywords/classifier/hybrid), XLSX/PPTX/EPUB/JSONL/TSV/XML/YAML uploads, project deletion confirmed with DELETE | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

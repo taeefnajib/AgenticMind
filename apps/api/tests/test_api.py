@@ -168,7 +168,11 @@ def test_delete_project(client):
     pid = client.post("/api/projects", json={"name": "Gone", "template": "hello-pipeline"}).json()["id"]
     run_id = client.post(f"/api/projects/{pid}/runs", json={}).json()["id"]
     wait_for_run(client, run_id)
-    assert client.delete(f"/api/projects/{pid}").status_code == 204
+    unconfirmed = client.delete(f"/api/projects/{pid}")
+    assert unconfirmed.status_code == 400 and unconfirmed.json()["detail"]["code"] == "CONFIRMATION_REQUIRED"
+    assert client.delete(f"/api/projects/{pid}?confirm=delete").status_code == 400  # exact word
+    assert client.get(f"/api/projects/{pid}").status_code == 200
+    assert client.delete(f"/api/projects/{pid}?confirm=DELETE").status_code == 204
     assert client.get(f"/api/projects/{pid}").status_code == 404
     assert client.get(f"/api/runs/{run_id}").status_code == 404
 

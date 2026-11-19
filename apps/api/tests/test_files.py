@@ -100,7 +100,7 @@ def test_deleting_project_removes_files(client, tmp_path):
     pid = client.post("/api/projects", json={"name": "Gone"}).json()["id"]
     upload(client, pid, "a.txt", b"hello")
     assert (tmp_path / "data" / "artifacts" / pid).is_dir()
-    client.delete(f"/api/projects/{pid}")
+    client.delete(f"/api/projects/{pid}?confirm=DELETE")
     assert not (tmp_path / "data" / "artifacts" / pid).exists()
 
 

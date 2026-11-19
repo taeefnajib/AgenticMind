@@ -9,11 +9,14 @@ from __future__ import annotations
 import csv
 import io
 import json
+import posixpath
 import re
+import zipfile
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
 
 
 class ParseError(ValueError):
@@ -207,6 +210,248 @@ def parse_json(data: bytes) -> list[ParsedPart]:
     return [ParsedPart(content=json.dumps(value, indent=2, ensure_ascii=False))]
 
 
+# -- JSON Lines ---------------------------------------------------------------------------------
+def parse_jsonl(data: bytes, *, mode: str) -> list[ParsedPart]:
+    records: list[str] = []
+    for n, line in enumerate(decode_text(data).splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ParseError("PARSE_FAILED", f"Invalid JSON on line {n}: {exc}") from exc
+        records.append(json.dumps(value, indent=2, ensure_ascii=False))
+    if mode == "rows":
+        return [
+            ParsedPart(content=r, section=f"record {i}", metadata={"record": i}, id_suffix=f":r{i}")
+            for i, r in enumerate(records, start=1)
+        ]
+    return [ParsedPart(content="\n\n".join(records), metadata={"record_count": len(records)})]
+
+
+# -- Office Open XML / EPUB (zip containers, read with the standard library) ---------------------
+#: Guards against zip bombs: per-member and total uncompressed bytes read from one file.
+MAX_MEMBER_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_BYTES = 256 * 1024 * 1024
+MAX_MEMBERS = 5000
+
+
+class _Zip:
+    def __init__(self, data: bytes, kind: str) -> None:
+        try:
+            self.zf = zipfile.ZipFile(io.BytesIO(data))
+        except zipfile.BadZipFile as exc:
+            raise ParseError("PARSE_FAILED", f"Not a readable {kind} file (not a zip container)") from exc
+        if len(self.zf.infolist()) > MAX_MEMBERS:
+            raise ParseError("PARSE_FAILED", f"{kind} file has too many parts")
+        self.kind = kind
+        self.total = 0
+        self.names = set(self.zf.namelist())
+
+    def read(self, name: str) -> bytes:
+        try:
+            info = self.zf.getinfo(name)
+        except KeyError as exc:
+            raise ParseError("PARSE_FAILED", f"{self.kind} file is missing {name}") from exc
+        if info.file_size > MAX_MEMBER_BYTES or self.total + info.file_size > MAX_TOTAL_BYTES:
+            raise ParseError("PARSE_FAILED", f"{self.kind} file is too large when uncompressed")
+        with self.zf.open(info) as fh:
+            raw = fh.read(MAX_MEMBER_BYTES + 1)  # the declared size can lie
+        if len(raw) > MAX_MEMBER_BYTES:
+            raise ParseError("PARSE_FAILED", f"{self.kind} file is too large when uncompressed")
+        self.total += len(raw)
+        return raw
+
+    def xml(self, name: str) -> ET.Element:
+        try:
+            return ET.fromstring(self.read(name))
+        except ET.ParseError as exc:
+            raise ParseError("PARSE_FAILED", f"{self.kind} part {name} is not valid XML: {exc}") from exc
+
+
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _attr(el: ET.Element, local_name: str, *, namespaced: bool = True) -> str:
+    for k, v in el.attrib.items():
+        if _local(k) == local_name and (not namespaced or k.startswith("{")):
+            return v
+    return ""
+
+
+def _texts(el: ET.Element) -> str:
+    return "".join(t.text or "" for t in el.iter() if _local(t.tag) == "t")
+
+
+def _rels(z: _Zip, part: str) -> dict[str, str]:
+    """Relationship id -> target path (resolved against ``part``'s folder)."""
+    folder, name = posixpath.split(part)
+    rels_name = posixpath.join(folder, "_rels", f"{name}.rels")
+    if rels_name not in z.names:
+        return {}
+    out = {}
+    for rel in z.xml(rels_name):
+        target = rel.get("Target", "")
+        resolved = target.lstrip("/") if target.startswith("/") else posixpath.join(folder, target)
+        out[rel.get("Id", "")] = posixpath.normpath(resolved)
+    return out
+
+
+_CELL_REF = re.compile(r"^([A-Z]+)(\d+)$")
+
+
+def _col_index(ref: str) -> int:
+    m = _CELL_REF.match(ref or "")
+    if not m:
+        return -1
+    n = 0
+    for ch in m.group(1):
+        n = n * 26 + (ord(ch) - 64)
+    return n - 1
+
+
+def _sheet_rows(root: ET.Element, shared: list[str]) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in (e for e in root.iter() if _local(e.tag) == "row"):
+        cells: dict[int, str] = {}
+        for c in (e for e in row if _local(e.tag) == "c"):
+            kind = c.get("t", "n")
+            if kind == "inlineStr":
+                value = _texts(c)
+            else:
+                v = next((e.text for e in c if _local(e.tag) == "v"), None) or ""
+                if kind == "s":
+                    value = shared[int(v)] if v.isdigit() and int(v) < len(shared) else ""
+                elif kind == "b":
+                    value = "TRUE" if v == "1" else "FALSE"
+                else:
+                    value = v
+            idx = _col_index(c.get("r", ""))
+            cells[idx if idx >= 0 else len(cells)] = value
+        if any(v.strip() for v in cells.values()):
+            rows.append([cells.get(i, "") for i in range(max(cells) + 1)])
+    return rows
+
+
+def parse_xlsx(data: bytes, *, mode: str) -> list[ParsedPart]:
+    """Each worksheet becomes a part (one part per row with ``mode="rows"``); the first row is the header.
+
+    Cached values are read as stored: formulas give their last computed value, dates their serial number.
+    """
+    z = _Zip(data, "XLSX")
+    shared = [_texts(si) for si in z.xml("xl/sharedStrings.xml")] if "xl/sharedStrings.xml" in z.names else []
+    rels = _rels(z, "xl/workbook.xml")
+    parts: list[ParsedPart] = []
+    for sheet in (e for e in z.xml("xl/workbook.xml").iter() if _local(e.tag) == "sheet"):
+        name = sheet.get("name", "Sheet")
+        target = rels.get(_attr(sheet, "id"))
+        if not target or target not in z.names:
+            continue
+        rows = _sheet_rows(z.xml(target), shared)
+        if not rows:
+            continue
+        header = [h or f"column {i + 1}" for i, h in enumerate(rows[0])]
+        body = rows[1:]
+
+        def render(r: list[str], header: list[str] = header) -> str:
+            return "\n".join(f"{h}: {v}" for h, v in zip(header, r, strict=False) if str(v).strip())
+
+        if mode == "rows":
+            start = len(parts)
+            parts.extend(
+                ParsedPart(
+                    content=render(r),
+                    section=f"{name} row {i}",
+                    metadata={"sheet": name, "row": i, "columns": header},
+                    id_suffix=f":x{start + i}",
+                )
+                for i, r in enumerate(body, start=1)
+            )
+        else:
+            parts.append(
+                ParsedPart(
+                    content="\n\n".join(render(r) for r in body),
+                    section=name,
+                    metadata={"sheet": name, "row_count": len(body), "columns": header},
+                    id_suffix=f":s{len(parts) + 1}",
+                )
+            )
+    return parts or [ParsedPart(content="")]
+
+
+_SLIDE = re.compile(r"^ppt/slides/slide(\d+)\.xml$")
+
+
+def _paragraphs(root: ET.Element) -> list[str]:
+    out = []
+    for p in (e for e in root.iter() if _local(e.tag) == "p"):
+        text = _texts(p).strip()
+        if text:
+            out.append(text)
+    return out
+
+
+def parse_pptx(data: bytes) -> list[ParsedPart]:
+    """One part per slide in presentation order (the first line is its title), speaker notes included."""
+    z = _Zip(data, "PPTX")
+    order: list[str] = []
+    if "ppt/presentation.xml" in z.names:
+        rels = _rels(z, "ppt/presentation.xml")
+        for sid in (e for e in z.xml("ppt/presentation.xml").iter() if _local(e.tag) == "sldId"):
+            target = rels.get(_attr(sid, "id"))
+            if target in z.names:
+                order.append(target)
+    if not order:
+        slides = [n for n in z.names if _SLIDE.match(n)]
+        order = sorted(slides, key=lambda n: int(_SLIDE.match(n).group(1)))  # type: ignore[union-attr]
+    parts = []
+    for number, slide in enumerate(order, start=1):
+        lines = _paragraphs(z.xml(slide))
+        notes = [t for t in _rels(z, slide).values() if t.startswith("ppt/notesSlides/") and t in z.names]
+        # notes slides repeat the slide number as a placeholder: drop bare numbers
+        note_lines = [line for n in notes for line in _paragraphs(z.xml(n)) if not line.isdigit()]
+        if not lines and not note_lines:
+            continue
+        body = (f"## {lines[0]}\n\n" + "\n".join(lines[1:])) if lines else ""
+        if note_lines:
+            body += "\n\nSpeaker notes:\n" + "\n".join(note_lines)
+        parts.append(ParsedPart(content=body.strip(), page=number, section=f"slide {number}", id_suffix=f":p{number}"))
+    return parts or [ParsedPart(content="")]
+
+
+def parse_epub(data: bytes) -> list[ParsedPart]:
+    """One part per chapter, in reading (spine) order."""
+    z = _Zip(data, "EPUB")
+    container = z.xml("META-INF/container.xml")
+    rootfile = next((e.get("full-path") for e in container.iter() if _local(e.tag) == "rootfile"), None)
+    if not rootfile:
+        raise ParseError("PARSE_FAILED", "EPUB has no package document")
+    opf = z.xml(rootfile)
+    folder = posixpath.dirname(rootfile)
+    manifest = {
+        e.get("id"): posixpath.normpath(posixpath.join(folder, e.get("href", "")))
+        for e in opf.iter()
+        if _local(e.tag) == "item"
+    }
+    title = next((e.text for e in opf.iter() if _local(e.tag) == "title" and e.text), None)
+    parts = []
+    for ref in (e for e in opf.iter() if _local(e.tag) == "itemref"):
+        path = manifest.get(ref.get("idref"))
+        if not path or path not in z.names:
+            continue
+        text = "\n\n".join(p.content for p in parse_html(z.read(path))).strip()
+        if text:
+            n = len(parts) + 1
+            meta = {"title": title} if title else {}
+            parts.append(ParsedPart(content=text, section=f"chapter {n}", metadata=meta, id_suffix=f":c{n}"))
+    return parts or [ParsedPart(content="")]
+
+
+#: Formats read as plain text.
+TEXT_EXTENSIONS = (".txt", ".md", ".markdown", ".rst", ".log", ".yaml", ".yml", ".xml")
+
+
 def parse_bytes(
     data: bytes, filename: str, *, split_pdf_pages: bool = True, csv_mode: str = "file"
 ) -> list[ParsedPart]:
@@ -218,10 +463,18 @@ def parse_bytes(
             return parse_docx(data)
         case ".html" | ".htm":
             return parse_html(data)
-        case ".csv":
+        case ".csv" | ".tsv":
             return parse_csv(data, mode=csv_mode)
         case ".json":
             return parse_json(data)
-        case ".txt" | ".md" | ".markdown":
+        case ".jsonl" | ".ndjson":
+            return parse_jsonl(data, mode=csv_mode)
+        case ".xlsx":
+            return parse_xlsx(data, mode=csv_mode)
+        case ".pptx":
+            return parse_pptx(data)
+        case ".epub":
+            return parse_epub(data)
+        case _ if ext in TEXT_EXTENSIONS:
             return [ParsedPart(content=decode_text(data).replace("\r\n", "\n"))]
     raise ParseError("PARSE_UNSUPPORTED", f"Unsupported file type '{ext}'")

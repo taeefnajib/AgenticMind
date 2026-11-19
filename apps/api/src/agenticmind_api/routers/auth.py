@@ -7,7 +7,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from ..auth import SESSION_COOKIE, AuthError, user_json
+from ..auth import AuthError, session_cookie_name, user_json
 from ..db import UserRow
 from ..deps import Services, services
 from ..security import current_user, require_admin
@@ -70,7 +70,7 @@ def _signed_in(svc: Services, request: Request) -> UserRow:
 def _start_session(svc: Services, request: Request, response: Response, user: UserRow) -> None:
     token = svc.auth.create_session(user.id, user_agent=request.headers.get("user-agent", ""))
     response.set_cookie(
-        SESSION_COOKIE,
+        _cookie(request),
         token,
         max_age=int(svc.auth.session_ttl.total_seconds()),
         httponly=True,
@@ -78,6 +78,14 @@ def _start_session(svc: Services, request: Request, response: Response, user: Us
         secure=svc.settings.cookie_secure,
         path="/",
     )
+
+
+def _cookie(request: Request) -> str:
+    return session_cookie_name(request.headers.get("host"))
+
+
+def _token(request: Request) -> str | None:
+    return request.cookies.get(_cookie(request))
 
 
 def _client(request: Request) -> str:
@@ -125,15 +133,15 @@ def login(body: LoginIn, request: Request, response: Response, svc: Services = D
         user = svc.auth.authenticate(body.username, body.password, client=_client(request))
     except AuthError as exc:
         raise _raise(exc) from exc
-    svc.auth.revoke(request.cookies.get(SESSION_COOKIE))  # a fresh session id on every sign-in
+    svc.auth.revoke(_token(request))  # a fresh session id on every sign-in
     _start_session(svc, request, response, user)
     return user_json(user)
 
 
 @router.post("/auth/logout", status_code=204)
 def logout(request: Request, response: Response, svc: Services = Depends(services)) -> Response:
-    svc.auth.revoke(request.cookies.get(SESSION_COOKIE))
-    response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="lax", secure=svc.settings.cookie_secure)
+    svc.auth.revoke(_token(request))
+    response.delete_cookie(_cookie(request), path="/", httponly=True, samesite="lax", secure=svc.settings.cookie_secure)
     response.status_code = 204
     return response
 
@@ -160,9 +168,7 @@ def change_password(body: PasswordIn, request: Request, svc: Services = Depends(
     """Change your password; every other signed-in browser is signed out."""
     user = _signed_in(svc, request)
     try:
-        svc.auth.change_password(
-            user.id, body.current_password, body.new_password, keep_token=request.cookies.get(SESSION_COOKIE)
-        )
+        svc.auth.change_password(user.id, body.current_password, body.new_password, keep_token=_token(request))
     except AuthError as exc:
         raise _raise(exc) from exc
     return Response(status_code=204)
@@ -171,7 +177,7 @@ def change_password(body: PasswordIn, request: Request, svc: Services = Depends(
 @router.post("/auth/me/sessions/revoke-others")
 def revoke_other_sessions(request: Request, svc: Services = Depends(services)) -> dict[str, int]:
     user = _signed_in(svc, request)
-    return {"revoked": svc.auth.revoke_all(user.id, except_token=request.cookies.get(SESSION_COOKIE))}
+    return {"revoked": svc.auth.revoke_all(user.id, except_token=_token(request))}
 
 
 # ---- user management (admins) ------------------------------------------------------------------

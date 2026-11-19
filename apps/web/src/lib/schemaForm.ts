@@ -2,7 +2,7 @@
 
 import type { JsonSchema } from "../api/types";
 
-export type FieldKind = "artifacts" | "secret" | "enum" | "boolean" | "integer" | "number" | "string" | "textarea" | "json";
+export type FieldKind = "artifacts" | "routes" | "route_ref" | "secret" | "enum" | "boolean" | "integer" | "number" | "string" | "textarea" | "json";
 
 export interface FieldSpec {
   name: string;
@@ -46,6 +46,8 @@ export function fieldsFromSchema(root: JsonSchema): FieldSpec[] {
     let kind: FieldKind;
     let options: (string | number)[] | undefined;
     if (ui.widget === "artifacts") kind = "artifacts";
+    else if (ui.widget === "model_routes") kind = "routes";
+    else if (ui.widget === "route_ref") kind = "route_ref";
     else if (raw["x-secret"] || prop["x-secret"]) kind = "secret";
     else if (prop.enum) {
       kind = "enum";
@@ -60,7 +62,8 @@ export function fieldsFromSchema(root: JsonSchema): FieldSpec[] {
     else kind = "json";
     return {
       name,
-      title: raw.title ?? prop.title ?? humanize(name),
+      // a referenced type's own title (e.g. "SecretRef") names the type, not this field
+      title: raw.title ?? (raw.$ref || raw.anyOf ? humanize(name) : (prop.title ?? humanize(name))),
       description: raw.description ?? prop.description,
       kind,
       options,

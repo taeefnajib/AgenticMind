@@ -30,7 +30,7 @@ Open http://localhost:5173. On first launch a *Hello pipeline* project is create
 tab and press **Run**.
 
 To try document ingestion: **New** → *Document ingestion*, select the **Load documents** node, upload
-`examples/data/employee-handbook.md` (or any PDF/DOCX/TXT/MD/HTML/CSV), then **Run** and open the
+`examples/data/employee-handbook.md` (or any PDF, Word, Excel, PowerPoint, EPUB, Markdown, HTML, CSV/TSV, JSON/JSONL, XML or YAML file), then **Run** and open the
 **Output** tab to browse the chunks with their sections and offsets.
 
 To try retrieval: **New** → *RAG retrieval*, upload a file in **Load documents**, pick **Run → Index report**
@@ -78,6 +78,13 @@ To design with AI: click the sparkle button at the bottom of the canvas and desc
 any question and answer yes or no"). The assistant builds or changes the graph in the selected project,
 validates it, saves it as a new revision and offers Undo. It uses `OPENROUTER_API_KEY`; choose another
 model under avatar → **Settings** → *AI assistant*. See ADR-0022.
+
+To use different models for different tasks: add a **Model Router** node. It sends each request to a route
+(e.g. code → a coding model, maths → a reasoning model, quick questions → a cheap model) chosen by
+keywords, a small classifier model, or both. See ADR-0024.
+
+To manage projects: avatar → **My projects** lists every saved project; deleting one asks you to type
+`DELETE` first (admins only).
 
 To add third-party nodes: build a package with `agenticmind-node new|validate|test|pack` (see
 `examples/plugins/acme-text-nodes`), then Node library → **Node packages…** → install the wheel and approve

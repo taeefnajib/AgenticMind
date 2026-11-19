@@ -55,7 +55,8 @@ class DocumentLoaderConfig(NodeConfig):
     display_name="Document Loader",
     category="data",
     package=PACKAGE,
-    description="Loads and parses uploaded files (PDF, DOCX, TXT, MD, HTML, CSV, JSON) into documents.",
+    description="Loads and parses uploaded files (PDF, Word, Excel, PowerPoint, EPUB, Markdown, HTML, "
+    "CSV/TSV, JSON/JSONL, XML, YAML, text) into documents.",
     inputs=[
         InputPort(
             name="files",

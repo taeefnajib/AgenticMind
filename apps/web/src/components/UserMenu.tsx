@@ -29,7 +29,7 @@ export function Avatar({ user, size = "sm" }: { user: User | null; size?: "sm" |
 }
 
 /** Avatar in the toolbar: who is signed in, Profile, Settings, Sign out. */
-export function UserMenu({ onOpen }: { onOpen: (section: "profile" | "assistant") => void }) {
+export function UserMenu({ onOpen }: { onOpen: (section: "profile" | "projects" | "assistant") => void }) {
   const { user, mode, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -48,7 +48,7 @@ export function UserMenu({ onOpen }: { onOpen: (section: "profile" | "assistant"
     };
   }, [open]);
 
-  const pick = (section: "profile" | "assistant") => {
+  const pick = (section: "profile" | "projects" | "assistant") => {
     setOpen(false);
     onOpen(section);
   };
@@ -82,6 +82,7 @@ export function UserMenu({ onOpen }: { onOpen: (section: "profile" | "assistant"
           </div>
           <div className="py-1 text-sm">
             <MenuItem onClick={() => pick("profile")}>{mode === "off" ? "Account" : "Profile"}</MenuItem>
+            <MenuItem onClick={() => pick("projects")}>My projects</MenuItem>
             <MenuItem onClick={() => pick("assistant")}>Settings</MenuItem>
             {mode === "required" && (
               <MenuItem

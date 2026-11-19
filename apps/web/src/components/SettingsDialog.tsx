@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
-import { ApiError, auth, settings as settingsApi } from "../api/client";
-import type { AssistantConfig, AssistantSettings, AssistantTestResult, ProviderModel, Role, User } from "../api/types";
+import { api, ApiError, auth, settings as settingsApi } from "../api/client";
+import type {
+  AssistantConfig,
+  AssistantSettings,
+  AssistantTestResult,
+  ProjectSummary,
+  ProviderModel,
+  Role,
+  User,
+} from "../api/types";
 import type { ThemePreference } from "../lib/useTheme";
 import { errorMessage, Field, useAuth } from "./AuthGate";
 import { Avatar } from "./UserMenu";
 
-export type SettingsSection = "profile" | "assistant" | "people" | "appearance";
+export type SettingsSection = "profile" | "projects" | "assistant" | "people" | "appearance";
 
 interface Props {
   open: boolean;
@@ -16,6 +24,10 @@ interface Props {
   theme: ThemePreference;
   onTheme: (t: ThemePreference) => void;
   notify: (text: string, tone?: "info" | "error" | "success") => void;
+  currentProjectId: string | null;
+  onOpenProject: (id: string) => void;
+  /** After a project was deleted (reload the list; switch away if it was open). */
+  onProjectDeleted: (id: string) => Promise<void>;
 }
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -29,6 +41,7 @@ export function SettingsDialog(p: Props) {
   const isAdmin = mode === "off" || user?.role === "admin";
   const sections: { id: SettingsSection; label: string; show: boolean }[] = [
     { id: "profile", label: mode === "off" ? "Account" : "Profile", show: true },
+    { id: "projects", label: "Projects", show: true },
     { id: "assistant", label: "AI assistant", show: true },
     { id: "people", label: "People", show: mode === "required" && isAdmin },
     { id: "appearance", label: "Appearance", show: true },
@@ -85,6 +98,14 @@ export function SettingsDialog(p: Props) {
             </svg>
           </button>
           {p.section === "profile" && <ProfileSection notify={p.notify} />}
+          {p.section === "projects" && (
+            <ProjectsSection
+              currentProjectId={p.currentProjectId}
+              onOpenProject={p.onOpenProject}
+              onProjectDeleted={p.onProjectDeleted}
+              notify={p.notify}
+            />
+          )}
           {p.section === "assistant" && <AssistantSection notify={p.notify} />}
           {p.section === "people" && isAdmin && mode === "required" && <PeopleSection notify={p.notify} />}
           {p.section === "appearance" && <AppearanceSection theme={p.theme} onTheme={p.onTheme} />}
@@ -752,6 +773,170 @@ function PeopleSection({ notify }: { notify: Props["notify"] }) {
           </tbody>
         </table>
         {users === null && !error && <div className="p-3 text-sm text-slate-500">Loading…</div>}
+      </div>
+    </>
+  );
+}
+
+// ---- Projects ---------------------------------------------------------------------------------
+/** The exact word to type before a project can be deleted. */
+export const DELETE_WORD = "DELETE";
+
+function ProjectsSection({
+  currentProjectId,
+  onOpenProject,
+  onProjectDeleted,
+  notify,
+}: {
+  currentProjectId: string | null;
+  onOpenProject: (id: string) => void;
+  onProjectDeleted: (id: string) => Promise<void>;
+  notify: Props["notify"];
+}) {
+  const { user, mode } = useAuth();
+  const canDelete = mode === "off" || user?.role === "admin";
+  const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [confirming, setConfirming] = useState<ProjectSummary | null>(null);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api.projects().then(
+      (list) => setProjects([...list].sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))),
+      (err) => setError(errorMessage(err)),
+    );
+  }, []);
+  useEffect(load, [load]);
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (projects ?? []).filter((p) => !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+  }, [projects, query]);
+
+  const startDelete = (p: ProjectSummary) => {
+    setConfirming(p);
+    setTyped("");
+  };
+
+  const confirmDelete = async () => {
+    if (!confirming || typed !== DELETE_WORD) return;
+    setBusy(true);
+    try {
+      await api.deleteProject(confirming.id);
+      notify(`Deleted ${confirming.name}`, "success");
+      const id = confirming.id;
+      setConfirming(null);
+      setTyped("");
+      await onProjectDeleted(id);
+      load();
+    } catch (err) {
+      notify(errorMessage(err), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <SectionHeader title="Projects">
+        All saved projects in this workspace.{" "}
+        {canDelete
+          ? "Deleting a project also deletes its revisions, runs, traces, files, evaluations and vector indexes."
+          : "Only admins can delete projects."}
+      </SectionHeader>
+      {error && (
+        <div className="mb-3">
+          <Alert tone="error">{error}</Alert>
+        </div>
+      )}
+      <input
+        className="am-input mb-3"
+        placeholder={projects ? `Search ${projects.length} project${projects.length === 1 ? "" : "s"}…` : "Search…"}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        aria-label="Search projects"
+      />
+      <div className="overflow-hidden rounded-xl border border-slate-200">
+        <ul className="divide-y divide-slate-100">
+          {shown.map((p) => (
+            <li key={p.id} className="px-3 py-2.5">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium text-slate-900">{p.name}</span>
+                    {p.id === currentProjectId && (
+                      <span className="shrink-0 rounded bg-accent-100 px-1.5 py-0.5 text-[10px] font-medium text-accent-700">open</span>
+                    )}
+                  </div>
+                  <div className="truncate text-xs text-slate-500">
+                    rev {p.revision} · updated {fmtDate(p.updated_at)}
+                    {p.description && ` · ${p.description}`}
+                  </div>
+                </div>
+                {p.id !== currentProjectId && (
+                  <button type="button" className="am-btn !px-2 !py-1 text-xs" onClick={() => onOpenProject(p.id)}>
+                    Open
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="am-btn !px-2 !py-1 text-xs text-red-600"
+                    onClick={() => startDelete(p)}
+                    aria-label={`Delete ${p.name}`}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+              {confirming?.id === p.id && (
+                <form
+                  className="mt-2.5 rounded-lg border border-red-200 bg-red-50 p-3"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void confirmDelete();
+                  }}
+                >
+                  <p className="text-xs text-red-800">
+                    <strong>This can’t be undone.</strong> “{p.name}” and its {p.revision} revision{p.revision === 1 ? "" : "s"},
+                    runs, traces, uploaded files, evaluations and vector indexes will be permanently deleted.
+                  </p>
+                  <label className="mt-2 block text-xs text-red-800" htmlFor={`confirm-${p.id}`}>
+                    Type <span className="rounded bg-surface px-1 font-mono font-semibold">{DELETE_WORD}</span> to confirm
+                  </label>
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      id={`confirm-${p.id}`}
+                      className="am-input font-mono"
+                      value={typed}
+                      onChange={(e) => setTyped(e.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
+                      autoFocus
+                      aria-describedby={`confirm-${p.id}`}
+                    />
+                    <button type="button" className="am-btn" onClick={() => setConfirming(null)} disabled={busy}>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex shrink-0 items-center rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={typed !== DELETE_WORD || busy}
+                    >
+                      {busy ? "Deleting…" : "Delete forever"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </li>
+          ))}
+          {projects !== null && shown.length === 0 && (
+            <li className="px-3 py-4 text-center text-xs text-slate-500">{query ? "No projects match." : "No projects yet."}</li>
+          )}
+          {projects === null && !error && <li className="px-3 py-3 text-sm text-slate-500">Loading…</li>}
+        </ul>
       </div>
     </>
   );

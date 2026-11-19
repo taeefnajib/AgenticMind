@@ -5,11 +5,12 @@ from typing import Any
 
 from agenticmind_ir import IRLoadError, ProjectDocument, load_project, to_canonical_json
 from agenticmind_runtime import validate_project
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ..db import ProjectRevisionRow, ProjectRow
 from ..deps import Services, services
 from ..schemas import ProjectCreate, ProjectOut, ProjectSave, ProjectSummary, RevisionSummary, ValidateRequest
+from ..security import require_admin
 from ..store import ConflictError, iso
 from ..templates import load_template
 
@@ -108,8 +109,18 @@ def save_project(project_id: str, body: ProjectSave, svc: Services = Depends(ser
     return _out(row, rev)
 
 
-@router.delete("/{project_id}", status_code=204)
-def delete_project(project_id: str, svc: Services = Depends(services)) -> Response:
+@router.delete("/{project_id}", status_code=204, dependencies=[Depends(require_admin)])
+def delete_project(
+    project_id: str,
+    confirm: str = Query(default="", description='Must be "DELETE": deleting cannot be undone'),
+    svc: Services = Depends(services),
+) -> Response:
+    """Delete a project with all its revisions, runs, files, evaluations and vector collections (admins)."""
+    if confirm != "DELETE":
+        raise HTTPException(
+            400,
+            {"code": "CONFIRMATION_REQUIRED", "message": "Deleting a project cannot be undone: send confirm=DELETE."},
+        )
     if not svc.store.delete_project(project_id):
         raise HTTPException(404, f"Project {project_id!r} not found")
     svc.artifacts.delete_project(project_id)

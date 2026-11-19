@@ -210,6 +210,9 @@ export const api = {
   createProject: (body: { name: string; description?: string; template?: string; document?: unknown }) =>
     request<ProjectOut>("/projects", { method: "POST", ...json(body) }),
   getProject: (id: string) => request<ProjectOut>(`/projects/${id}`),
+  /** Permanent: the API refuses unless the confirmation word is sent (admins only). */
+  deleteProject: (id: string) =>
+    request<void>(`/projects/${encodeURIComponent(id)}?confirm=DELETE`, { method: "DELETE" }),
   saveProject: (id: string, document: ProjectDocument, expectedRevision?: number) =>
     request<ProjectOut>(`/projects/${id}`, {
       method: "PUT",
