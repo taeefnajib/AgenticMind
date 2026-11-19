@@ -37,6 +37,11 @@ class Settings:
     #: Prefix for environment variables holding secret values (``{prefix}NAME``).
     secret_env_prefix: str = field(default_factory=lambda: os.environ.get("AGENTICMIND_SECRET_PREFIX", ""))
     max_concurrency: int = field(default_factory=lambda: int(os.environ.get("AGENTICMIND_MAX_CONCURRENCY", "8")))
+    #: Let the API run Docker to deploy projects on this machine (ADR-0020). Off by default: the API has no
+    #: authentication yet, and building/running containers is a privilege.
+    local_deploy: bool = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_LOCAL_DEPLOY", "0").lower() in ("1", "true", "yes")
+    )
     #: Optional directory with the built web app, served at ``/`` (single-container deployments).
     web_dist: Path | None = field(
         default_factory=lambda: Path(p) if (p := os.environ.get("AGENTICMIND_WEB_DIST")) else None

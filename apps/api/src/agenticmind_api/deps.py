@@ -6,6 +6,7 @@ from agenticmind_registry import NodeRegistry
 from agenticmind_runtime import LocalArtifactStore, SecretResolver
 from fastapi import Request
 
+from .deploy_manager import DeploymentManager
 from .eval_manager import EvaluationManager
 from .eval_store import EvalStore
 from .memory_store import SqlMemoryStore
@@ -25,6 +26,7 @@ class Services:
     memory: SqlMemoryStore
     evals: EvalStore
     eval_runs: EvaluationManager
+    deployments: DeploymentManager
 
 
 def services(request: Request) -> Services:

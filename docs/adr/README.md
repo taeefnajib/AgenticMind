@@ -21,5 +21,6 @@
 | [0017](0017-evaluation-lab.md) | Evaluation Lab: versioned datasets, evaluators, judges, comparison | Accepted |
 | [0018](0018-semantic-database-nodes.md) | Semantic data nodes: read-only database access, SQL policy, NL-to-SQL | Accepted |
 | [0019](0019-auto-ontology-adapter.md) | NVIDIA Auto Ontology adapter: pinned commit, contract tests, capability checks | Accepted |
+| [0020](0020-deployment-center.md) | Deployment Center: capability checks, hash-bound plans, local Docker deploy, rollback | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

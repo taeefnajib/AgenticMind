@@ -154,6 +154,35 @@ class EvalCaseRow(Base):
     payload: Mapped[dict[str, Any]]
 
 
+class DeploymentRow(Base):
+    """A deployment (ADR-0020): what was confirmed (plan hash), where, its status, endpoint and health.
+
+    Never stores secret values: only names (inside ``plan``) and non-secret settings (``env``)."""
+
+    __tablename__ = "deployments"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    content_hash: Mapped[str] = mapped_column(String(80))
+    target: Mapped[str] = mapped_column(String(40))
+    profile: Mapped[str] = mapped_column(String(20))
+    mode: Mapped[str] = mapped_column(String(10))
+    status: Mapped[str] = mapped_column(String(20))
+    plan_hash: Mapped[str] = mapped_column(String(80))
+    plan: Mapped[dict[str, Any]]
+    env: Mapped[dict[str, Any]]
+    image: Mapped[str] = mapped_column(String(300), default="")
+    endpoint: Mapped[str] = mapped_column(String(500), default="")
+    health: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    compose_project: Mapped[str] = mapped_column(String(120), default="")
+    host_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rollback_of: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ConversationMessageRow(Base):
     """Short-term conversation state (ADR-0012). Deleted with the project or by retention."""
 

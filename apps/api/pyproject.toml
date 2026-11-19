@@ -12,6 +12,7 @@ dependencies = [
     "agenticmind-registry",
     "agenticmind-runtime",
     "agenticmind-compiler",
+    "agenticmind-deployment",
     "agenticmind-evaluation",
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",

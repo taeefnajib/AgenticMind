@@ -437,3 +437,104 @@ export interface WaitOut {
   created_at: string | null;
   answered_at: string | null;
 }
+
+// ---- Deployment Center (ADR-0020) ----------------------------------------------------------------
+export type DeployMode = "direct" | "guided" | "plan";
+export type Severity = "blocker" | "warning" | "info";
+
+export interface DeployTarget {
+  id: string;
+  name: string;
+  mode: DeployMode;
+  summary: string;
+  persistent_disk: string;
+  max_request_seconds: number | null;
+  facts: { text: string; source: string }[];
+  verified_on: string;
+}
+
+export interface DeployTargets {
+  targets: DeployTarget[];
+  profiles: { id: string; summary: string }[];
+  local: { available: boolean; reason: string };
+}
+
+export interface DeployCheck {
+  id: string;
+  severity: Severity;
+  title: string;
+  detail: string;
+  remedy: string;
+}
+
+export interface DeployPlan {
+  target: string;
+  target_name: string;
+  mode: DeployMode;
+  profile: string;
+  revision: number;
+  content_hash: string;
+  name: string;
+  requirements: {
+    endpoints: string[];
+    secrets: string[];
+    network_egress: boolean;
+    persistent_data: string[];
+    in_process_state: string[];
+    longest_request_seconds: number;
+    slowest_node: string;
+    local_models: string[];
+    external_services: string[];
+    memory_mb: number;
+  };
+  checks: DeployCheck[];
+  compatible: boolean;
+  secrets: { name: string; provided: boolean | null; purpose: string }[];
+  env: Record<string, string>;
+  artifacts: { path: string; bytes: number }[];
+  files?: Record<string, string>;
+  permissions: string[];
+  steps: string[];
+  plan_hash: string;
+}
+
+export type DeploymentStatus =
+  | "deploying"
+  | "running"
+  | "failed"
+  | "superseded"
+  | "stopped"
+  | "artifacts_ready"
+  | "live";
+
+export interface Deployment {
+  id: string;
+  project_id: string;
+  revision: number;
+  target: string;
+  target_name: string;
+  profile: string;
+  mode: DeployMode;
+  status: DeploymentStatus;
+  plan_hash: string;
+  endpoint: string;
+  health: { ok: boolean; checked_at: string } | null;
+  env: Record<string, string>;
+  image: string;
+  rollback_of: string | null;
+  error: string;
+  checks: DeployCheck[];
+  secrets: string[];
+  created_at: string;
+  finished_at: string | null;
+  stopped_at: string | null;
+  log?: string;
+}
+
+export interface DeployRequest {
+  revision?: number | null;
+  target: string;
+  profile: string;
+  env: Record<string, string>;
+  image: string;
+}

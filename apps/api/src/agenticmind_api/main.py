@@ -13,10 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .db import make_engine, make_session_factory
+from .deploy_manager import DeploymentManager, DeploymentStore
 from .deps import Services
 from .eval_manager import EvaluationManager
 from .eval_store import EvalStore
 from .memory_store import SqlMemoryStore
+from .routers import deployments as deployment_routes
 from .routers import evaluations as evaluation_routes
 from .routers import files, nodes, projects, runs
 from .routers import memory as memory_routes
@@ -63,6 +65,16 @@ def create_app(
         max_concurrency=settings.max_concurrency,
     )
 
+    deployments = DeploymentManager(
+        store,
+        DeploymentStore(session_factory),
+        registry,
+        secrets,
+        artifacts=artifacts,
+        data_dir=settings.data_dir,
+        local_enabled=settings.local_deploy,
+    )
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         orphaned = store.fail_orphaned_runs()
@@ -71,7 +83,11 @@ def create_app(
         interrupted = evals.fail_interrupted()
         if interrupted:
             log.warning("marked %d interrupted evaluation(s) as failed", interrupted)
+        interrupted_deploys = deployments.deployments.fail_interrupted()
+        if interrupted_deploys:
+            log.warning("marked %d interrupted deployment(s) as failed", interrupted_deploys)
         yield
+        await deployments.shutdown()
         await eval_runs.shutdown()
         await run_manager.shutdown()
 
@@ -91,6 +107,7 @@ def create_app(
         memory=memory,
         evals=evals,
         eval_runs=eval_runs,
+        deployments=deployments,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -105,6 +122,7 @@ def create_app(
     app.include_router(files.router)
     app.include_router(memory_routes.router)
     app.include_router(evaluation_routes.router)
+    app.include_router(deployment_routes.router)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app

@@ -121,7 +121,8 @@ def analyze(doc: ProjectDocument, registry: NodeRegistry, endpoints: list[Endpoi
             )
         if node.type == "agenticmind.agents.tool_web_fetch":
             notes.append("Web Fetch: set AGENTICMIND_HTTP_USER_AGENT with contact details for sites like Wikipedia.")
-        if manifest.permissions.memory:
+        # memory nodes, not the Agent (which only declares the permission so it *can* be wired to memory)
+        if manifest.permissions.memory and node.type != "agenticmind.agents.agent":
             notes.append("Memory nodes keep conversations and memories in process memory (lost on restart).")
         if manifest.permissions.artifacts and not artifact_ids(node.config):
             notes.append(f"'{node.id}' reads project files but none are selected, so it cannot run until you add some.")

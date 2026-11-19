@@ -1,5 +1,9 @@
 import type {
   AppPreview,
+  Deployment,
+  DeployPlan,
+  DeployRequest,
+  DeployTargets,
   ArtifactInfo,
   ComparisonOut,
   ConversationSummary,
@@ -188,6 +192,24 @@ export const api = {
   cancelEvaluation: (id: string) => request<EvaluationOut>(`/evaluations/${id}/cancel`, { method: "POST" }),
   deleteEvaluation: (id: string) => request<void>(`/evaluations/${id}`, { method: "DELETE" }),
   appPreview: (id: string) => request<AppPreview>(`/projects/${id}/app/preview`),
+  deployTargets: () => request<DeployTargets>(`/deployment/targets`),
+  deployPlan: (id: string, body: DeployRequest) =>
+    request<DeployPlan>(`/projects/${id}/deployments/plan`, { method: "POST", ...json(body) }),
+  deploy: (id: string, body: DeployRequest & { plan_hash: string; confirm: boolean; rollback_of?: string | null }) =>
+    request<Deployment>(`/projects/${id}/deployments`, { method: "POST", ...json(body) }),
+  listDeployments: (id: string) => request<Deployment[]>(`/projects/${id}/deployments`),
+  getDeployment: (id: string) => request<Deployment>(`/deployments/${id}`),
+  stopDeployment: (id: string) => request<Deployment>(`/deployments/${id}/stop`, { method: "POST" }),
+  checkDeploymentHealth: (id: string) => request<Deployment>(`/deployments/${id}/health`, { method: "POST" }),
+  registerDeploymentUrl: (id: string, url: string) =>
+    request<Deployment>(`/deployments/${id}/url`, { method: "POST", ...json({ url }) }),
+  async deploymentBundle(id: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await send(`/api/deployments/${id}/bundle`, undefined, REQUEST_TIMEOUT_MS * 4);
+    if (!res.ok) throw new ApiError(res.status, undefined);
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `${id}.zip`;
+    return { blob: await res.blob(), filename };
+  },
   async exportApp(id: string): Promise<{ blob: Blob; filename: string }> {
     const res = await send(`/api/projects/${id}/app`, undefined, REQUEST_TIMEOUT_MS * 4);
     if (!res.ok) {

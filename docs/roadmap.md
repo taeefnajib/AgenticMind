@@ -12,7 +12,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 | M5 Evaluation Lab | **Done (core)**: versioned datasets, 18 evaluators (retrieval, generation, safety, agent, operations, LLM judges), traced per-case runs, comparison and baseline |
 | M6 Agent Lab | **Done (core)**: tools + Agent, loops/router/join, memory, checkpoints/approval/resume, multi-agent patterns (8a–8e) |
 | M7 Semantic intelligence (NVIDIA Auto Ontology adapter) | **Done**: M7a database nodes (connector, schema inspector, profiler, read-only SQL policy, NL-to-SQL, SQL tool); M7b Auto Ontology adapter (pinned commit `778ccde`, OpenAPI 1.3.0 contract tests, capability checks, verified live) |
-| M8 Deployment Center | Planned (Docker self-hosting exists for the platform itself) |
+| M8 Deployment Center | **Done (first slice)**: capability checks for 7 targets, dev/prod/enterprise profiles, Compose/Kubernetes/Cloud Run artifacts, hash-bound confirmation, local Docker deploy with health, switch-over and rollback; AWS/Azure/Vercel plan-only |
 | M9 Ecosystem | Partly: entry-point discovery and trust levels exist |
 
 ## Implemented
@@ -107,6 +107,12 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   policy *and* read-only connections; SQLite uploads (content-addressed copies) and PostgreSQL (dsn secret);
   chat shows the SQL and rows; sample `examples/data/sales.sqlite`; *Ask your database* template.
   Verified live with Gemini against independently computed answers.
+- **M8 – Deployment Center**: `agenticmind-deployment` derives requirements (persistent data, in-process
+  state, longest request, local models, secrets) and checks them against Local Docker, Docker server,
+  Kubernetes, Cloud Run, AWS ECS, Azure Container Apps and Vercel (cited vendor limits); profiles;
+  generated Compose/Kustomize/Cloud Run artifacts with secrets by name only; plans with permissions and steps,
+  confirmed against their hash; opt-in local Docker deployment (127.0.0.1, health-checked switch-over,
+  rollback, stop, logs); guided targets can be marked live with a URL; Deploy dialog with history.
 - **M7b – NVIDIA Auto Ontology adapter**: `Ontology` port/handle (token as a secret reference); connection
   node with health, token and semantic-layer readiness checks; Term Search, Term Details, Ontology Context
   (grounds NL-to-SQL), Ask Auto Ontology (streamed, SQL + rows in Chat), Auto Ontology Tool for agents;
@@ -145,6 +151,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   guard, not a firewall (use a read-only database role); no PII masking or column-level permissions.
 - Auto Ontology: pinned to a commit (no upstream releases); `check_answerable` is MCP-only upstream and not
   used; questions are stateless (no `conversation_id`).
+- Deployment: no direct cloud provisioning yet (guided files or plan only); AWS/Azure/Vercel artifacts not
+  generated; no built-in image scanning; Kubernetes/Cloud Run manifests validated structurally (Kustomize
+  build), not against a live cluster; local deploy needs AGENTICMIND_LOCAL_DEPLOY=1 (no API auth yet).
 - Licence not chosen.
 - The Docker image build is defined but was not exercised in CI (neither for the platform nor for exported apps).
 - Exported apps: human-approval pauses answer 409, memory is in process, rate limits are per process; endpoints
@@ -152,6 +161,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-1. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
-2. AuthN/Z, workspaces, audit log; Alembic migrations.
-3. Revision history UI and diff view (canonical IR makes this straightforward).
+1. **M9 – Ecosystem**: node SDK packaging, registry with trust levels, installing and permissioning a
+   third-party node package end to end (blueprint exit: developed, tested, installed and permissioned).
+2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
+3. AuthN/Z, workspaces, audit log; Alembic migrations.
+4. Revision history UI and diff view (canonical IR makes this straightforward).

@@ -35,6 +35,7 @@ import { AmNode } from "./components/AmNode";
 import type { ChatResult } from "./components/ChatPanel";
 import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
 import { EvaluationLab } from "./components/EvaluationLab";
+import { DeploymentCenter } from "./components/DeploymentCenter";
 import { ExportAppDialog } from "./components/ExportAppDialog";
 import { Inspector } from "./components/Inspector";
 import { NewProjectDialog } from "./components/NewProjectDialog";
@@ -109,6 +110,7 @@ export function App() {
   const [approvalsKey, setApprovalsKey] = useState(0);
   const [approvalCount, setApprovalCount] = useState(0);
   const [exportAppOpen, setExportAppOpen] = useState(false);
+  const [deployOpen, setDeployOpen] = useState(false);
   const [evalOpen, setEvalOpen] = useState(false);
   const [runInputs, setRunInputs] = useState<Record<string, JsonValue>>({});
   const [mode, setModeState] = useState<Mode>(() => (storage.get("am.mode") as Mode) || "low_code");
@@ -649,6 +651,7 @@ export function App() {
           onCancel={() => void cancelRun()}
           onExport={() => void exportIR()}
           onExportApp={() => setExportAppOpen(true)}
+          onDeploy={() => setDeployOpen(true)}
           onEvaluate={() => setEvalOpen(true)}
           onMode={setMode}
           theme={theme.preference}
@@ -740,6 +743,13 @@ export function App() {
         projectId={project?.id ?? null}
         ensureSaved={ensureSaved}
         onClose={() => setExportAppOpen(false)}
+        notify={notify}
+      />
+      <DeploymentCenter
+        open={deployOpen}
+        projectId={project?.id ?? null}
+        ensureSaved={ensureSaved}
+        onClose={() => setDeployOpen(false)}
         notify={notify}
       />
       <NewProjectDialog

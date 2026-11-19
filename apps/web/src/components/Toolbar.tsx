@@ -28,6 +28,7 @@ interface Props {
   onCancel: () => void;
   onExport: () => void;
   onExportApp: () => void;
+  onDeploy: () => void;
   onEvaluate: () => void;
   onMode: (mode: Mode) => void;
   theme: ThemePreference;
@@ -120,6 +121,15 @@ export function Toolbar(p: Props) {
         title="Generate a standalone FastAPI project (API, tests, Docker) from this graph"
       >
         Export app
+      </button>
+      <button
+        type="button"
+        className="am-btn"
+        onClick={p.onDeploy}
+        disabled={!p.projectId || p.busy}
+        title="Deployment Center: check targets, review a plan, deploy and roll back"
+      >
+        Deploy
       </button>
 
       <div className={`ml-2 min-w-0 flex-1 truncate text-xs ${p.message ? TONE[p.message.tone] : ""}`} role="status">

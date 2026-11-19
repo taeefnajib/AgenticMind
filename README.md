@@ -74,6 +74,10 @@ To query a database in plain language: **New** → *Ask your database*, upload `
 and ask in **Chat**; every answer shows its SQL, which runs read-only. See
 [docs/architecture/semantic.md](docs/architecture/semantic.md).
 
+To deploy a project: **Deploy** checks it against Local Docker, a Docker server, Kubernetes, Cloud Run, AWS,
+Azure and Vercel, shows the plan, and after you confirm deploys locally (opt-in) or generates the files;
+history keeps health and rollback. See [docs/architecture/deployment.md](docs/architecture/deployment.md).
+
 With an NVIDIA Auto Ontology deployment, **New** → *Ask Auto Ontology* asks questions through its semantic
 layer (business terms, measures, relationships); see
 [docs/architecture/auto-ontology.md](docs/architecture/auto-ontology.md).
