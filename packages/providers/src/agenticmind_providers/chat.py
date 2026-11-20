@@ -1,9 +1,16 @@
-"""OpenAI-compatible chat completions (OpenRouter by default).
+"""OpenAI-compatible chat completions: OpenRouter (default), Hugging Face, Ollama and any compatible server.
 
 Verified against OpenRouter's API reference (Nov 2026): ``POST {base}/chat/completions`` with a Bearer
 key; ``max_completion_tokens`` (``max_tokens`` is deprecated); OpenAI-style ``tools`` / ``tool_calls``
 with JSON-string arguments; ``usage`` always includes ``prompt_tokens``, ``completion_tokens`` and, on
 OpenRouter, ``cost`` in USD.
+
+Verified Nov 2026:
+- Hugging Face Inference Providers: ``https://router.huggingface.co/v1/chat/completions`` with a Bearer
+  ``HF_TOKEN``; model ids may end in ``:fastest``/``:cheapest``/``:<provider>``; ``GET /v1/models`` lists them.
+- Ollama: ``http://localhost:11434/v1`` (key ignored locally), vision via base64 ``image_url`` data URLs,
+  tools supported; it reads ``max_tokens`` (not ``max_completion_tokens``); ``GET /v1/models``.
+Images go as OpenAI content parts (``text`` + ``image_url`` with a data URL).
 """
 
 from __future__ import annotations
@@ -16,12 +23,27 @@ from agenticmind_node_sdk import ModelUsage
 from . import ChatRequest, ChatResponse, ProviderError, ToolCall
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1"
+OLLAMA_BASE_URL = "http://localhost:11434/v1"
+#: Default base URL per provider (None: the config must give one).
+DEFAULT_BASE_URLS: dict[str, str] = {
+    "openrouter": OPENROUTER_BASE_URL,
+    "huggingface": HUGGINGFACE_BASE_URL,
+    "ollama": OLLAMA_BASE_URL,
+}
+#: Providers that read the older ``max_tokens`` field.
+_MAX_TOKENS_FIELD = {"ollama": "max_tokens", "huggingface": "max_tokens"}
 DEFAULT_OPENROUTER_MODEL = "google/gemini-3.8-flash"
 APP_TITLE = "AgenticMind"
 
 
 def _message_payload(m: Any) -> dict[str, Any]:
-    payload: dict[str, Any] = {"role": m.role, "content": m.content or ""}
+    content: Any = m.content or ""
+    if getattr(m, "images", None):
+        content = [{"type": "text", "text": m.content or ""}] + [
+            {"type": "image_url", "image_url": {"url": p.data_url}} for p in m.images
+        ]
+    payload: dict[str, Any] = {"role": m.role, "content": content}
     if m.tool_calls:
         payload["tool_calls"] = [
             {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": json.dumps(c.arguments)}}
@@ -34,7 +56,7 @@ def _message_payload(m: Any) -> dict[str, Any]:
     return payload
 
 
-def build_body(request: ChatRequest) -> dict[str, Any]:
+def build_body(request: ChatRequest, *, max_tokens_field: str = "max_completion_tokens") -> dict[str, Any]:
     messages = []
     if request.system:
         messages.append({"role": "system", "content": request.system})
@@ -43,7 +65,7 @@ def build_body(request: ChatRequest) -> dict[str, Any]:
         "model": request.model,
         "messages": messages,
         "temperature": request.temperature,
-        "max_completion_tokens": request.max_tokens,
+        max_tokens_field: request.max_tokens,
     }
     if request.tools:
         body["tools"] = [
@@ -103,19 +125,26 @@ class OpenAICompatibleChat:
     ) -> ChatResponse:
         import httpx
 
-        if self.name == "openrouter":
-            base_url = base_url or OPENROUTER_BASE_URL
-            if not api_key:
-                raise ProviderError("PROVIDER_AUTH_MISSING", "OpenRouter needs an API key (OPENROUTER_API_KEY)")
-        elif not base_url:
-            raise ProviderError("PROVIDER_CONFIG_INVALID", "openai_compatible needs a base_url")
+        base_url = base_url or DEFAULT_BASE_URLS.get(self.name)
+        if self.name == "openrouter" and not api_key:
+            raise ProviderError("PROVIDER_AUTH_MISSING", "OpenRouter needs an API key (OPENROUTER_API_KEY)")
+        if self.name == "huggingface" and not api_key:
+            raise ProviderError("PROVIDER_AUTH_MISSING", "Hugging Face needs a token (HF_TOKEN)")
+        if not base_url:
+            raise ProviderError("PROVIDER_CONFIG_INVALID", f"{self.name} needs a base_url")
         headers = {"Content-Type": "application/json", "X-Title": APP_TITLE}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         url = base_url.rstrip("/") + "/chat/completions"
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15)) as client:
-                resp = await client.post(url, json=build_body(request), headers=headers)
+                body = build_body(request, max_tokens_field=_MAX_TOKENS_FIELD.get(self.name, "max_completion_tokens"))
+                resp = await client.post(url, json=body, headers=headers)
+        except httpx.ConnectError as exc:
+            hint = " Is Ollama running (ollama serve) and reachable at this base URL?" if self.name == "ollama" else ""
+            raise ProviderError(
+                "PROVIDER_UNAVAILABLE", f"Could not connect to {base_url}.{hint}", retryable=True
+            ) from exc
         except httpx.HTTPError as exc:
             raise ProviderError("PROVIDER_UNAVAILABLE", f"Chat request failed: {exc}", retryable=True) from exc
         if resp.status_code in (401, 403):

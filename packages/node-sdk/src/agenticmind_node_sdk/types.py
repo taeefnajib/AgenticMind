@@ -21,6 +21,7 @@ class PortType(str, Enum):
     JSON = "JSON"
     DOCUMENT = "Document"
     DOCUMENT_SET = "DocumentSet"
+    IMAGE = "Image"
     EMBEDDING_VECTOR = "EmbeddingVector"
     VECTOR_STORE_HANDLE = "VectorStoreHandle"
     DATABASE = "Database"
@@ -84,6 +85,10 @@ def value_matches_type(value: Any, port_type: PortType) -> bool:
             from .documents import is_document_set
 
             return is_document_set(value)
+        case PortType.IMAGE:
+            from .images import is_image
+
+            return is_image(value)
         case PortType.EMBEDDING_MODEL:
             from .handles import is_handle
 

@@ -79,6 +79,12 @@ any question and answer yes or no"). The assistant builds or changes the graph i
 validates it, saves it as a new revision and offers Undo. It uses `OPENROUTER_API_KEY`; choose another
 model under avatar → **Settings** → *AI assistant*. See ADR-0022.
 
+To work with images: **New** → *Describe an image (vision)*, upload a picture in **Run inputs** (or attach one
+in **Chat**) and ask about it. The LLM node (1.2.0) sends images to vision models; the **OCR** node and the
+Document Loader read text from images and scanned PDFs with open-source RapidOCR, locally. Models can come
+from OpenRouter, **Hugging Face** (`HF_TOKEN`), **Ollama** on your machine (no key) or any OpenAI-compatible
+server. See ADR-0025.
+
 To use different models for different tasks: add a **Model Router** node. It sends each request to a route
 (e.g. code → a coding model, maths → a reasoning model, quick questions → a cheap model) chosen by
 keywords, a small classifier model, or both. See ADR-0024.

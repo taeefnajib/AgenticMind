@@ -14,6 +14,7 @@ from .handles import (
     ToolHandle,
     VectorStoreHandle,
 )
+from .images import IMAGE_MEDIA_TYPES, VISION_MEDIA_TYPES, coerce_images, image_ref, is_image
 from .manifest import (
     Cardinality,
     Compatibility,
@@ -42,6 +43,11 @@ from .memory import (
 from .types import PortType, is_compatible, is_json_value, value_matches_type
 
 __all__ = [
+    "IMAGE_MEDIA_TYPES",
+    "VISION_MEDIA_TYPES",
+    "coerce_images",
+    "image_ref",
+    "is_image",
     "DatabaseHandle",
     "OntologyHandle",
     "SuspendNode",

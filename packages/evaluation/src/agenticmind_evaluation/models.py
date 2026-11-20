@@ -90,7 +90,7 @@ class DatasetContent(_Model):
 
 
 class JudgeConfig(_Model):
-    provider: Literal["openrouter", "openai_compatible", "mock"] = "openrouter"
+    provider: Literal["openrouter", "huggingface", "ollama", "openai_compatible", "mock"] = "openrouter"
     model: str = "google/gemini-3.8-flash"
     api_key: dict[str, str] | None = Field(
         default=None, description='Secret reference, e.g. {"$secret": "OPENROUTER_API_KEY"}'

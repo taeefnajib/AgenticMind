@@ -16,7 +16,7 @@ dependencies = [
     "agenticmind-plugins",
     "agenticmind-evaluation",
     "agenticmind-nodes-core",
-    "agenticmind-nodes-data",
+    "agenticmind-nodes-data[ocr]",
     "agenticmind-nodes-rag",
     "agenticmind-nodes-agents",
     "agenticmind-nodes-semantic",

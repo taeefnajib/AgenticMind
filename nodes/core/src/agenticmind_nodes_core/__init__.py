@@ -9,12 +9,13 @@ from agenticmind_node_sdk import NodeDefinition
 from .approval import human_approval
 from .control import conditional
 from .flow import join, loop, loop_end, loop_end_v1, router
-from .io import delay, manual_input, output
-from .models import llm, llm_v1, model_router
+from .io import delay, image_input, manual_input, output
+from .models import llm, llm_v1, llm_v12, model_router
 from .transform import collect, json_select, parse_json, text_template, text_transform, to_text
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     manual_input,
+    image_input,
     output,
     delay,
     text_template,
@@ -30,6 +31,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     router,
     join,
     human_approval,
+    llm_v12,
     llm,
     llm_v1,
     model_router,

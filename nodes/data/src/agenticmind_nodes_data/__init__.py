@@ -6,9 +6,9 @@ from typing import Any
 
 from agenticmind_node_sdk import NodeDefinition
 
-from .nodes import document_cleaner, document_loader
+from .nodes import document_cleaner, document_loader, image_loader, ocr
 
-ALL_NODES: tuple[NodeDefinition[Any], ...] = (document_loader, document_cleaner)
+ALL_NODES: tuple[NodeDefinition[Any], ...] = (document_loader, document_cleaner, image_loader, ocr)
 
 
 def register(registrar: Any) -> None:

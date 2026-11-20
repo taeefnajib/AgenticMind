@@ -5,10 +5,13 @@ this interface so graphs can switch providers without changing architecture.
 
 Providers:
 * ``openrouter`` – OpenRouter's OpenAI-compatible API (default for real models; Gemini and others).
-* ``openai_compatible`` – any OpenAI-style ``/chat/completions`` endpoint (``base_url`` required).
+* ``huggingface`` – Hugging Face Inference Providers (``router.huggingface.co/v1``, token ``HF_TOKEN``).
+* ``ollama`` – a local (or remote) Ollama server through its OpenAI-compatible API; no key needed.
+* ``openai_compatible`` – any OpenAI-style ``/chat/completions`` endpoint (``base_url`` required): vLLM,
+  TGI, LM Studio, llama.cpp server, Hugging Face Inference Endpoints, ...
 * ``mock`` – deterministic, offline; for tests and demos. Output is labelled ``[mock:<model>]``.
 
-The request/response types already carry tool calling (used by the Agent node).
+The request/response types carry tool calling (used by the Agent node) and images (vision models).
 """
 
 from __future__ import annotations
@@ -18,6 +21,37 @@ from typing import Any, Literal, Protocol
 
 from agenticmind_node_sdk import ModelUsage
 from pydantic import BaseModel, Field
+
+#: Chat providers a node config may name (one list, so every model-using node offers the same choice).
+ChatProviderName = Literal["openrouter", "huggingface", "ollama", "openai_compatible", "mock"]
+#: Providers that always need an API key, and the secret it is usually kept in.
+KEYED_CHAT_PROVIDERS: dict[str, str] = {"openrouter": "OPENROUTER_API_KEY", "huggingface": "HF_TOKEN"}
+CHAT_PROVIDER_HELP = (
+    "openrouter: Gemini, Claude, GPT and many more (OPENROUTER_API_KEY). huggingface: open models via Hugging "
+    "Face Inference Providers (HF_TOKEN). ollama: models on your own machine (no key; default "
+    "http://localhost:11434/v1). openai_compatible: any OpenAI-style API (vLLM, TGI, LM Studio...; needs "
+    "base_url). mock: offline test responses."
+)
+
+
+def check_chat_provider(provider: str, api_key: Any, base_url: str | None) -> None:
+    """Config validation shared by model-using nodes: raises ``ValueError`` with a fix-it message."""
+    if provider in KEYED_CHAT_PROVIDERS and api_key is None:
+        name = KEYED_CHAT_PROVIDERS[provider]
+        raise ValueError(f'{provider} needs an api_key secret reference (e.g. {{"$secret": "{name}"}})')
+    if provider == "openai_compatible" and not base_url:
+        raise ValueError("openai_compatible needs a base_url")
+
+
+class ImagePart(BaseModel):
+    """An image attached to a chat message (sent to vision models as a base64 data URL)."""
+
+    media_type: str = Field(pattern=r"^image/[a-z0-9.+-]+$")
+    data_base64: str = Field(min_length=1)
+
+    @property
+    def data_url(self) -> str:
+        return f"data:{self.media_type};base64,{self.data_base64}"
 
 
 class ToolCall(BaseModel):
@@ -40,6 +74,8 @@ class ChatMessage(BaseModel):
     tool_calls: list[ToolCall] | None = None
     tool_call_id: str | None = None
     name: str | None = None
+    #: Images for vision models (user messages only).
+    images: list[ImagePart] = Field(default_factory=list)
 
 
 class ChatRequest(BaseModel):
@@ -127,6 +163,10 @@ class MockProvider:
             text = f"[mock:{request.model}] {first_sentence} [{match.group(1)}]"
         else:
             text = f"[mock:{request.model}] {last_user}".strip()
+        images = sum(len(m.images) for m in request.messages if m.role == "user")
+        if images:
+            kinds = ", ".join(sorted({p.media_type for m in request.messages for p in m.images}))
+            text += f" [saw {images} image{'s' if images != 1 else ''}: {kinds}]"
         prompt_text = " ".join([request.system or "", *[m.content or "" for m in request.messages]])
         return ChatResponse(
             text=text,
@@ -191,9 +231,16 @@ from .chat import OpenAICompatibleChat  # noqa: E402  (needs the types above)
 
 register_provider(OpenAICompatibleChat("openrouter"))
 register_provider(OpenAICompatibleChat("openai_compatible"))
+register_provider(OpenAICompatibleChat("huggingface"))
+register_provider(OpenAICompatibleChat("ollama"))
 
 __all__ = [
+    "CHAT_PROVIDER_HELP",
+    "KEYED_CHAT_PROVIDERS",
     "ChatMessage",
+    "ChatProviderName",
+    "ImagePart",
+    "check_chat_provider",
     "ChatRequest",
     "ChatResponse",
     "MockProvider",

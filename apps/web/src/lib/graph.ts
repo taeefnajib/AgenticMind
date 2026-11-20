@@ -25,7 +25,7 @@ export interface AmEdgeData extends Record<string, unknown> {
 export type AmFlowEdge = Edge<AmEdgeData>;
 
 export const PORT_TYPES = new Set([
-  "Any", "String", "Number", "Boolean", "JSON", "Document", "DocumentSet", "EmbeddingVector",
+  "Any", "String", "Number", "Boolean", "JSON", "Document", "DocumentSet", "Image", "EmbeddingVector",
   "VectorStoreHandle", "Database", "Ontology",
   "ChatMessage", "Tool", "AgentState", "EvaluationDataset", "HTTPRequest", "HTTPResponse",
 ]);

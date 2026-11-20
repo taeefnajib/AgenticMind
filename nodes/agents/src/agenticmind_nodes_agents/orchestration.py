@@ -33,7 +33,15 @@ from agenticmind_node_sdk import (
     ui,
 )
 from agenticmind_node_sdk.handles import handle_value
-from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, ToolSpec, get_provider
+from agenticmind_providers import (
+    ChatMessage,
+    ChatProviderName,
+    ChatRequest,
+    ProviderError,
+    ToolSpec,
+    check_chat_provider,
+    get_provider,
+)
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -46,7 +54,7 @@ LLM_PERMISSIONS = Permissions(network=True, credentials=True)
 
 
 class _ModelConfig(NodeConfig):
-    provider: Literal["openrouter", "openai_compatible", "mock"] = Field(default="openrouter")
+    provider: ChatProviderName = Field(default="openrouter")
     model: str = Field(default=DEFAULT_OPENROUTER_MODEL, min_length=1)
     api_key: SecretRef | None = secret_field("API key secret, e.g. OPENROUTER_API_KEY")
     base_url: str | None = Field(default=None, json_schema_extra=ui(advanced=True))
@@ -56,10 +64,7 @@ class _ModelConfig(NodeConfig):
 
     @model_validator(mode="after")
     def _check_provider(self) -> _ModelConfig:
-        if self.provider == "openrouter" and self.api_key is None:
-            raise ValueError('openrouter needs an api_key secret reference (e.g. {"$secret": "OPENROUTER_API_KEY"})')
-        if self.provider == "openai_compatible" and not self.base_url:
-            raise ValueError("openai_compatible needs a base_url")
+        check_chat_provider(self.provider, self.api_key, self.base_url)
         return self
 
 

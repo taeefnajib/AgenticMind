@@ -168,9 +168,7 @@ async def to_text(ctx: NodeContext, inputs, config: ToTextConfig) -> NodeResult:
         return NodeResult(outputs={"text": value})
     if not is_json_value(value):
         raise NodeError("CONVERSION_FAILED", "Value is not JSON-serialisable")
-    return NodeResult(
-        outputs={"text": json.dumps(value, ensure_ascii=False, indent=2 if config.pretty else None)}
-    )
+    return NodeResult(outputs={"text": json.dumps(value, ensure_ascii=False, indent=2 if config.pretty else None)})
 
 
 @define_node(

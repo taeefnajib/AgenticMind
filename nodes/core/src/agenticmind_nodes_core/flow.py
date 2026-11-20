@@ -31,7 +31,15 @@ from agenticmind_node_sdk import (
     ui,
     value_matches_type,
 )
-from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, ToolSpec, get_provider
+from agenticmind_providers import (
+    ChatMessage,
+    ChatProviderName,
+    ChatRequest,
+    ProviderError,
+    ToolSpec,
+    check_chat_provider,
+    get_provider,
+)
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
@@ -197,9 +205,7 @@ class RouterConfig(NodeConfig):
         description="Each route becomes an output branch. Unmatched input goes to 'default'.",
     )
     case_sensitive: bool = Field(default=False, json_schema_extra=ui(advanced=True))
-    provider: Literal["openrouter", "openai_compatible", "mock"] = Field(
-        default="openrouter", json_schema_extra=ui(advanced=True)
-    )
+    provider: ChatProviderName = Field(default="openrouter", json_schema_extra=ui(advanced=True))
     model: str = Field(default=DEFAULT_OPENROUTER_MODEL, json_schema_extra=ui(advanced=True))
     api_key: SecretRef | None = secret_field("API key for llm mode, e.g. OPENROUTER_API_KEY")
     base_url: str | None = Field(default=None, json_schema_extra=ui(advanced=True))
@@ -213,8 +219,8 @@ class RouterConfig(NodeConfig):
             raise ValueError("route names must be unique")
         if "default" in names:
             raise ValueError("'default' is reserved for unmatched input")
-        if self.mode == "llm" and self.provider == "openrouter" and self.api_key is None:
-            raise ValueError("llm mode with openrouter needs an api_key secret reference")
+        if self.mode == "llm":
+            check_chat_provider(self.provider, self.api_key, self.base_url)
         return self
 
 

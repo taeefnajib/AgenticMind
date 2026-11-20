@@ -34,7 +34,15 @@ from agenticmind_node_sdk import (
     secret_field,
     ui,
 )
-from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, ToolSpec, get_provider
+from agenticmind_providers import (
+    ChatMessage,
+    ChatProviderName,
+    ChatRequest,
+    ProviderError,
+    ToolSpec,
+    check_chat_provider,
+    get_provider,
+)
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from agenticmind_providers.rerank import DEFAULT_RERANK_MODEL, rerank_scores
 from pydantic import Field, JsonValue, model_validator
@@ -267,9 +275,7 @@ async def hybrid_search(ctx: NodeContext, inputs, config: HybridSearchConfig) ->
 
 # ---- LLM helper ---------------------------------------------------------------------------------
 class _LLMFields(NodeConfig):
-    llm_provider: Literal["openrouter", "openai_compatible", "mock"] = Field(
-        default="openrouter", json_schema_extra=ui(advanced=True)
-    )
+    llm_provider: ChatProviderName = Field(default="openrouter", json_schema_extra=ui(advanced=True))
     llm_model: str = Field(default=DEFAULT_OPENROUTER_MODEL, json_schema_extra=ui(advanced=True))
     api_key: SecretRef | None = secret_field("API key for LLM mode, e.g. OPENROUTER_API_KEY")
     base_url: str | None = Field(default=None, json_schema_extra=ui(advanced=True))
@@ -281,10 +287,8 @@ class _LLMFields(NodeConfig):
 
     @model_validator(mode="after")
     def _check_llm(self) -> _LLMFields:
-        if self._uses_llm() and self.llm_provider == "openrouter" and self.api_key is None:
-            raise ValueError(
-                'LLM mode with openrouter needs an api_key secret reference ({"$secret": "OPENROUTER_API_KEY"})'
-            )
+        if self._uses_llm():
+            check_chat_provider(self.llm_provider, self.api_key, self.base_url)
         return self
 
 

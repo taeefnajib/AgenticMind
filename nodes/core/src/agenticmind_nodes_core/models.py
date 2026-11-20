@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 from typing import Literal
 
 from agenticmind_node_sdk import (
+    VISION_MEDIA_TYPES,
     ExecutionPolicy,
     InputPort,
     ModelUsage,
@@ -19,11 +21,21 @@ from agenticmind_node_sdk import (
     PortType,
     SecretRef,
     TransientNodeError,
+    coerce_images,
     define_node,
     secret_field,
     ui,
 )
-from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, get_provider
+from agenticmind_providers import (
+    CHAT_PROVIDER_HELP,
+    ChatMessage,
+    ChatProviderName,
+    ChatRequest,
+    ImagePart,
+    ProviderError,
+    check_chat_provider,
+    get_provider,
+)
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL, OPENROUTER_BASE_URL
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -41,16 +53,20 @@ async def _chat(
     max_tokens: int,
     api_key_ref: SecretRef | None,
     base_url: str | None,
+    images: list[ImagePart] | None = None,
 ):
     try:
         provider = get_provider(provider_name)
         api_key = ctx.secret(api_key_ref) if api_key_ref else None
-        await ctx.emit("model_request", {"provider": provider_name, "model": model})
+        detail = {"provider": provider_name, "model": model}
+        if images:
+            detail["images"] = len(images)
+        await ctx.emit("model_request", detail)
         return await provider.chat(
             ChatRequest(
                 model=model,
                 system=system or None,
-                messages=[ChatMessage(role="user", content=prompt)],
+                messages=[ChatMessage(role="user", content=prompt, images=images or [])],
                 temperature=temperature,
                 max_tokens=max_tokens,
             ),
@@ -65,10 +81,9 @@ async def _chat(
 
 # -- LLM 1.1.0 ------------------------------------------------------------------------------------
 class LLMConfig(NodeConfig):
-    provider: Literal["openrouter", "openai_compatible", "mock"] = Field(
+    provider: ChatProviderName = Field(
         default="openrouter",
-        description="openrouter: Gemini and many other models (needs OPENROUTER_API_KEY). "
-        "openai_compatible: any OpenAI-style API. mock: offline test responses.",
+        description=CHAT_PROVIDER_HELP,
     )
     model: str = Field(
         default=DEFAULT_OPENROUTER_MODEL,
@@ -87,10 +102,7 @@ class LLMConfig(NodeConfig):
 
     @model_validator(mode="after")
     def _check(self) -> LLMConfig:
-        if self.provider == "openrouter" and self.api_key is None:
-            raise ValueError('openrouter needs an api_key secret reference (e.g. {"$secret": "OPENROUTER_API_KEY"})')
-        if self.provider == "openai_compatible" and not self.base_url:
-            raise ValueError("openai_compatible needs a base_url")
+        check_chat_provider(self.provider, self.api_key, self.base_url)
         return self
 
 
@@ -112,6 +124,35 @@ class LLMConfig(NodeConfig):
     tags=["models"],
 )
 async def llm(ctx: NodeContext, inputs, config: LLMConfig) -> NodeResult:
+    return await _run_llm(ctx, inputs, config, images=None)
+
+
+#: Per image sent to a model; larger photos should be resized before upload.
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
+MAX_IMAGES = 16
+
+
+def load_images(ctx: NodeContext, refs: list[dict]) -> list[ImagePart]:
+    """Read image references (from Image Input / Image Loader) into base64 parts for a vision model."""
+    if len(refs) > MAX_IMAGES:
+        raise NodeError("TOO_MANY_IMAGES", f"At most {MAX_IMAGES} images per request ({len(refs)} given)")
+    parts = []
+    for ref in refs:
+        info = ctx.artifact_info(ref["artifact_id"])
+        if info.media_type not in VISION_MEDIA_TYPES:
+            raise NodeError(
+                "IMAGE_FORMAT_UNSUPPORTED",
+                f"{info.filename} is {info.media_type}; vision models take PNG, JPEG, WebP or GIF "
+                "(convert it, or read its text with the OCR node)",
+            )
+        if info.size > MAX_IMAGE_BYTES:
+            raise NodeError("IMAGE_TOO_LARGE", f"{info.filename} is larger than {MAX_IMAGE_BYTES // 2**20} MB")
+        data = ctx.read_artifact(info.id)
+        parts.append(ImagePart(media_type=info.media_type, data_base64=base64.b64encode(data).decode("ascii")))
+    return parts
+
+
+async def _run_llm(ctx: NodeContext, inputs, config: LLMConfig, *, images: list[ImagePart] | None) -> NodeResult:
     response = await _chat(
         ctx,
         provider_name=config.provider,
@@ -122,6 +163,7 @@ async def llm(ctx: NodeContext, inputs, config: LLMConfig) -> NodeResult:
         max_tokens=config.max_tokens,
         api_key_ref=config.api_key,
         base_url=config.base_url,
+        images=images,
     )
     if not response.text.strip():
         raise NodeError(
@@ -135,6 +177,39 @@ async def llm(ctx: NodeContext, inputs, config: LLMConfig) -> NodeResult:
             ),
         )
     return NodeResult(outputs={"text": response.text}, usage=response.usage)
+
+
+# -- LLM 1.2.0: vision (image inputs) --------------------------------------------------------------
+@define_node(
+    type="agenticmind.models.llm",
+    version="1.2.0",
+    display_name="LLM",
+    category="models",
+    package=PACKAGE,
+    description="Sends a prompt (and optionally images, for vision models) to a chat model: OpenRouter, "
+    "Hugging Face, Ollama or any OpenAI-compatible server. Returns its reply.",
+    inputs=[
+        InputPort(name="prompt", type=PortType.STRING),
+        InputPort(name="system", type=PortType.STRING, required=False, description="Overrides the system prompt"),
+        InputPort(name="image", type=PortType.IMAGE, required=False, description="An image for a vision model"),
+        InputPort(
+            name="images", type=PortType.JSON, required=False, description="Several images (Image Loader 'images')"
+        ),
+    ],
+    outputs=[OutputPort(name="text", type=PortType.STRING)],
+    config=LLMConfig,
+    permissions=Permissions(network=True, credentials=True, artifacts=True),
+    execution=ExecutionPolicy(timeout_seconds=240, max_attempts=3, idempotent=True),
+    tags=["models", "vision"],
+)
+async def llm_v12(ctx: NodeContext, inputs, config: LLMConfig) -> NodeResult:
+    try:
+        refs = coerce_images(inputs.get("image")) + coerce_images(inputs.get("images"))
+    except ValueError as exc:
+        raise NodeError("INPUT_TYPE_MISMATCH", str(exc)) from exc
+    # the same file connected twice is sent once
+    unique = list({r["artifact_id"]: r for r in refs}.values())
+    return await _run_llm(ctx, inputs, config, images=load_images(ctx, unique) if unique else None)
 
 
 # -- LLM 1.0.0 (legacy, kept so existing projects keep working) ------------------------------------
@@ -224,7 +299,7 @@ def _default_routes() -> list[ModelRoute]:
 
 
 class ModelRouterConfig(NodeConfig):
-    provider: Literal["openrouter", "openai_compatible", "mock"] = Field(
+    provider: ChatProviderName = Field(
         default="openrouter",
         description="Used for every route and the classifier. OpenRouter reaches most models with one key.",
     )
@@ -263,10 +338,7 @@ class ModelRouterConfig(NodeConfig):
             raise ValueError(f"route names must be unique (repeated: {', '.join(dupes)})")
         if self.default_route not in names:
             raise ValueError(f"default_route {self.default_route!r} is not one of the routes ({', '.join(names)})")
-        if self.provider == "openrouter" and self.api_key is None:
-            raise ValueError('openrouter needs an api_key secret reference (e.g. {"$secret": "OPENROUTER_API_KEY"})')
-        if self.provider == "openai_compatible" and not self.base_url:
-            raise ValueError("openai_compatible needs a base_url")
+        check_chat_provider(self.provider, self.api_key, self.base_url)
         return self
 
 

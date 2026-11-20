@@ -139,3 +139,51 @@ async def test_mock_cites_first_source():
         ChatRequest(model="mock-1", messages=[ChatMessage(role="user", content=prompt)])
     )
     assert resp.text == "[mock:mock-1] Staff get 25 days. [1]"
+
+
+def test_images_ollama_and_huggingface(monkeypatch):
+    import asyncio
+    import json as _json
+
+    import httpx
+    from agenticmind_providers import ChatMessage, ChatRequest, ImagePart, ProviderError, get_provider
+    from agenticmind_providers.chat import build_body
+
+    image = ImagePart(media_type="image/png", data_base64="iVBORw0KGgo=")
+    req = ChatRequest(model="llava", messages=[ChatMessage(role="user", content="what is it?", images=[image])])
+    body = build_body(req, max_tokens_field="max_tokens")
+    assert body["messages"][0]["content"] == [
+        {"type": "text", "text": "what is it?"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}},
+    ]
+    assert body["max_tokens"] == 1024 and "max_completion_tokens" not in body
+
+    seen = []
+
+    def handler(request):
+        seen.append((str(request.url), request.headers.get("authorization"), _json.loads(request.content)))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "a cat"}}], "usage": {}})
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    out = asyncio.run(get_provider("ollama").chat(req))  # no key, default local URL
+    assert out.text == "a cat" and seen[-1][0] == "http://localhost:11434/v1/chat/completions" and seen[-1][1] is None
+    assert "max_tokens" in seen[-1][2]
+    asyncio.run(get_provider("huggingface").chat(req, api_key="hf-fixture"))
+    assert seen[-1][0] == "https://router.huggingface.co/v1/chat/completions"
+    assert seen[-1][1] == "Bearer hf-fixture"
+    try:
+        asyncio.run(get_provider("huggingface").chat(req))
+        raise AssertionError("expected an auth error")
+    except ProviderError as exc:
+        assert exc.code == "PROVIDER_AUTH_MISSING" and "HF_TOKEN" in str(exc)
+
+    def refuse(request):
+        raise httpx.ConnectError("refused")
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(refuse), **kw))
+    try:
+        asyncio.run(get_provider("ollama").chat(req))
+        raise AssertionError("expected a connection error")
+    except ProviderError as exc:
+        assert exc.retryable and "ollama serve" in str(exc)

@@ -9,6 +9,10 @@ dependencies = [
     "python-docx>=1.2.0",
 ]
 
+[project.optional-dependencies]
+# open-source OCR for images and scanned PDFs (PaddleOCR models on ONNX Runtime); Pillow lets pypdf decode page images
+ocr = ["rapidocr>=3.10", "onnxruntime>=1.20", "pillow>=11"]
+
 [project.entry-points."agenticmind.nodes"]
 data = "agenticmind_nodes_data:register"
 

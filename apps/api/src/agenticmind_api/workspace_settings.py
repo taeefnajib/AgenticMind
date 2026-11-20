@@ -21,7 +21,7 @@ ASSISTANT_KEY = "assistant"
 SECRET_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 MODEL_RE = re.compile(r"^\S{1,200}$")
 #: Providers that call a remote API and therefore need a key.
-KEYED_PROVIDERS = {"openrouter", "openai_compatible"}
+KEYED_PROVIDERS = {"openrouter", "huggingface", "openai_compatible"}
 
 
 class SettingsError(ValueError):

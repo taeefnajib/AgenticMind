@@ -1,0 +1,67 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Describe an image (vision)",
+    "description": "Ask a vision model about a picture, and read any text in it with open-source OCR. 1) Upload an image in Run inputs (or attach one in Chat). 2) Ask a question in Chat. The LLM uses Gemini on OpenRouter (OPENROUTER_API_KEY); switch it to Ollama (e.g. llava, qwen2.5vl) to keep everything on your machine. OCR runs locally."
+  },
+  "runtime": {"engine": "agenticmind", "profile": "development"},
+  "nodes": [
+    {
+      "id": "photo",
+      "type": "agenticmind.core.image_input",
+      "version": "1.0.0",
+      "config": {"key": "image", "required": true},
+      "ui": {"position": {"x": 0, "y": 40}, "label": "Image"}
+    },
+    {
+      "id": "question",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {"key": "question", "value_type": "String", "default": "Describe this image in two sentences.", "required": true},
+      "ui": {"position": {"x": 0, "y": 230}, "label": "Question"}
+    },
+    {
+      "id": "vision",
+      "type": "agenticmind.models.llm",
+      "version": "1.2.0",
+      "config": {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "api_key": {"$secret": "OPENROUTER_API_KEY"},
+        "system_prompt": "You answer questions about the attached image. Be concrete; say so if something is not visible.",
+        "max_tokens": 1024
+      },
+      "ui": {"position": {"x": 340, "y": 120}, "label": "Vision model"}
+    },
+    {
+      "id": "read_text",
+      "type": "agenticmind.data.ocr",
+      "version": "1.0.0",
+      "config": {"min_confidence": 0.5},
+      "ui": {"position": {"x": 340, "y": -110}, "label": "Read text (OCR)"}
+    },
+    {
+      "id": "answer",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {"key": "answer"},
+      "ui": {"position": {"x": 680, "y": 120}}
+    },
+    {
+      "id": "text_in_image",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {"key": "text_in_image"},
+      "ui": {"position": {"x": 680, "y": -110}}
+    }
+  ],
+  "edges": [
+    {"id": "e1", "kind": "data", "source": {"node": "photo", "port": "image"}, "target": {"node": "vision", "port": "image"}},
+    {"id": "e2", "kind": "data", "source": {"node": "question", "port": "value"}, "target": {"node": "vision", "port": "prompt"}},
+    {"id": "e3", "kind": "data", "source": {"node": "vision", "port": "text"}, "target": {"node": "answer", "port": "value"}},
+    {"id": "e4", "kind": "data", "source": {"node": "photo", "port": "image"}, "target": {"node": "read_text", "port": "image"}},
+    {"id": "e5", "kind": "data", "source": {"node": "read_text", "port": "text"}, "target": {"node": "text_in_image", "port": "value"}}
+  ],
+  "metadata": {}
+}

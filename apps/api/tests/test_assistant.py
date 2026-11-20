@@ -99,7 +99,7 @@ def test_creates_a_workflow_in_a_blank_project(tmp_path, scripted):
     assert {a["id"] for a in body["changes"]["added"]} == {"question", "answer_llm", "answer"}
     # the model saw the catalog, the rules and the (empty) current graph; the key came from the secret
     request = scripted.requests[0]
-    assert "agenticmind.models.llm@1.1.0" in request.system and "$secret" in request.system
+    assert "agenticmind.models.llm@1.2.0" in request.system and "$secret" in request.system
     assert '"nodes": []' in request.messages[-1].content
     assert scripted.keys == ["fixture-key"]
     # nothing was saved: the client applies the proposal
@@ -198,7 +198,7 @@ def test_openrouter_needs_its_secret(tmp_path):
 def test_catalog_lists_latest_permitted_versions(monkeypatch):
     registry = default_registry()
     text = catalog_text(registry)
-    assert "agenticmind.models.llm@1.1.0" in text and "agenticmind.models.llm@1.0.0" not in text
+    assert "agenticmind.models.llm@1.2.0" in text and "agenticmind.models.llm@1.1.0" not in text
     assert "control branches: true, false" in text  # conditional
     entries = [
         dataclasses.replace(e, permitted=e.manifest.type != "agenticmind.core.output") for e in registry.entries()

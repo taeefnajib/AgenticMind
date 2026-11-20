@@ -34,7 +34,7 @@ import type {
 import { AiAssistant } from "./components/AiAssistant";
 import { AmNode } from "./components/AmNode";
 import type { ChatResult } from "./components/ChatPanel";
-import { ConsolePanel, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
+import { ConsolePanel, isImageInput, isManualInput, type ConsoleTab } from "./components/ConsolePanel";
 import { EvaluationLab } from "./components/EvaluationLab";
 import { DeploymentCenter } from "./components/DeploymentCenter";
 import { NodePackages } from "./components/NodePackages";
@@ -635,6 +635,7 @@ export function App() {
   const selectedNode = nodes.find((n) => n.id === selected.node) ?? null;
   const selectedEdge = edges.find((e) => e.id === selected.edge) ?? null;
   const inputNodes = nodes.map((n) => n.data.ir).filter(isManualInput);
+  const imageInputNodes = nodes.map((n) => n.data.ir).filter(isImageInput);
   const outputNodes = nodes.map((n) => n.data.ir).filter((ir) => ir.type === "agenticmind.core.output");
   const runTargets: RunTargetOption[] = nodes
     .map((n) => n.data.ir)
@@ -729,6 +730,7 @@ export function App() {
               diagnostics={diagnostics}
               onSelectDiagnostic={focusDiagnostic}
               inputNodes={inputNodes}
+              imageInputNodes={imageInputNodes}
               runInputs={runInputs}
               onRunInputs={setRunInputs}
               run={run}

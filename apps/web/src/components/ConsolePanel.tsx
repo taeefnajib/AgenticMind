@@ -4,12 +4,14 @@ import type { Diagnostic, IRNode, JsonValue, Mode, ProjectDocument, RunOut, Trac
 import { ApprovalsPanel } from "./ApprovalsPanel";
 import { ChatPanel, type ChatOutputOption, type ChatResult } from "./ChatPanel";
 import { DiagnosticList } from "./DiagnosticList";
+import { ImagePicker } from "./ImagePicker";
 import { ValueView } from "./DocumentViewer";
 import { MemoryPanel } from "./MemoryPanel";
 
 export type ConsoleTab = "chat" | "problems" | "inputs" | "trace" | "output" | "approvals" | "memory" | "ir";
 
 const MANUAL_INPUT = "agenticmind.core.manual_input";
+const IMAGE_INPUT = "agenticmind.core.image_input";
 
 interface Props {
   tab: ConsoleTab;
@@ -18,6 +20,8 @@ interface Props {
   diagnostics: Diagnostic[];
   onSelectDiagnostic: (d: Diagnostic) => void;
   inputNodes: IRNode[];
+  /** Image Input nodes: their run input is an uploaded image's file ID. */
+  imageInputNodes: IRNode[];
   runInputs: Record<string, JsonValue>;
   onRunInputs: (inputs: Record<string, JsonValue>) => void;
   run: RunOut | null;
@@ -37,6 +41,10 @@ interface Props {
 
 export function isManualInput(n: IRNode) {
   return n.type === MANUAL_INPUT;
+}
+
+export function isImageInput(n: IRNode) {
+  return n.type === IMAGE_INPUT;
 }
 
 export function ConsolePanel(props: Props) {
@@ -81,6 +89,8 @@ export function ConsolePanel(props: Props) {
         <ChatPanel
           key={props.chatKey}
           inputNodes={props.inputNodes}
+          imageInputs={props.imageInputNodes}
+          runInputs={props.runInputs}
           outputs={props.chatOutputs}
           disabled={props.chatDisabled}
           onAsk={props.onAsk}
@@ -113,9 +123,11 @@ export function ConsolePanel(props: Props) {
   );
 }
 
-function RunInputs({ inputNodes, runInputs, onRunInputs }: Props) {
-  if (inputNodes.length === 0) {
-    return <p className="text-xs text-slate-500">This graph has no Manual Input nodes, so runs take no inputs.</p>;
+function RunInputs({ inputNodes, imageInputNodes, runInputs, onRunInputs }: Props) {
+  if (inputNodes.length === 0 && imageInputNodes.length === 0) {
+    return (
+      <p className="text-xs text-slate-500">This graph has no Manual Input or Image Input nodes, so runs take no inputs.</p>
+    );
   }
   const set = (key: string, value: JsonValue | undefined) => {
     const next = { ...runInputs };
@@ -161,6 +173,22 @@ function RunInputs({ inputNodes, runInputs, onRunInputs }: Props) {
                 onChange={(e) => set(key, e.target.value === "" ? undefined : e.target.value)}
               />
             )}
+          </div>
+        );
+      })}
+      {imageInputNodes.map((n) => {
+        const key = String(n.config.key ?? "image");
+        const value = runInputs[key];
+        const id = `run-input-${key}`;
+        return (
+          <div key={n.id}>
+            <label htmlFor={id} className="mb-1 flex justify-between text-xs font-medium text-slate-700">
+              <span>
+                {n.ui?.label || key} <span className="font-mono text-slate-400">(Image)</span>
+              </span>
+              <span className="font-mono text-[10px] text-slate-400">{key}</span>
+            </label>
+            <ImagePicker id={id} value={typeof value === "string" ? value : undefined} onChange={(v) => set(key, v)} />
           </div>
         );
       })}

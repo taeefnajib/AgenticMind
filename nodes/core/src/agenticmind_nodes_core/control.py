@@ -20,9 +20,9 @@ from .io import PACKAGE
 
 
 class ConditionalConfig(NodeConfig):
-    operator: Literal[
-        "equals", "not_equals", "contains", "greater_than", "less_than", "is_empty", "is_truthy"
-    ] = "is_truthy"
+    operator: Literal["equals", "not_equals", "contains", "greater_than", "less_than", "is_empty", "is_truthy"] = (
+        "is_truthy"
+    )
     operand: JsonValue = Field(default=None, description="Right-hand side (ignored by is_empty / is_truthy).")
 
 

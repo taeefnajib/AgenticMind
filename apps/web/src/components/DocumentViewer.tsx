@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { DocumentValue } from "../api/types";
+import { ImageThumb, isImageRef } from "./ImagePicker";
 
 export function isDocument(v: unknown): v is DocumentValue {
   return (
@@ -113,6 +114,16 @@ export function DocumentViewer({ docs, limit = 50 }: { docs: DocumentValue[]; li
 
 /** Renders any output value: documents get the viewer, everything else pretty JSON. */
 export function ValueView({ value }: { value: unknown }) {
+  if (isImageRef(value)) return <ImageThumb id={value.artifact_id} name={value.filename} size="lg" />;
+  if (Array.isArray(value) && value.length > 0 && value.every(isImageRef)) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {value.map((v) => (
+          <ImageThumb key={v.artifact_id} id={v.artifact_id} name={v.filename} size="md" />
+        ))}
+      </div>
+    );
+  }
   if (isDocumentList(value)) return <DocumentViewer docs={value} />;
   if (isDocument(value)) return <DocumentViewer docs={[value]} />;
   return (

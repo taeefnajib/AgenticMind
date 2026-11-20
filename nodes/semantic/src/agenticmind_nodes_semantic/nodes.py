@@ -28,7 +28,15 @@ from agenticmind_node_sdk import (
     ui,
 )
 from agenticmind_node_sdk.handles import TOOL_NAME_PATTERN, handle_value
-from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, ToolSpec, get_provider
+from agenticmind_providers import (
+    ChatMessage,
+    ChatProviderName,
+    ChatRequest,
+    ProviderError,
+    ToolSpec,
+    check_chat_provider,
+    get_provider,
+)
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import Field, model_validator
 
@@ -348,7 +356,7 @@ async def sql_executor(ctx: NodeContext, inputs, config: SQLConfig) -> NodeResul
 
 # ---- NL-to-SQL ----------------------------------------------------------------------------------
 class NLToSQLConfig(NodeConfig):
-    provider: Literal["openrouter", "openai_compatible", "mock"] = Field(default="openrouter")
+    provider: ChatProviderName = Field(default="openrouter")
     model: str = Field(default=DEFAULT_OPENROUTER_MODEL, min_length=1)
     api_key: SecretRef | None = secret_field("API key secret, e.g. OPENROUTER_API_KEY")
     base_url: str | None = Field(default=None, json_schema_extra=ui(advanced=True))
@@ -366,8 +374,7 @@ class NLToSQLConfig(NodeConfig):
 
     @model_validator(mode="after")
     def _check(self) -> NLToSQLConfig:
-        if self.provider == "openrouter" and self.api_key is None:
-            raise ValueError('openrouter needs an api_key secret reference (e.g. {"$secret": "OPENROUTER_API_KEY"})')
+        check_chat_provider(self.provider, self.api_key, getattr(self, "base_url", None) or "-")
         return self
 
 

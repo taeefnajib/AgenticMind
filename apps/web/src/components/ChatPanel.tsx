@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { IRNode, JsonValue, RunOut, TraceEvent } from "../api/types";
 import { Markdown } from "../lib/markdown";
+import { useWorkbench } from "../lib/workbench";
+import { IMAGE_ACCEPT, ImageThumb } from "./ImagePicker";
 
 export interface ChatOutputOption {
   id: string;
@@ -40,6 +42,8 @@ export interface AgentStep {
 interface Message {
   role: "user" | "assistant";
   text: string;
+  /** File ID of an image attached to a user message. */
+  image?: { id: string; name: string };
   citations?: Citation[];
   steps?: AgentStep[];
   stopReason?: string;
@@ -51,6 +55,10 @@ interface Message {
 
 interface Props {
   inputNodes: IRNode[];
+  /** Image Input nodes: the chat can attach an image to the first one. */
+  imageInputs?: IRNode[];
+  /** Run inputs set in the Run inputs tab (e.g. a fixed image), used unless the chat attaches one. */
+  runInputs?: Record<string, JsonValue>;
   outputs: ChatOutputOption[];
   disabled: boolean;
   onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
@@ -170,7 +178,22 @@ export function chatInputs(
   return inputs;
 }
 
-export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
+export function ChatPanel({ inputNodes, imageInputs = [], runInputs = {}, outputs, disabled, onAsk }: Props) {
+  const { files } = useWorkbench();
+  const imageKey = imageInputs[0] ? String(imageInputs[0].config.key ?? "image") : undefined;
+  const [attached, setAttached] = useState<{ id: string; name: string } | null>(null);
+  const [attaching, setAttaching] = useState(false);
+  const attachInput = useRef<HTMLInputElement>(null);
+  const attach = async (picked: File[]) => {
+    if (!picked.length) return;
+    setAttaching(true);
+    try {
+      const [added] = await files.upload(picked);
+      if (added) setAttached({ id: added.id, name: added.filename });
+    } finally {
+      setAttaching(false);
+    }
+  };
   const textInputs = useMemo(
     () =>
       inputNodes.filter(
@@ -210,9 +233,17 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
     if (!question || !inputKey || !output || busy) return;
     setDraft("");
     setBusy(true);
-    setMessages((m) => [...m, { role: "user", text: question }]);
+    const image = attached;
+    setAttached(null);
+    setMessages((m) => [...m, { role: "user", text: question, ...(image ? { image } : {}) }]);
     try {
-      const result = await onAsk(chatInputs(inputNodes, inputKey, question, conversationId, consent), output.id);
+      const inputs = chatInputs(inputNodes, inputKey, question, conversationId, consent);
+      if (imageKey) {
+        const fixed = runInputs[imageKey];
+        if (image) inputs[imageKey] = image.id;
+        else if (typeof fixed === "string") inputs[imageKey] = fixed;
+      }
+      const result = await onAsk(inputs, output.id);
       setMessages((m) => [...m, result ? toMessage(result, output.key) : { role: "assistant", text: "", error: "The run did not start" }]);
     } finally {
       setBusy(false);
@@ -285,7 +316,14 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
         {messages.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[80%] rounded-lg bg-accent-100 px-3 py-2 text-sm text-accent-900">{m.text}</div>
+              <div className="max-w-[80%] rounded-lg bg-accent-100 px-3 py-2 text-sm text-accent-900">
+                {m.image && (
+                  <div className="mb-1.5">
+                    <ImageThumb id={m.image.id} name={m.image.name} size="md" />
+                  </div>
+                )}
+                {m.text}
+              </div>
             </div>
           ) : (
             <div key={i} className="max-w-[90%] rounded-lg border border-slate-200 bg-surface px-3 py-2">
@@ -328,6 +366,15 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
         {busy && <div className="text-xs text-slate-400">Thinking…</div>}
       </div>
 
+      {attached && (
+        <div className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+          <ImageThumb id={attached.id} name={attached.name} size="sm" />
+          <span className="truncate">{attached.name}</span>
+          <button type="button" className="text-slate-400 hover:text-red-600" onClick={() => setAttached(null)} aria-label="Remove attached image">
+            ×
+          </button>
+        </div>
+      )}
       <form
         className="mt-2 flex gap-2"
         onSubmit={(e) => {
@@ -335,6 +382,37 @@ export function ChatPanel({ inputNodes, outputs, disabled, onAsk }: Props) {
           void send();
         }}
       >
+        {imageKey && (
+          <>
+            <button
+              type="button"
+              className="am-btn !px-2.5"
+              onClick={() => attachInput.current?.click()}
+              disabled={!ready || busy || attaching}
+              title="Attach an image (goes to the graph's Image Input)"
+              aria-label="Attach an image"
+            >
+              {attaching ? "…" : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+              )}
+            </button>
+            <input
+              ref={attachInput}
+              type="file"
+              accept={IMAGE_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                const picked = e.target.files ? Array.from(e.target.files) : [];
+                e.target.value = "";
+                void attach(picked);
+              }}
+            />
+          </>
+        )}
         <input
           className="am-input"
           placeholder={ready ? "Ask a question…" : "Waiting for the API…"}

@@ -26,7 +26,7 @@ export function UploadZone({ onUploaded, compact = false }: { onUploaded?: (file
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
 
-  const handle = async (list: FileList | null) => {
+  const handle = async (list: FileList | File[] | null) => {
     if (!list || list.length === 0) return;
     setBusy(true);
     setError(null);
@@ -67,8 +67,10 @@ export function UploadZone({ onUploaded, compact = false }: { onUploaded?: (file
           accept={ACCEPT}
           className="hidden"
           onChange={(e) => {
-            void handle(e.target.files);
+            // copy before clearing: clearing the input empties its live FileList
+            const picked = e.target.files ? Array.from(e.target.files) : [];
             e.target.value = "";
+            void handle(picked);
           }}
         />
       </div>
