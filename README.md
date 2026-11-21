@@ -88,8 +88,13 @@ server. See ADR-0025.
 To build agents: the **Agent** node runs as native function calling (parallel tool calls), **ReAct**
 (visible thoughts) or **plan-and-execute**; the **Reasoning** node answers with chain of thought /
 self-consistency, task decomposition, tree of thoughts, graph of thoughts, Monte Carlo tree search or
-backtracking (template *Think it through*); **Tool Router** sends a request to the best tool and **Tool
-Chain** runs tools in sequence. See ADR-0029.
+backtracking, self-refine, Reflexion, multi-agent debate, mixture of agents, step-back prompting or program
+of thought (template *Think it through*); **Tool Router** sends a request to the best tool and **Tool
+Chain** runs tools in sequence. See ADR-0029 and ADR-0030.
+
+For everyday text tasks: the **Classifier** labels text (single or multi-label, with confidence; each label is
+a branch) and the **Summarizer** handles long text or documents with stuff, map-reduce or refine (template
+*Classify and summarise feedback*). See ADR-0030.
 
 To choose a vector database: the **Vector Store** node supports Qdrant (default, embedded), Chroma, FAISS and
 LanceDB on this machine, and Milvus/Zilliz, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis, pgvector

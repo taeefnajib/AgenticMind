@@ -274,3 +274,91 @@ def test_render_keeps_types():
     scope = {"input": {"n": 3}, "previous": [1, 2], "steps": []}
     assert flow.render("{{input}}", scope) == {"n": 3}
     assert flow.render({"a": ["{{previous.1}}", "n={{input.n}}"]}, scope) == {"a": [2, "n=3"]}
+
+
+# ---- iterative / ensemble / prompting methods -----------------------------------------------------
+class Coach:
+    """Scripted model for self_refine, reflexion, debate, mixture_of_agents, step_back and program_of_thought."""
+
+    def __init__(self, expression="(1.10 - 1.00) / 2"):
+        self.models: list[str] = []
+        self.expression = expression
+        self.attempts = 0
+
+    async def chat(self, request, *, api_key=None, base_url=None):
+        self.models.append(request.model)
+        p = request.messages[0].content
+        if "Answer it carefully" in p:
+            return reply('{"answer": "0.10"}')
+        if "Critique the answer" in p:
+            done = "0.05" in p.split("Answer:")[1]
+            return reply('{"issues": [], "good_enough": true}' if done else '{"issues": ["bat would cost 1.10"]}')
+        if "Write the improved answer" in p:
+            return reply('{"answer": "0.05"}')
+        if "Solve it." in p:
+            self.attempts += 1
+            return reply(json.dumps({"reasoning": "r", "answer": "0.05" if "Lessons" in p else "0.10"}))
+        if "Check it critically" in p:
+            ok = "Proposed answer: 0.05" in p
+            return reply(json.dumps({"correct": ok, "score": 9 if ok else 3, "feedback": "f"}))
+        if "what should you do differently" in p:
+            return reply('{"lesson": "check the difference constraint"}')
+        if "Other agents said" in p:
+            return reply('{"answer": "0.05", "why": "convinced"}')
+        if "short justification" in p:
+            return reply(json.dumps({"answer": "0.10" if request.model == "m2" else "0.05", "why": "w"}))
+        if "Candidate answers from several models" in p:
+            return reply('{"answer": "0.05 (synthesised)"}')
+        if "Give your best answer" in p:
+            return reply(json.dumps({"answer": f"0.05 from {request.model}"}))
+        if "Step back" in p:
+            return reply('{"principle": "set up two equations"}')
+        if p.startswith("Principle:"):
+            return reply('{"reasoning": "b - x = 1, b + x = 1.1", "answer": "0.05"}')
+        if "ONE arithmetic expression" in p:
+            expr = self.expression if "could not be evaluated" in p or self.expression.startswith("(") else "__import__"
+            return reply(json.dumps({"reasoning": "x = (1.10 - 1.00)/2", "expression": expr, "unit": "dollars"}))
+        return reply("{}")
+
+
+async def test_self_refine_revises_until_the_critique_passes(monkeypatch):
+    r = await think(monkeypatch, Coach(), method="self_refine", rounds=3)
+    assert r.outputs["answer"] == "0.05"
+    statuses = [n["status"] for n in r.outputs["result"]["tree"]]
+    assert statuses.count("revised") == 1 and statuses[-1] == "chosen"
+
+
+async def test_reflexion_retries_with_lessons(monkeypatch):
+    coach = Coach()
+    r = await think(monkeypatch, coach, method="reflexion", rounds=3)
+    assert r.outputs["answer"] == "0.05" and coach.attempts == 2
+    assert "check the difference constraint" in r.outputs["reasoning"]
+
+
+async def test_debate_uses_each_model_and_converges(monkeypatch):
+    coach = Coach()
+    r = await think(monkeypatch, coach, method="debate", models=["m1", "m2", "m3"], rounds=2)
+    assert r.outputs["answer"] == "0.05"
+    assert {"m1", "m2", "m3"} <= set(coach.models)
+    assert sum(1 for n in r.outputs["result"]["tree"] if n["status"] in ("revised", "chosen")) == 3
+
+
+async def test_mixture_of_agents_aggregates_layers(monkeypatch):
+    coach = Coach()
+    r = await think(monkeypatch, coach, method="mixture_of_agents", agents=2, rounds=2)
+    assert r.outputs["answer"] == "0.05 (synthesised)"
+    layers = [n["status"] for n in r.outputs["result"]["tree"]]
+    assert layers.count("layer 1") == 2 and layers.count("layer 2") == 2
+
+
+async def test_step_back_names_the_principle_first(monkeypatch):
+    r = await think(monkeypatch, Coach(), method="step_back")
+    assert r.outputs["answer"] == "0.05" and r.outputs["reasoning"].startswith("Principle: set up two equations")
+
+
+async def test_program_of_thought_evaluates_safely_and_retries(monkeypatch):
+    r = await think(monkeypatch, Coach(), method="program_of_thought")
+    assert r.outputs["answer"] == "0.05 dollars"
+    bad_first = await think(monkeypatch, Coach(expression="0.1/2"), method="program_of_thought")
+    assert bad_first.outputs["answer"] == "0.05 dollars"  # first expression rejected, then fixed
+    assert "rejected" in {n["status"] for n in bad_first.outputs["result"]["tree"]}

@@ -11,6 +11,7 @@ from .control import conditional
 from .flow import join, loop, loop_end, loop_end_v1, router
 from .io import delay, image_input, manual_input, output
 from .models import llm, llm_v1, llm_v12, model_router
+from .text_ai import classifier, summarizer
 from .transform import collect, json_select, parse_json, text_template, text_transform, to_text
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
@@ -35,6 +36,8 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     llm,
     llm_v1,
     model_router,
+    classifier,
+    summarizer,
 )
 
 

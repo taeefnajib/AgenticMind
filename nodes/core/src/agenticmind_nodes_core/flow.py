@@ -277,7 +277,7 @@ async def router(ctx: NodeContext, inputs, config: RouterConfig) -> NodeResult:
         "route fits.\n\nRoutes:\n" + listing,
         messages=[ChatMessage(role="user", content=text)],
         temperature=0,
-        max_tokens=200,
+        max_tokens=1024,  # reasoning models think before calling choose_route
         tools=[
             ToolSpec(
                 name="choose_route",

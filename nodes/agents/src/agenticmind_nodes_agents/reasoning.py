@@ -16,6 +16,13 @@ is answered from (``stopped_early`` in the result). Every explored thought is re
   model-estimated value as the simulation result, back-propagation; the path of best mean value wins.
 * ``backtracking`` - depth-first search: propose ordered next steps, check each; a failed check moves to the
   next alternative, and a dead end returns to the previous step.
+* ``self_refine`` - draft, critique, revise while the critique finds issues.
+* ``reflexion`` - attempt, self-evaluate, write a lesson, retry with the lessons; the best-scored attempt wins.
+* ``debate`` - several agents (optionally different models) answer, read each other and revise; a majority
+  or a neutral judge decides.
+* ``mixture_of_agents`` - proposers answer (in layers that see the previous layer); an aggregator synthesises.
+* ``step_back`` - first name the general principle, then solve with it.
+* ``program_of_thought`` - the model writes an arithmetic expression, evaluated safely (no code execution).
 """
 
 from __future__ import annotations
@@ -58,8 +65,24 @@ from pydantic import Field, model_validator
 
 from .tools import PACKAGE
 
-Method = Literal["chain_of_thought", "decomposition", "tree_of_thoughts", "graph_of_thoughts", "mcts", "backtracking"]
+Method = Literal[
+    "chain_of_thought",
+    "decomposition",
+    "tree_of_thoughts",
+    "graph_of_thoughts",
+    "mcts",
+    "backtracking",
+    "self_refine",
+    "reflexion",
+    "debate",
+    "mixture_of_agents",
+    "step_back",
+    "program_of_thought",
+]
 SEARCH = ("tree_of_thoughts", "mcts", "backtracking")
+ITERATIVE = ("self_refine", "reflexion", "debate", "mixture_of_agents")
+#: Methods that return (answer, reasoning) directly instead of a best node of a search.
+DIRECT = ("chain_of_thought", "decomposition", *ITERATIVE, "step_back", "program_of_thought")
 
 
 def _on(*methods: str) -> dict[str, list[str]]:
@@ -71,7 +94,9 @@ class ReasoningConfig(NodeConfig):
         default="chain_of_thought",
         description="chain_of_thought (optionally self-consistency), decomposition (sub-questions), "
         "tree_of_thoughts (beam search), graph_of_thoughts (generate, aggregate, refine), mcts (Monte Carlo "
-        "tree search), backtracking (depth-first with checks).",
+        "tree search), backtracking (depth-first with checks), self_refine (draft-critique-revise), reflexion "
+        "(retry with lessons), debate (agents argue), mixture_of_agents (models propose, one synthesises), "
+        "step_back (principle first), program_of_thought (computed arithmetic).",
     )
     provider: ChatProviderName = Field(default="openrouter", description=CHAT_PROVIDER_HELP)
     model: str = Field(default=DEFAULT_OPENROUTER_MODEL, min_length=1)
@@ -90,6 +115,19 @@ class ReasoningConfig(NodeConfig):
     iterations: int = Field(default=8, ge=1, le=50, description="MCTS simulations.",
                             json_schema_extra=ui(show_when=_on("mcts")))  # fmt: skip
     refinements: int = Field(default=2, ge=0, le=5, json_schema_extra=ui(show_when=_on("graph_of_thoughts")))
+    rounds: int = Field(
+        default=2, ge=1, le=6, description="Refine / retry / debate / aggregation rounds.",
+        json_schema_extra=ui(show_when=_on(*ITERATIVE)),
+    )  # fmt: skip
+    agents: int = Field(
+        default=3, ge=2, le=6, description="Debaters / proposers (when no model list is given).",
+        json_schema_extra=ui(show_when=_on("debate", "mixture_of_agents")),
+    )  # fmt: skip
+    models: list[str] = Field(
+        default_factory=list,
+        description="Different models for the debaters / proposers (same provider); empty = the model above.",
+        json_schema_extra=ui(show_when=_on("debate", "mixture_of_agents")),
+    )
     max_llm_calls: int = Field(default=40, ge=1, le=300, description="Stop searching after this many model calls.")
     token_budget: int = Field(default=80_000, ge=1_000, le=2_000_000)
     temperature: float = Field(default=0.7, ge=0, le=2, description="Used for proposing / sampling (scoring uses 0).",
@@ -145,7 +183,7 @@ class _Engine:
             base += "\n\nContext:\n" + self.context
         return base
 
-    async def ask(self, prompt: str, *, creative: bool = False, final: bool = False) -> str:
+    async def ask(self, prompt: str, *, creative: bool = False, final: bool = False, model: str | None = None) -> str:
         """One model call. ``final`` (the answer call) may exceed the budget by one call, so a search that ran
         out still answers from its best path."""
         over = self.calls >= self.config.max_llm_calls or self.tokens_in + self.tokens_out >= self.config.token_budget
@@ -155,7 +193,7 @@ class _Engine:
         try:
             resp = await self.provider.chat(
                 ChatRequest(
-                    model=self.config.model,
+                    model=model or self.config.model,
                     system=self.system,
                     messages=[ChatMessage(role="user", content=prompt)],
                     temperature=self.config.temperature if creative else 0.0,
@@ -175,8 +213,12 @@ class _Engine:
             self.cost_known = True
         return resp.text or ""
 
-    async def ask_json(self, prompt: str, *, creative: bool = False, final: bool = False) -> Any:
-        return extract_json(await self.ask(prompt + "\n\nReply with JSON only.", creative=creative, final=final))
+    async def ask_json(
+        self, prompt: str, *, creative: bool = False, final: bool = False, model: str | None = None
+    ) -> Any:
+        return extract_json(
+            await self.ask(prompt + "\n\nReply with JSON only.", creative=creative, final=final, model=model)
+        )
 
     # tree --------------------------------------------------------------------------------------
     def add(self, text: str, parents: list[int], **kw: Any) -> _Thought:
@@ -484,6 +526,219 @@ async def backtracking(e: _Engine) -> _Thought:
     return found or best
 
 
+# ---- more methods (iterative improvement, ensembles, prompting patterns) -------------------------
+def _get(data: Any, key: str, default: str = "") -> str:
+    return str(data.get(key, default)).strip() if isinstance(data, dict) else default
+
+
+async def self_refine(e: _Engine) -> tuple[str, str]:
+    """Self-Refine (Madaan et al., 2023): draft, critique, revise until the critique finds nothing to fix."""
+    root = e.add(e.question, [], status="root")
+    data = await e.ask_json(f"Problem: {e.question}\n\nAnswer it carefully.\n"
+                            'Format: {"answer": "...", "explanation": "..."}')  # fmt: skip
+    draft = e.add(_get(data, "answer"), [root.id], status="draft")
+    draft.score = None
+    await e.emit(draft)
+    for _ in range(e.config.rounds):
+        try:
+            crit = await e.ask_json(
+                f"Problem: {e.question}\n\nAnswer:\n{draft.text}\n\nCritique the answer: list concrete errors or "
+                'gaps. Format: {"issues": ["..."], "good_enough": false}'
+            )
+            issues = [str(i) for i in (crit.get("issues") if isinstance(crit, dict) else []) or []]
+            if (isinstance(crit, dict) and crit.get("good_enough")) or not issues:
+                break
+            fixed = await e.ask_json(
+                f"Problem: {e.question}\n\nAnswer:\n{draft.text}\n\nIssues found:\n- "
+                + "\n- ".join(issues)
+                + '\n\nWrite the improved answer. Format: {"answer": "..."}'
+            )
+        except _OutOfBudget:
+            break
+        draft.status = "revised"
+        draft = e.add(_get(fixed, "answer") or draft.text, [draft.id], status="draft")
+        draft.score = None
+        await e.emit(draft)
+    draft.status = "chosen"
+    return draft.text, "\n".join(f"Version {i}: {n.text}" for i, n in enumerate(e.path(draft), start=1))
+
+
+async def reflexion(e: _Engine) -> tuple[str, str]:
+    """Reflexion (Shinn et al., 2023): attempt, self-evaluate, write a lesson, retry with all lessons."""
+    root = e.add(e.question, [], status="root")
+    lessons: list[str] = []
+    best: _Thought | None = None
+    for _ in range(e.config.rounds):
+        try:
+            memory = ("\n\nLessons from earlier attempts:\n- " + "\n- ".join(lessons)) if lessons else ""
+            data = await e.ask_json(
+                f'Problem: {e.question}{memory}\n\nSolve it.\nFormat: {{"reasoning": "...", "answer": "..."}}',
+                creative=bool(lessons),
+            )
+            attempt = e.add(_get(data, "answer"), [root.id], status="attempt")
+            verdict = await e.ask_json(
+                f"Problem: {e.question}\n\nProposed answer: {attempt.text}\nReasoning: {_get(data, 'reasoning')}\n\n"
+                "Check it critically. Format: "
+                '{"correct": false, "score": 0-10, "feedback": "what is wrong or missing"}'
+            )
+        except _OutOfBudget:
+            break
+        attempt.score = _num(verdict.get("score")) if isinstance(verdict, dict) else 0.0
+        await e.emit(attempt)
+        if best is None or (attempt.score or 0) > (best.score or 0):
+            best = attempt
+        if isinstance(verdict, dict) and verdict.get("correct"):
+            break
+        try:
+            lesson = await e.ask_json(
+                f"Problem: {e.question}\nYour answer: {attempt.text}\nFeedback: {_get(verdict, 'feedback')}\n\nIn one "
+                'sentence, what should you do differently next time? Format: {"lesson": "..."}'
+            )
+        except _OutOfBudget:
+            break
+        lessons.append(_get(lesson, "lesson"))
+    if best is None:
+        raise _OutOfBudget
+    best.status = "chosen"
+    return best.text, "Lessons learned:\n- " + "\n- ".join(
+        lessons
+    ) if lessons else f"Answered on the first try: {best.text}"
+
+
+def _participants(e: _Engine) -> list[str]:
+    models = [m for m in e.config.models if m.strip()]
+    return models or [e.config.model] * e.config.agents
+
+
+async def debate(e: _Engine) -> tuple[str, str]:
+    """Multi-agent debate (Du et al., 2023): agents answer, read each other, revise; majority (or a judge) decides."""
+    root = e.add(e.question, [], status="root")
+    who = _participants(e)
+    answers: list[_Thought] = []
+    for i, model in enumerate(who):
+        try:
+            data = await e.ask_json(f"Problem: {e.question}\n\nAnswer with a short justification.\n"
+                                    'Format: {"answer": "...", "why": "..."}', creative=True, model=model)  # fmt: skip
+        except _OutOfBudget:
+            break
+        node = e.add(f"[agent {i + 1}] {_get(data, 'answer')} — {_get(data, 'why')}", [root.id], status="opening")
+        node.value = 0.0
+        answers.append(node)
+        await e.emit(node)
+    if not answers:
+        raise _OutOfBudget
+    finals = [n.text for n in answers]
+    for _ in range(e.config.rounds - 1):
+        revised: list[_Thought] = []
+        for i, (model, mine) in enumerate(zip(who, answers, strict=False)):
+            others = "\n".join(n.text for j, n in enumerate(answers) if j != i)
+            try:
+                data = await e.ask_json(
+                    f"Problem: {e.question}\n\nYour answer: {mine.text}\n\nOther agents said:\n{others}\n\nConsider "
+                    'their arguments and give your updated answer. Format: {"answer": "...", "why": "..."}',
+                    model=model,
+                )
+            except _OutOfBudget:
+                revised = []
+                break
+            node = e.add(f"[agent {i + 1}] {_get(data, 'answer')} — {_get(data, 'why')}",
+                         [n.id for n in answers], status="revised")  # fmt: skip
+            revised.append(node)
+            await e.emit(node)
+        if not revised:
+            break
+        answers = revised
+        finals = [n.text for n in answers]
+    votes = Counter(_normalise(t.split("] ", 1)[-1].split(" — ")[0]) for t in finals)
+    top, count = votes.most_common(1)[0]
+    transcript = "\n".join(finals)
+    if count > len(finals) / 2:
+        winner = next(n for n in answers if _normalise(n.text.split("] ", 1)[-1].split(" — ")[0]) == top)
+        winner.status = "chosen"
+        return winner.text.split("] ", 1)[-1].split(" — ")[0], transcript
+    data = await e.ask_json(f"Problem: {e.question}\n\nThe debaters ended with:\n{transcript}\n\nAs a neutral judge, "
+                            'decide the best answer. Format: {"answer": "..."}', final=True)  # fmt: skip
+    return _get(data, "answer"), transcript
+
+
+async def mixture_of_agents(e: _Engine) -> tuple[str, str]:
+    """Mixture-of-Agents (Wang et al., 2024): several proposers answer; an aggregator synthesises (per layer)."""
+    root = e.add(e.question, [], status="root")
+    previous: list[_Thought] = []
+    for layer in range(e.config.rounds):
+        proposals: list[_Thought] = []
+        context = (
+            ("\n\nAnswers from the previous layer:\n" + "\n".join(f"- {p.text}" for p in previous)) if previous else ""
+        )
+        for model in _participants(e):
+            try:
+                data = await e.ask_json(f"Problem: {e.question}{context}\n\nGive your best answer."
+                                        '\nFormat: {"answer": "..."}', creative=True, model=model)  # fmt: skip
+            except _OutOfBudget:
+                break
+            node = e.add(_get(data, "answer"), [p.id for p in previous] or [root.id], status=f"layer {layer + 1}")
+            proposals.append(node)
+            await e.emit(node)
+        if not proposals:
+            break
+        previous = proposals
+    if not previous:
+        raise _OutOfBudget
+    listing = "\n".join(f"[{i}] {p.text}" for i, p in enumerate(previous, start=1))
+    data = await e.ask_json(
+        f"Problem: {e.question}\n\nCandidate answers from several models:\n{listing}\n\n"
+        "Critically synthesise them into one accurate answer (do not just pick the most common). "
+        'Format: {"answer": "..."}',
+        final=True,
+    )
+    agg = e.add(_get(data, "answer"), [p.id for p in previous], status="chosen")
+    return agg.text, listing
+
+
+async def step_back(e: _Engine) -> tuple[str, str]:
+    """Step-back prompting (Zheng et al., 2023): name the underlying principle first, then solve with it."""
+    root = e.add(e.question, [], status="root")
+    data = await e.ask_json(f"Problem: {e.question}\n\nStep back: what general principle, concept or background "
+                            'knowledge is needed to solve this? Format: {"principle": "..."}')  # fmt: skip
+    principle = e.add(_get(data, "principle"), [root.id], status="principle")
+    await e.emit(principle)
+    data = await e.ask_json(f"Principle: {principle.text}\n\nUsing it, solve: {e.question}\n"
+                            'Format: {"reasoning": "...", "answer": "..."}', final=True)  # fmt: skip
+    node = e.add(_get(data, "reasoning"), [principle.id], status="chosen")
+    return _get(data, "answer"), f"Principle: {principle.text}\n{node.text}"
+
+
+async def program_of_thought(e: _Engine) -> tuple[str, str]:
+    """Program-of-Thoughts / PAL: the model writes an arithmetic expression, a safe evaluator computes it
+    (no code execution: numbers, + - * / // % **, parentheses and a few math functions)."""
+    from .tools import ToolError, safe_eval
+
+    root = e.add(e.question, [], status="root")
+    feedback = ""
+    for _ in range(3):
+        data = await e.ask_json(
+            f"Problem: {e.question}{feedback}\n\n"
+            "Reason briefly, then write ONE arithmetic expression whose value is the answer (numbers, "
+            "+ - * / // % **, parentheses, sqrt/log/exp/sin/cos/round/abs/min/max; no variables)."
+            '\nFormat: {"reasoning": "...", "expression": "...", "unit": "optional unit"}'
+        )
+        expression = _get(data, "expression")
+        node = e.add(f"{_get(data, 'reasoning')}\n= {expression}", [root.id], status="program")
+        try:
+            value = safe_eval(expression)
+        except (ToolError, ValueError, SyntaxError, ZeroDivisionError) as exc:
+            node.status = "rejected"
+            await e.emit(node)
+            feedback = f"\n\nYour expression `{expression}` could not be evaluated ({exc}). Fix it."
+            continue
+        node.status = "chosen"
+        await e.emit(node)
+        shown = int(value) if isinstance(value, float) and value.is_integer() else round(value, 10)
+        unit = _get(data, "unit")
+        return f"{shown}{' ' + unit if unit else ''}", f"{node.text} = {shown}"
+    raise NodeError("PROGRAM_INVALID", "The model did not produce an expression that evaluates")
+
+
 # ---- node ---------------------------------------------------------------------------------------
 @define_node(
     type="agenticmind.agents.reasoning",
@@ -514,8 +769,12 @@ async def reasoning(ctx: NodeContext, inputs, config: ReasoningConfig) -> NodeRe
     e = _Engine(ctx, config, question, inputs.get("context"))
     stopped = False
     try:
-        if config.method in ("chain_of_thought", "decomposition"):
-            runner = chain_of_thought if config.method == "chain_of_thought" else decomposition
+        if config.method in DIRECT:
+            runner = {
+                "chain_of_thought": chain_of_thought, "decomposition": decomposition, "self_refine": self_refine,
+                "reflexion": reflexion, "debate": debate, "mixture_of_agents": mixture_of_agents,
+                "step_back": step_back, "program_of_thought": program_of_thought,
+            }[config.method]  # fmt: skip
             answer, chain = await runner(e)
         else:
             search = {"tree_of_thoughts": tree_of_thoughts, "graph_of_thoughts": graph_of_thoughts, "mcts": mcts,

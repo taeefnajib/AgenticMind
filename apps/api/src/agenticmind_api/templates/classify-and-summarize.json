@@ -1,0 +1,200 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Classify and summarise feedback",
+    "description": "Labels customer feedback (multi-label Classifier: bug, feature request, praise, churn risk) and summarises it as bullets. Each label is also a branch, so you can route follow-ups from the Classifier. The Summarizer switches to map-reduce for long text (or set refine). Uses OpenRouter (Gemini) via OPENROUTER_API_KEY."
+  },
+  "runtime": {
+    "engine": "agenticmind",
+    "profile": "development"
+  },
+  "nodes": [
+    {
+      "id": "feedback",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {
+        "key": "feedback",
+        "value_type": "String",
+        "required": true,
+        "default": "I've been using the app for three months. Syncing between my phone and laptop used to be instant, but since the last update it takes several minutes and twice I lost notes I had just written. Support answered quickly and was friendly, but the workaround they gave (signing out and back in) only helps for a day. The new dark mode is lovely and search is much faster. I'd happily keep paying if sync is fixed; right now I'm looking at alternatives."
+      },
+      "ui": {
+        "position": {
+          "x": 0,
+          "y": 120
+        },
+        "label": "Feedback"
+      }
+    },
+    {
+      "id": "classify",
+      "type": "agenticmind.core.classifier",
+      "version": "1.0.0",
+      "config": {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "api_key": {
+          "$secret": "OPENROUTER_API_KEY"
+        },
+        "labels": [
+          {
+            "name": "bug",
+            "description": "Something is broken or lost data"
+          },
+          {
+            "name": "feature_request",
+            "description": "Asks for something new"
+          },
+          {
+            "name": "praise",
+            "description": "Mainly positive"
+          },
+          {
+            "name": "churn_risk",
+            "description": "Considering leaving or cancelling"
+          }
+        ],
+        "multi_label": true
+      },
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 0
+        },
+        "label": "Classifier"
+      }
+    },
+    {
+      "id": "summarize",
+      "type": "agenticmind.core.summarizer",
+      "version": "1.0.0",
+      "config": {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "api_key": {
+          "$secret": "OPENROUTER_API_KEY"
+        },
+        "style": "bullets",
+        "max_words": 80,
+        "focus": "problems and what the customer wants"
+      },
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 240
+        },
+        "label": "Summarizer"
+      }
+    },
+    {
+      "id": "labels",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "labels"
+      },
+      "ui": {
+        "position": {
+          "x": 660,
+          "y": 0
+        },
+        "label": "Labels"
+      }
+    },
+    {
+      "id": "confidence",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "confidence"
+      },
+      "ui": {
+        "position": {
+          "x": 660,
+          "y": 110
+        },
+        "label": "Confidence"
+      }
+    },
+    {
+      "id": "summary",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "summary"
+      },
+      "ui": {
+        "position": {
+          "x": 660,
+          "y": 240
+        },
+        "label": "Summary"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "kind": "data",
+      "source": {
+        "node": "feedback",
+        "port": "value"
+      },
+      "target": {
+        "node": "classify",
+        "port": "text"
+      }
+    },
+    {
+      "id": "e2",
+      "kind": "data",
+      "source": {
+        "node": "feedback",
+        "port": "value"
+      },
+      "target": {
+        "node": "summarize",
+        "port": "text"
+      }
+    },
+    {
+      "id": "e3",
+      "kind": "data",
+      "source": {
+        "node": "classify",
+        "port": "labels"
+      },
+      "target": {
+        "node": "labels",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e4",
+      "kind": "data",
+      "source": {
+        "node": "classify",
+        "port": "confidence"
+      },
+      "target": {
+        "node": "confidence",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e5",
+      "kind": "data",
+      "source": {
+        "node": "summarize",
+        "port": "summary"
+      },
+      "target": {
+        "node": "summary",
+        "port": "value"
+      }
+    }
+  ],
+  "metadata": {}
+}
