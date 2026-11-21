@@ -46,7 +46,7 @@ def test_html_strips_scripts_and_keeps_headings():
         b"<script>alert(1)</script><ul><li>One</li><li>Two</li></ul></body></html>"
     )
     (part,) = parse_bytes(html, "faq.html")
-    assert part.content == "# Help\n\nHi & welcome\n\nOne\n\nTwo"
+    assert part.content == "# Help\n\nHi & welcome\n\n- One\n- Two"  # lists keep their structure (ADR-0027)
     assert part.metadata["title"] == "FAQ"
 
 

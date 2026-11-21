@@ -48,6 +48,12 @@ class DocumentLoaderConfig(NodeConfig):
         json_schema_extra=ui(widget="artifacts"),
     )
     split_pdf_pages: bool = Field(default=True, description="One document per PDF page (enables page citations).")
+    pdf_layout: bool = Field(
+        default=False,
+        description="Layout-aware PDF parsing: turn larger-font lines into headings (pair with the Chunker's "
+        "layout or markdown strategy).",
+        json_schema_extra=ui(advanced=True),
+    )
     csv_mode: Literal["file", "rows"] = Field(
         default="file",
         description="'rows' makes one document per CSV row.",
@@ -118,7 +124,12 @@ async def parse_file(data: bytes, filename: str, config: DocumentLoaderConfig | 
             parts: list[ParsedPart] = []
         else:
             parts = await asyncio.to_thread(
-                parse_bytes, data, filename, split_pdf_pages=config.split_pdf_pages, csv_mode=config.csv_mode
+                parse_bytes,
+                data,
+                filename,
+                split_pdf_pages=config.split_pdf_pages,
+                csv_mode=config.csv_mode,
+                pdf_layout=config.pdf_layout,
             )
         if config.ocr == "auto":
             parts = await asyncio.to_thread(_ocr_parts, data, filename, parts, config.ocr_min_confidence)
@@ -418,6 +429,12 @@ class S3LoaderConfig(NodeConfig):
 
     # parsing, as in the Document Loader
     split_pdf_pages: bool = Field(default=True, description="One document per PDF page (enables page citations).")
+    pdf_layout: bool = Field(
+        default=False,
+        description="Layout-aware PDF parsing: turn larger-font lines into headings (pair with the Chunker's "
+        "layout or markdown strategy).",
+        json_schema_extra=ui(advanced=True),
+    )
     csv_mode: Literal["file", "rows"] = Field(default="file", json_schema_extra=ui(advanced=True))
     skip_empty: bool = Field(default=True, json_schema_extra=ui(advanced=True))
     ocr: Literal["auto", "off"] = Field(

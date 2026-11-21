@@ -64,6 +64,74 @@ def parse_pdf(data: bytes, *, split_pages: bool) -> list[ParsedPart]:
     return [ParsedPart(content="\n\n".join(p for p in pages if p), metadata={"page_count": total})]
 
 
+def parse_pdf_layout(data: bytes, *, split_pages: bool) -> list[ParsedPart]:
+    """Layout-aware PDF parsing: lines are rebuilt from text runs, and lines set in a noticeably larger font
+    than the body text become Markdown headings (largest size = ``#``), so heading-aware chunking can use them.
+    Paragraph breaks come from vertical gaps. Tables are not detected in PDFs."""
+    from collections import Counter
+
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        reader = PdfReader(io.BytesIO(data))
+        if reader.is_encrypted and not reader.decrypt(""):
+            raise ParseError("PARSE_ENCRYPTED", "PDF is password-protected")
+        pages_lines: list[list[tuple[float, float, str]]] = []  # (y, size, text) per line
+        for page in reader.pages:
+            runs: list[tuple[float, float, str]] = []
+
+            def visit(text: str, cm: Any, tm: Any, font: Any, size: float, runs: list = runs) -> None:
+                if text.strip():
+                    scale = abs(tm[3] * cm[3]) or abs(tm[0] * cm[0]) or 1.0
+                    runs.append((round(tm[5] * cm[3] + cm[5], 1), round(size * scale, 1), text))
+
+            page.extract_text(visitor_text=visit)
+            lines: list[tuple[float, float, str]] = []
+            for y, size, text in runs:
+                if lines and abs(lines[-1][0] - y) <= max(2.0, size * 0.3):
+                    py, psize, ptext = lines[-1]
+                    lines[-1] = (py, max(psize, size), ptext + text)
+                else:
+                    lines.append((y, size, text))
+            pages_lines.append([(y, s, " ".join(t.split())) for y, s, t in lines if t.strip()])
+    except PdfReadError as exc:
+        raise ParseError("PARSE_FAILED", f"Not a readable PDF: {exc}") from exc
+    weights: Counter[float] = Counter()
+    for lines in pages_lines:
+        for _, size, text in lines:
+            weights[size] += len(text)
+    body = weights.most_common(1)[0][0] if weights else 0.0
+    heading_sizes = sorted(
+        {s for lines in pages_lines for _, s, t in lines if body and s >= body * 1.15 and len(t) <= 150}, reverse=True
+    )[:6]
+    level = {s: i + 1 for i, s in enumerate(heading_sizes)}
+
+    def render(lines: list[tuple[float, float, str]]) -> str:
+        out: list[str] = []
+        prev_y: float | None = None
+        prev_size = body
+        for y, size, text in lines:
+            if size in level:
+                out.append("")
+                out.append("#" * level[size] + " " + text)
+                out.append("")
+            else:
+                gap = abs(prev_y - y) if prev_y is not None else 0
+                if out and out[-1] and gap > max(prev_size, size) * 1.8:
+                    out.append("")
+                out.append(text)
+            prev_y, prev_size = y, size
+        return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+
+    pages = [render(lines) for lines in pages_lines]
+    total = len(pages)
+    meta = {"page_count": total, "layout": "font-size headings"}
+    if split_pages:
+        return [ParsedPart(content=text, page=i, metadata=meta, id_suffix=f":p{i}") for i, text in enumerate(pages, 1)]
+    return [ParsedPart(content="\n\n".join(p for p in pages if p), metadata=meta)]
+
+
 # -- DOCX ---------------------------------------------------------------------------------------
 _HEADING_STYLE = re.compile(r"^Heading (\d)$")
 
@@ -94,7 +162,7 @@ def parse_docx(data: bytes) -> list[ParsedPart]:
             blocks.append(text)
         elif tag == "tbl":
             table = Table(child, document)
-            rows = [" | ".join(cell.text.strip() for cell in row.cells) for row in table.rows]
+            rows = ["| " + " | ".join(cell.text.strip() for cell in row.cells) + " |" for row in table.rows]
             if rows:
                 blocks.append("\n".join(rows))
     return [ParsedPart(content="\n\n".join(blocks))]
@@ -134,6 +202,7 @@ class _TextExtractor(HTMLParser):
         self.skip_depth = 0
         self.title: str | None = None
         self._in_title = False
+        self._pre = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag == "title":
@@ -142,12 +211,32 @@ class _TextExtractor(HTMLParser):
             self.skip_depth += 1
         elif tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
             self.parts.append("\n\n" + "#" * int(tag[1]) + " ")
+        elif tag == "li":
+            self.parts.append("\n- ")
+        elif tag == "tr":
+            self.parts.append("\n|")
+        elif tag in ("td", "th"):
+            self.parts.append(" ")
+        elif tag == "pre":
+            self.parts.append("\n\n```\n")
+            self._pre += 1
+        elif tag == "table":
+            self.parts.append("\n\n")
         elif tag in _BLOCK_TAGS:
             self.parts.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title":
             self._in_title = False
+        if tag in ("td", "th"):
+            self.parts.append(" |")
+            return
+        if tag == "pre":
+            self._pre = max(0, self._pre - 1)
+            self.parts.append("\n```\n\n")
+            return
+        if tag in ("li", "tr"):
+            return
         if tag in _SKIP_TAGS:
             self.skip_depth = max(0, self.skip_depth - 1)
         elif tag in {"h1", "h2", "h3", "h4", "h5", "h6"} or tag in _BLOCK_TAGS:
@@ -157,7 +246,9 @@ class _TextExtractor(HTMLParser):
         if self._in_title:
             self.title = (self.title or "") + data.strip()
         if self.skip_depth == 0:
-            self.parts.append(data)
+            # inside <pre> keep line breaks (marked, restored after whitespace is normalised)
+            pre = data.replace("\n", "\x00").replace("\t", "    ").replace(" ", "\x01")
+            self.parts.append(pre if self._pre else data)
 
 
 def parse_html(data: bytes) -> list[ParsedPart]:
@@ -167,7 +258,8 @@ def parse_html(data: bytes) -> list[ParsedPart]:
     text = "".join(extractor.parts)
     text = re.sub(r"[ \t\r\f\v]+", " ", text)
     text = re.sub(r" *\n *", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    text = re.sub(r"\n{3,}", "\n\n", text).strip().replace("\x00", "\n").replace("\x01", " ")
+    text = re.sub(r"\n- \n", "\n- ", text)  # list items whose text started on a new line
     meta = {"title": extractor.title} if extractor.title else {}
     return [ParsedPart(content=text, metadata=meta)]
 
@@ -458,11 +550,13 @@ SUPPORTED_EXTENSIONS = frozenset(
 
 
 def parse_bytes(
-    data: bytes, filename: str, *, split_pdf_pages: bool = True, csv_mode: str = "file"
+    data: bytes, filename: str, *, split_pdf_pages: bool = True, csv_mode: str = "file", pdf_layout: bool = False
 ) -> list[ParsedPart]:
     ext = Path(filename).suffix.lower()
     match ext:
         case ".pdf":
+            if pdf_layout:
+                return parse_pdf_layout(data, split_pages=split_pdf_pages)
             return parse_pdf(data, split_pages=split_pdf_pages)
         case ".docx":
             return parse_docx(data)

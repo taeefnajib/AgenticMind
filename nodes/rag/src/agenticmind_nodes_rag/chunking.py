@@ -195,3 +195,267 @@ def chunk_text(
     if strategy not in ("fixed", "recursive"):
         raise ValueError(f"Unknown strategy {strategy!r}")
     return [Chunk(s, e) for s, e in _finalize(text, runner(0, len(text)))]
+
+
+# ---- step 3 strategies (ADR-0027) ---------------------------------------------------------------
+# Every strategy below still yields exact spans of the parent text, so offsets and citations stay valid.
+
+_SENTENCE_END = re.compile(r"(?<=[.!?])[\"')\]]*\s+|\n\s*\n|\n(?=\s*(?:[-*+•]|\d+[.)]|#{1,6}\s))")
+
+
+def sentence_spans(text: str, start: int, end: int) -> list[Span]:
+    """Sentences (and paragraph / list-item breaks) as spans; abbreviations may split early."""
+    spans: list[Span] = []
+    cursor = start
+    for m in _SENTENCE_END.finditer(text, start, end):
+        if m.start() > cursor:
+            spans.append((cursor, m.start()))
+        cursor = m.end()
+    if cursor < end:
+        spans.append((cursor, end))
+    return _finalize(text, spans)
+
+
+def pack_spans(
+    text: str, units: Sequence[Span], size: int, overlap: int, measure: Measurer, separators: Sequence[str]
+) -> list[Span]:
+    """Greedily pack whole units (sentences, blocks) into chunks of at most ``size``; trailing units of the
+    previous chunk are repeated while they fit in ``overlap``. A unit larger than ``size`` is split recursively."""
+    chunks: list[Span] = []
+    current: list[Span] = []
+    for unit in units:
+        if measure(unit[0], unit[1]) > size:
+            if current:
+                chunks.append((current[0][0], current[-1][1]))
+                current = []
+            chunks.extend(recursive_spans(text, unit[0], unit[1], size, overlap, measure, separators))
+            continue
+        if current and measure(current[0][0], unit[1]) > size:
+            chunks.append((current[0][0], current[-1][1]))
+            tail: list[Span] = []
+            for prev in reversed(current):
+                if overlap and measure(prev[0], current[-1][1]) <= overlap:
+                    tail.insert(0, prev)
+                else:
+                    break
+            current = [u for u in tail if measure(u[0], unit[1]) <= size]
+        current.append(unit)
+    if current:
+        chunks.append((current[0][0], current[-1][1]))
+    return chunks
+
+
+# -- semantic -------------------------------------------------------------------------------------
+_WORD = re.compile(r"[^\W\d_]{2,}", re.UNICODE)
+_STOP = frozenset(
+    "the a an and or but of to in on at for with by from is are was were be been it this that these those as "
+    "not no do does did have has had will would can could should may might its their our your we you they he "
+    "she i me my so than then there here what which who when where how all any each also into about over".split()
+)
+
+
+def sentence_windows(text: str, sentences: Sequence[Span], buffer: int = 1) -> list[str]:
+    """Each sentence with ``buffer`` neighbours on both sides (smooths noisy single-sentence similarity)."""
+    out = []
+    for i in range(len(sentences)):
+        lo, hi = max(0, i - buffer), min(len(sentences), i + buffer + 1)
+        out.append(text[sentences[lo][0] : sentences[hi - 1][1]])
+    return out
+
+
+def _stem(word: str) -> str:
+    """Crude, language-light stemming: "volcanoes", "volcano" and "volcanic" all become "volcan"."""
+    if len(word) > 3 and word.endswith("s"):
+        word = word[:-1]
+    return word[:6]
+
+
+def lexical_vectors(texts: Sequence[str]) -> list[dict[str, float]]:
+    """Dependency-free fallback for semantic chunking: TF-IDF weighted bags of content words."""
+    import math
+    from collections import Counter
+
+    bags = [Counter(_stem(w) for w in _WORD.findall(t.lower()) if w not in _STOP) for t in texts]
+    df: Counter[str] = Counter()
+    for bag in bags:
+        df.update(bag.keys())
+    n = len(bags) or 1
+    return [{w: c * (math.log((1 + n) / (1 + df[w])) + 1) for w, c in bag.items()} for bag in bags]
+
+
+def cosine(a: Sequence[float] | dict[str, float], b: Sequence[float] | dict[str, float]) -> float:
+    import math
+
+    if isinstance(a, dict) and isinstance(b, dict):
+        dot = sum(v * b.get(k, 0.0) for k, v in a.items())
+        na = math.sqrt(sum(v * v for v in a.values()))
+        nb = math.sqrt(sum(v * v for v in b.values()))
+    else:
+        dot = sum(x * y for x, y in zip(a, b, strict=False))  # type: ignore[arg-type]
+        na = math.sqrt(sum(x * x for x in a))  # type: ignore[union-attr]
+        nb = math.sqrt(sum(y * y for y in b))  # type: ignore[union-attr]
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def semantic_spans(
+    text: str,
+    sentences: Sequence[Span],
+    vectors: Sequence[Sequence[float] | dict[str, float]],
+    *,
+    size: int,
+    min_size: int,
+    percentile: float,
+    measure: Measurer,
+    separators: Sequence[str],
+) -> tuple[list[Span], list[int]]:
+    """Break between sentences where neighbouring windows are least similar: distances at or above the
+    ``percentile``-th percentile mark a topic shift. Groups stay within ``size``; groups below ``min_size``
+    are merged into a neighbour. Returns the chunks and the sentence indices where breaks happened."""
+    if len(sentences) <= 1:
+        return ([(sentences[0][0], sentences[-1][1])] if sentences else []), []
+    distances = [1 - cosine(vectors[i], vectors[i + 1]) for i in range(len(sentences) - 1)]
+    ordered = sorted(distances)
+    rank = percentile / 100 * (len(ordered) - 1)  # linear interpolation, as numpy.percentile
+    lo = int(rank)
+    hi = min(lo + 1, len(ordered) - 1)
+    cut = ordered[lo] + (ordered[hi] - ordered[lo]) * (rank - lo)
+    breaks = [i + 1 for i, d in enumerate(distances) if d > cut]
+    groups: list[list[Span]] = []
+    start = 0
+    for b in [*breaks, len(sentences)]:
+        if b > start:
+            groups.append(list(sentences[start:b]))
+            start = b
+    merged: list[list[Span]] = []
+    for group in groups:  # undersized groups absorb the next one; the last one joins its predecessor
+        if merged and measure(merged[-1][0][0], merged[-1][-1][1]) < min_size:
+            merged[-1].extend(group)
+        else:
+            merged.append(group)
+    if len(merged) > 1 and measure(merged[-1][0][0], merged[-1][-1][1]) < min_size:
+        merged[-2].extend(merged.pop())
+    chunks: list[Span] = []
+    for group in merged:
+        if measure(group[0][0], group[-1][1]) <= size:
+            chunks.append((group[0][0], group[-1][1]))
+        else:  # a long topic: pack its sentences
+            chunks.extend(pack_spans(text, group, size, 0, measure, separators))
+    return chunks, breaks
+
+
+# -- layout (structure-aware) ---------------------------------------------------------------------
+_FENCE = re.compile(r"^\s*(```|~~~)")
+_LIST_ITEM = re.compile(r"^\s*(?:[-*+•]|\d+[.)])\s+")
+_TABLE_ROW = re.compile(r"^\s*\||^[^|\n]*\|[^|\n]*\|")
+
+
+@dataclass(frozen=True)
+class Block:
+    start: int
+    end: int
+    kind: str  # heading | paragraph | list | table | code
+
+
+def _line_kind(line: str) -> str:
+    if not line.strip():
+        return "blank"
+    if _HEADING_RE.match(line):
+        return "heading"
+    if _FENCE.match(line):
+        return "fence"
+    if _TABLE_ROW.match(line):
+        return "table"
+    if _LIST_ITEM.match(line):
+        return "list"
+    return "paragraph"
+
+
+def layout_blocks(text: str, start: int = 0, end: int | None = None) -> list[Block]:
+    """Structural blocks of Markdown-ish text (what the loaders produce): headings, paragraphs, whole lists,
+    whole tables and fenced code. Blank lines separate paragraphs; lists and tables run over consecutive lines."""
+    end = len(text) if end is None else end
+    lines: list[tuple[int, int]] = []
+    pos = start
+    while pos < end:
+        nl = text.find("\n", pos, end)
+        stop = end if nl == -1 else nl
+        lines.append((pos, stop))
+        pos = stop + 1
+    blocks: list[Block] = []
+    i = 0
+    while i < len(lines):
+        s, e = lines[i]
+        k = _line_kind(text[s:e])
+        if k == "blank":
+            i += 1
+            continue
+        if k == "heading":
+            blocks.append(Block(s, e, "heading"))
+            i += 1
+            continue
+        if k == "fence":
+            j = i + 1
+            while j < len(lines) and not _FENCE.match(text[lines[j][0] : lines[j][1]]):
+                j += 1
+            last = min(j, len(lines) - 1)
+            blocks.append(Block(s, lines[last][1], "code"))
+            i = last + 1
+            continue
+        j = i + 1
+        while j < len(lines):
+            line = text[lines[j][0] : lines[j][1]]
+            nk = _line_kind(line)
+            continues_item = k == "list" and nk == "paragraph" and line[:1].isspace()
+            if nk == k or continues_item:
+                j += 1
+            else:
+                break
+        blocks.append(Block(s, lines[j - 1][1], k))
+        i = j
+    return blocks
+
+
+def _split_block(text: str, block: Block, size: int, measure: Measurer, separators: Sequence[str]) -> list[Span]:
+    """An oversized block: tables/lists/code by whole lines (rows, items), paragraphs recursively."""
+    if block.kind in ("table", "list", "code"):
+        rows = _finalize(text, _split_keep(text, block.start, block.end, "\n"))
+        return pack_spans(text, rows, size, 0, measure, separators)
+    return recursive_spans(text, block.start, block.end, size, 0, measure, separators)
+
+
+def layout_chunks(text: str, size: int, measure: Measurer, separators: Sequence[str]) -> list[Chunk]:
+    """Chunks that follow the document's structure: a new chunk at every heading, headings kept with the
+    content below them, and tables, lists and code blocks never cut unless one alone exceeds ``size``."""
+    chunks: list[Chunk] = []
+    for sec_start, sec_end, section in markdown_sections(text):
+        current: list[Block] = []
+        for block in layout_blocks(text, sec_start, sec_end):
+            if measure(block.start, block.end) > size:
+                if current and not all(b.kind == "heading" for b in current):
+                    chunks.append(Chunk(current[0].start, current[-1].end, section))
+                    current = []
+                pieces = _split_block(text, block, size, measure, separators)
+                if current:  # a lone heading joins the first piece of what it introduces
+                    pieces[0] = (current[0].start, pieces[0][1])
+                    current = []
+                chunks.extend(Chunk(s, e, section) for s, e in pieces)
+                continue
+            only_headings = all(b.kind == "heading" for b in current)
+            if current and not only_headings and measure(current[0].start, block.end) > size:
+                chunks.append(Chunk(current[0].start, current[-1].end, section))
+                current = []
+            current.append(block)
+        if current:
+            chunks.append(Chunk(current[0].start, current[-1].end, section))
+    return chunks
+
+
+def parent_child_chunks(
+    text: str, *, parent_size: int, size: int, overlap: int, measure: Measurer, separators: Sequence[str]
+) -> list[tuple[Span, list[Span]]]:
+    """Large parent sections (for the model's context), each split into small children (for retrieval)."""
+    out = []
+    for ps, pe in _finalize(text, recursive_spans(text, 0, len(text), parent_size, 0, measure, separators)):
+        children = _finalize(text, recursive_spans(text, ps, pe, size, overlap, measure, separators))
+        out.append(((ps, pe), children))
+    return out

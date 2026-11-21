@@ -28,5 +28,6 @@
 | [0024](0024-model-router-formats-project-deletion.md) | Model Router node (keywords/classifier/hybrid), XLSX/PPTX/EPUB/JSONL/TSV/XML/YAML uploads, project deletion confirmed with DELETE | Accepted |
 | [0025](0025-vision-local-models-ocr.md) | Image port type, Image Input/Loader, vision LLM 1.2.0, Ollama + Hugging Face providers, RapidOCR (OCR node, scanned PDFs) | Accepted |
 | [0026](0026-data-sources-databases-s3-secrets.md) | Database engines (Supabase/Postgres, MySQL, SQL Server, Snowflake, Databricks, DuckDB, ClickHouse, BigQuery), S3 Loader, encrypted workspace secrets | Accepted |
+| [0027](0027-chunking-strategies-layout-parsing.md) | Chunker 1.1.0 (sentence, layout, semantic, document, parent-child), Parent Expander, layout-aware PDF/HTML/DOCX parsing | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

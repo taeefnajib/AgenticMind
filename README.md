@@ -85,6 +85,11 @@ Document Loader read text from images and scanned PDFs with open-source RapidOCR
 from OpenRouter, **Hugging Face** (`HF_TOKEN`), **Ollama** on your machine (no key) or any OpenAI-compatible
 server. See ADR-0025.
 
+To control chunking: the **Chunker** (1.1.0) offers recursive, fixed, sentence, markdown, layout-aware,
+semantic, whole-document and parent-child strategies; pair parent-child with the **Parent Expander** after
+retrieval (template *RAG with parent-child chunks*). Turn on `pdf_layout` in the loaders to turn PDF headings
+into structure. See ADR-0027.
+
 To connect your data: the **Database Connector** speaks PostgreSQL (incl. Supabase, Neon), MySQL/MariaDB, SQL
 Server, Snowflake, Databricks, DuckDB, ClickHouse and BigQuery; the **S3 Loader** reads documents from S3 or
 S3-compatible storage. Add passwords and tokens under avatar → **Settings** → *Secrets* (encrypted, never shown

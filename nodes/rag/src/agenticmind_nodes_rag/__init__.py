@@ -8,10 +8,12 @@ from agenticmind_node_sdk import NodeDefinition
 
 from .advanced import context_compressor, hybrid_search, keyword_search, query_rewriter, reranker
 from .answering import citation_builder, context_builder
-from .chunker import chunker
+from .chunker import chunker, chunker_v11
+from .parents import parent_expander
 from .retrieval import embedding_model, index_documents, index_documents_v1, retriever, vector_store
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
+    chunker_v11,
     chunker,
     embedding_model,
     vector_store,
@@ -25,6 +27,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     context_compressor,
     context_builder,
     citation_builder,
+    parent_expander,
 )
 
 
