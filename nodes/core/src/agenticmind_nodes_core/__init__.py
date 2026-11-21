@@ -9,6 +9,7 @@ from agenticmind_node_sdk import NodeDefinition
 from .approval import human_approval
 from .control import conditional
 from .flow import join, loop, loop_end, loop_end_v1, router
+from .guardrails import input_guard, output_guard, pii_redactor
 from .io import delay, image_input, manual_input, output
 from .models import llm, llm_v1, llm_v12, model_router
 from .text_ai import classifier, summarizer
@@ -38,6 +39,9 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     model_router,
     classifier,
     summarizer,
+    input_guard,
+    output_guard,
+    pii_redactor,
 )
 
 

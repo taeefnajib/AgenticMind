@@ -136,6 +136,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **Guardrails** (ADR-0031): Input Guard (length, PII redact/flag/block, prompt-injection heuristics incl.
+  hidden Unicode and base64, banned words/patterns, LLM injection judge and allowed/denied topics; passed/blocked
+  branches), Output Guard (JSON / JSON Schema, required/blocked patterns, PII and credential leaks, LLM policy
+  rules, model repair loop with history; passed/failed branches), PII Redactor; *Guarded assistant* template.
 - **More AI methods** (ADR-0030): Reasoning methods self-refine, Reflexion, multi-agent debate (optionally across
   models), mixture of agents, step-back prompting and program of thought (safe arithmetic evaluator); Classifier
   node (multi-label, confidence threshold, label branches); Summarizer node (stuff / map-reduce / refine);
@@ -163,6 +167,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
+
+- Guardrails: PII detection is pattern-based (emails, phones, cards with Luhn, US SSNs, IBANs with checksum, IPv4,
+  common credential formats); names and addresses need a model (not built). Injection heuristics are a first
+  filter; the LLM judge is the stronger check. No toxicity classifier model; use Output Guard policies.
 
 - Runs execute in the API process (ADR-0005). Waiting runs are durable and interrupted runs can be resumed
   from checkpoints (ADR-0013), but there is no queue-backed worker, approval expiry or assignee yet; loop
@@ -222,8 +230,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-Plan "build any agentic workflow" (one reviewed step each; steps 1-5 done, ADR-0025 to ADR-0029, plus extra AI
-methods in ADR-0030):
+Plan "build any agentic workflow" (one reviewed step each; all six steps done, ADR-0025 to ADR-0031, plus extra
+AI methods in ADR-0030):
 - Step 2: data sources: S3 / S3-compatible loader; database connector credentials for PostgreSQL/Supabase,
   MySQL, SQL Server, Databricks, Snowflake and other popular databases.
 - Step 3: chunking and parsing: document, semantic, recursive character, parent-child, layout-aware.

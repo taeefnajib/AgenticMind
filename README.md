@@ -96,6 +96,12 @@ For everyday text tasks: the **Classifier** labels text (single or multi-label, 
 a branch) and the **Summarizer** handles long text or documents with stuff, map-reduce or refine (template
 *Classify and summarise feedback*). See ADR-0030.
 
+To add guardrails: the **Input Guard** checks user input before a model sees it (length, PII redaction or
+blocking, prompt-injection detection, banned words and patterns, allowed/denied topics) and takes a `passed` or
+`blocked` branch; the **Output Guard** checks model output (JSON / JSON Schema, required and blocked patterns,
+PII and credential leaks, policy rules judged by a model) and can ask the model to **repair** a failing output;
+the **PII Redactor** redacts personal data anywhere in a graph (template *Guarded assistant*). See ADR-0031.
+
 To choose a vector database: the **Vector Store** node supports Qdrant (default, embedded), Chroma, FAISS and
 LanceDB on this machine, and Milvus/Zilliz, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis, pgvector
 and Pinecone as servers or cloud services. See ADR-0028.

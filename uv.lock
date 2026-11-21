@@ -218,12 +218,14 @@ source = { editable = "nodes/core" }
 dependencies = [
     { name = "agenticmind-node-sdk" },
     { name = "agenticmind-providers" },
+    { name = "jsonschema" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
     { name = "agenticmind-providers", editable = "packages/providers" },
+    { name = "jsonschema", specifier = ">=4.26.0" },
 ]
 
 [[package]]
