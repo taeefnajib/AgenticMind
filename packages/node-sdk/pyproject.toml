@@ -3,6 +3,7 @@ name = "agenticmind-node-sdk"
 version = "0.1.0"
 description = "AgenticMind Node SDK: typed port system, node manifests, handler contracts and test helpers"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = ["pydantic>=2.7,<3", "agenticmind-ir"]
 
 [project.scripts]

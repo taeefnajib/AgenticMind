@@ -1,13 +1,15 @@
 # Self-hosted AgenticMind.
 #   docker compose up --build                     -> http://localhost:8000 (SQLite in a volume)
 #   docker compose --profile postgres up --build  -> also starts PostgreSQL (set AGENTICMIND_DATABASE_URL)
+# Sign-in is off by default, so the port is published on localhost only. To serve other machines, set
+# AGENTICMIND_AUTH=required in .env and AGENTICMIND_BIND=0.0.0.0.
 services:
   agenticmind:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile
     ports:
-      - "8000:8000"
+      - "${AGENTICMIND_BIND:-127.0.0.1}:8000:8000"
     env_file:
       - path: .env
         required: false

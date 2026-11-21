@@ -141,10 +141,11 @@ Multi-agent templates: *Research team* (supervisor delegating to subagents), *Pl
 
 ### Accounts and sign-in
 
-The first time you open the IDE it asks you to create the admin account. Admins add more people under
-avatar → **Settings** → *People* (members build and run workflows; admins also manage people, workspace
-settings and node packages). Profile, password and theme are in the same dialog. For a throwaway
-single-user setup, `AGENTICMIND_AUTH=off` turns sign-in off. See ADR-0023.
+Sign-in is **off by default**: AgenticMind runs as a single local user, so keep the server on your machine
+(the dev servers and `compose.yaml` listen on localhost only). To share a server with other people or
+machines, set `AGENTICMIND_AUTH=required`: the IDE then asks you to create the admin account first, and admins
+add more people under avatar → **Settings** → *People* (members build and run workflows; admins also manage
+people, workspace settings and node packages). See ADR-0023 and ADR-0032.
 
 ### API keys and settings (`.env`)
 
@@ -221,3 +222,7 @@ infra/docker/     container build
 
 Not yet chosen. The blueprint calls for an OSI-approved licence after dependency and ecosystem review
 (tracked in the roadmap).
+
+## License
+
+MIT, see [LICENSE](LICENSE).

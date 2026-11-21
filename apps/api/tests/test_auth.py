@@ -239,3 +239,14 @@ def test_sign_in_off_keeps_single_user_mode(tmp_path):
     assert client.get("/api/settings/assistant").json()["can_edit"] is True
     with pytest.raises(ValueError, match="AGENTICMIND_AUTH"):
         make_app(tmp_path / "x", auth="maybe")
+
+
+def test_sign_in_is_off_by_default_but_cross_site_writes_stay_refused(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGENTICMIND_AUTH", raising=False)
+    from agenticmind_api.settings import Settings
+
+    assert Settings().auth_mode == "off"  # ADR-0032: open-source default
+    client = TestClient(make_app(tmp_path, auth=Settings().auth_mode))
+    assert client.get("/api/auth/status").json()["mode"] == "off"
+    evil = client.post("/api/projects", json={"name": "x"}, headers={"Origin": "https://evil.example"})
+    assert evil.status_code == 403 and evil.json()["detail"]["code"] == "ORIGIN_REFUSED"

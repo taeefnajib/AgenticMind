@@ -3,6 +3,7 @@ name = "agenticmind-nodes-agents"
 version = "0.1.0"
 description = "AgenticMind agent nodes: Agent, and tools (knowledge search, calculator, web fetch, date/time)"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
     "agenticmind-node-sdk",
     "agenticmind-providers",

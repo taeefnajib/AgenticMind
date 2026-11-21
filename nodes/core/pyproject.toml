@@ -3,6 +3,7 @@ name = "agenticmind-nodes-core"
 version = "0.1.0"
 description = "AgenticMind core node package (inputs, transforms, control flow, outputs, models)"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = ["agenticmind-node-sdk", "agenticmind-providers", "jsonschema>=4.26.0"]
 
 [project.entry-points."agenticmind.nodes"]

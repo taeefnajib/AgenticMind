@@ -3,6 +3,7 @@ name = "agenticmind-ir"
 version = "0.1.0"
 description = "AgenticMind canonical architecture representation (IR): models, JSON Schema, serialization, migrations"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = ["pydantic>=2.7,<3"]
 
 [build-system]

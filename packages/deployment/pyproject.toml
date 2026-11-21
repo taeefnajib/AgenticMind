@@ -3,6 +3,7 @@ name = "agenticmind-deployment"
 version = "0.1.0"
 description = "AgenticMind Deployment Center: target capability checks, deployment plans and artifacts, local Docker deployer"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
     "agenticmind-ir",
     "agenticmind-registry",

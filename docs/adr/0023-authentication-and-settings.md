@@ -39,7 +39,7 @@ configurable through environment variables.
     cannot send headers.
 - **Guard:** one ASGI middleware (`security.ApiGuard`) covers every `/api` route, so new routers are
   protected by default.
-  - With `AGENTICMIND_AUTH=required` (the default), a valid session is needed everywhere except
+  - With `AGENTICMIND_AUTH=required` (the default until ADR-0032 made `off` the default), a valid session is needed everywhere except
     `/api/health` and the sign-in endpoints themselves.
   - **Cross-site writes:** `POST/PUT/PATCH/DELETE` requests that carry an `Origin` (or `Referer`) must
     come from the page's own host or an origin in `AGENTICMIND_CORS_ORIGINS`.

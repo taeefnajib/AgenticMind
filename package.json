@@ -1,6 +1,7 @@
 {
   "name": "agenticmind",
   "private": true,
+  "license": "MIT",
   "version": "0.1.0",
   "description": "AgenticMind open-source AI engineering platform (monorepo root)",
   "workspaces": [

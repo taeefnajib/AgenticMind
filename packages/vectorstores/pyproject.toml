@@ -3,6 +3,7 @@ name = "agenticmind-vectorstores"
 version = "0.1.0"
 description = "AgenticMind vector store adapter layer (Qdrant default; Chroma, FAISS, LanceDB, pgvector, Pinecone, Milvus, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis)"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
     "pydantic>=2.7,<3",
     "qdrant-client>=1.20.0",

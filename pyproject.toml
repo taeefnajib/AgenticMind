@@ -3,6 +3,7 @@ name = "agenticmind-workspace"
 version = "0.1.0"
 description = "AgenticMind monorepo workspace (Python side)"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
     "agenticmind-ir",
     "agenticmind-node-sdk",

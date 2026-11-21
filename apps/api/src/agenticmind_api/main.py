@@ -134,7 +134,10 @@ def create_app(
     if settings.auth_mode not in ("required", "off"):
         raise ValueError(f"AGENTICMIND_AUTH must be 'required' or 'off', not {settings.auth_mode!r}")
     if settings.auth_mode == "off":
-        log.warning("sign-in is OFF (AGENTICMIND_AUTH=off): anyone who can reach this API can use it")
+        log.warning(
+            "sign-in is off (the default): anyone who can reach this API can use it. Keep it on localhost, or "
+            "set AGENTICMIND_AUTH=required before exposing it to a network"
+        )
     # inner to CORS (added below, so it wraps this): refusals still carry CORS headers
     app.add_middleware(ApiGuard, auth=auth, settings=settings)
     app.add_middleware(
