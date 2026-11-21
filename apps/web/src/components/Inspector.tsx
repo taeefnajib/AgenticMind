@@ -9,12 +9,19 @@ import { ConfigForm } from "./ConfigForm";
 import { DiagnosticList } from "./DiagnosticList";
 import { ValueView } from "./DocumentViewer";
 import { FilesPanel } from "./Files";
+import { mcpEndpoint, mcpToolName, type McpExposure } from "../lib/mcp";
+
+export interface ProjectMeta {
+  name: string;
+  description: string;
+  mcp: McpExposure;
+}
 
 interface Props {
   node: AmFlowNode | null;
   edge: AmFlowEdge | null;
-  meta: { name: string; description: string };
-  onMetaChange: (meta: { name: string; description: string }) => void;
+  meta: ProjectMeta;
+  onMetaChange: (meta: ProjectMeta) => void;
   onNodeChange: (id: string, update: (ir: IRNode) => IRNode) => void;
   onDeleteNode: (id: string) => void;
   onDeleteEdge: (id: string) => void;
@@ -61,6 +68,9 @@ function ProjectInspector({ meta, onMetaChange, diagnostics, onSelectDiagnostic 
           onChange={(e) => onMetaChange({ ...meta, description: e.target.value })}
         />
       </Section>
+      <Section title="MCP tool">
+        <McpExposeControl meta={meta} onMetaChange={onMetaChange} />
+      </Section>
       <Section title={`Validation${errors ? ` · ${errors} error${errors > 1 ? "s" : ""}` : ""}`}>
         {diagnostics.length === 0 ? (
           <p className="text-xs text-emerald-700">No problems found.</p>
@@ -79,6 +89,47 @@ function ProjectInspector({ meta, onMetaChange, diagnostics, onSelectDiagnostic 
         </ul>
       </Section>
     </>
+  );
+}
+
+export function McpExposeControl({ meta, onMetaChange }: Pick<Props, "meta" | "onMetaChange">) {
+  const mcp = meta.mcp;
+  const name = mcpToolName(mcp.tool_name || meta.name);
+  const endpoint = mcpEndpoint(window.location.origin);
+  const set = (next: McpExposure) => onMetaChange({ ...meta, mcp: next });
+  return (
+    <div className="space-y-2 text-xs">
+      <label className="flex items-center gap-2 text-slate-700">
+        <input type="checkbox" checked={mcp.expose} onChange={(e) => set({ ...mcp, expose: e.target.checked })} />
+        Expose as MCP tool
+      </label>
+      <p className="text-slate-500">
+        MCP clients (Claude, Cursor, other agents) can call this workflow. Its Manual Inputs become the tool&apos;s
+        arguments. Save to apply.
+      </p>
+      {mcp.expose && (
+        <>
+          <label className="block font-medium text-slate-700" htmlFor="mcp-tool-name">
+            Tool name
+          </label>
+          <input
+            id="mcp-tool-name"
+            className="am-input"
+            placeholder={mcpToolName(meta.name)}
+            value={mcp.tool_name ?? ""}
+            onChange={(e) => set({ ...mcp, tool_name: e.target.value })}
+          />
+          <p className="text-slate-500">
+            Called as <code className="font-mono text-slate-700">{name}</code> at
+          </p>
+          <code className="block break-all rounded bg-slate-100 px-2 py-1 font-mono text-[11px] text-slate-700">{endpoint}</code>
+          <p className="text-slate-500">
+            Streamable HTTP. When <code className="font-mono">AGENTICMIND_MCP_TOKEN</code> is set, clients send it as a
+            bearer token.
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 

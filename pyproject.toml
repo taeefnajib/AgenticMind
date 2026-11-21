@@ -10,7 +10,7 @@ dependencies = [
     "agenticmind-registry",
     "agenticmind-providers[local]",
     "agenticmind-vectorstores[chroma,faiss,lancedb,pgvector,pinecone,milvus,weaviate,mongodb,redis,search]",
-    "agenticmind-runtime",
+    "agenticmind-runtime[mcp]",
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",

@@ -120,7 +120,10 @@ async def test_agent_receives_history(monkeypatch):
 
 
 def test_agent_versions():
-    assert agent_mod.agent.manifest.version == "1.1.0"
+    assert agent_mod.agent.manifest.version == "1.2.0"
+    assert agent_mod.agent.manifest.permissions.subprocess is True  # may run stdio MCP servers (ADR-0033)
+    assert agent_mod.agent_v11.manifest.version == "1.1.0"
+    assert agent_mod.agent_v11.manifest.permissions.subprocess is False  # saved projects keep their permissions
     assert "history" in {p.name for p in agent_mod.agent.manifest.inputs}
     assert agent_mod.agent_v1.manifest.version == "1.0.0"
     assert "history" not in {p.name for p in agent_mod.agent_v1.manifest.inputs}

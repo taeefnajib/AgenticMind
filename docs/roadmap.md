@@ -136,6 +136,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **MCP client and server** (ADR-0033): MCP Server tool node (stdio / Streamable HTTP, secret env and
+  bearer token, include/exclude, prefixes) whose tools an Agent uses; MCP Call node; projects exposed as MCP
+  tools at `/api/mcp` (Manual Inputs become the schema, each call a recorded run, optional bearer token, host
+  checks); `agenticmind mcp-serve` over stdio; Agent 1.2.0 / Tool Router 1.1.0 / Tool Chain 1.1.0 may run
+  stdio MCP tools; *Agent with MCP tools* template.
 - **Guardrails** (ADR-0031): Input Guard (length, PII redact/flag/block, prompt-injection heuristics incl.
   hidden Unicode and base64, banned words/patterns, LLM injection judge and allowed/denied topics; passed/blocked
   branches), Output Guard (JSON / JSON Schema, required/blocked patterns, PII and credential leaks, LLM policy
@@ -167,6 +172,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
+
+- MCP: a connection per tool call (stdio servers start each call; pooling next); no MCP resources, prompts,
+  sampling, elicitation or OAuth yet; stdio MCP servers run unsandboxed with the user's privileges.
 
 - Guardrails: PII detection is pattern-based (emails, phones, cards with Luhn, US SSNs, IBANs with checksum, IPv4,
   common credential formats); names and addresses need a model (not built). Injection heuristics are a first
@@ -240,7 +248,12 @@ AI methods in ADR-0030):
   function calling, tool routing, tool chaining.
 - Step 6: guardrails: input and output validation (schema, PII, prompt injection, policy), retry and repair.
 
-1. Version history panel and visual diff of revisions; MCP client tools and an MCP Server node (both
-   requested in the blueprint, not yet built).
+Open-source production plan (ADR-0032; one reviewed feature each):
+- Done: MCP client and server (ADR-0033).
+- Next: sandboxed code execution; triggers (webhooks, schedules, queue messages, Slack / WhatsApp / Telegram /
+  email); native model providers; observability export; GitHub integration (push projects with version
+  control); durable execution; streaming.
+
+1. Version history panel and visual diff of revisions (requested in the blueprint, not yet built).
 2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
 3. Workspaces and per-project permissions, OIDC/SSO, API tokens, audit log; Alembic migrations.

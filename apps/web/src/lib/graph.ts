@@ -4,6 +4,7 @@
 
 import type { Connection, Edge, Node } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
+import { writeExposure, type McpExposure } from "./mcp";
 
 import type {
   InputPortSpec,
@@ -134,7 +135,7 @@ export function docToFlow(doc: ProjectDocument): { nodes: AmFlowNode[]; edges: A
 
 export function flowToDoc(
   base: ProjectDocument,
-  meta: { name: string; description: string },
+  meta: { name: string; description: string; mcp?: McpExposure },
   nodes: AmFlowNode[],
   edges: AmFlowEdge[],
 ): ProjectDocument {
@@ -156,6 +157,7 @@ export function flowToDoc(
     project: { ...base.project, name: meta.name, description: meta.description },
     nodes: irNodes,
     edges: irEdges,
+    metadata: meta.mcp ? writeExposure(base.metadata, meta.mcp) : base.metadata,
   };
 }
 

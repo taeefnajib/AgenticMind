@@ -12,6 +12,7 @@ dependencies = [
     "agenticmind-nodes-data",
     "jsonschema>=4.26.0",
     "tzdata>=2026.6",
+    "mcp>=2.3.0",
 ]
 
 [project.entry-points."agenticmind.nodes"]

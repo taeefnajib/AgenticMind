@@ -5,6 +5,7 @@
     agenticmind validate graph.json        validate an IR document
     agenticmind run graph.json -i name=Ada run a graph in the first-party runtime
     agenticmind canonicalize graph.json    print the canonical (diff-friendly) form
+    agenticmind mcp-serve a.json b.json    serve graphs as MCP tools over stdio (needs the [mcp] extra)
 """
 
 from __future__ import annotations
@@ -65,6 +66,9 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(".agenticmind"),
         help="Data directory holding uploaded project files (same layout as the API)",
     )
+    p_mcp = sub.add_parser("mcp-serve", help="Serve graphs as Model Context Protocol tools over stdio")
+    p_mcp.add_argument("files", type=Path, nargs="+", help="IR documents; each becomes one tool")
+    p_mcp.add_argument("--data-dir", type=Path, default=Path(".agenticmind"))
     args = parser.parse_args(argv)
 
     if args.cmd == "schema":
@@ -75,12 +79,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "nodes":
         _print(
             [
-                {"type": e.manifest.type, "version": e.manifest.version, "category": e.manifest.category,
-                 "trust": e.trust.value, "name": e.manifest.display_name}
+                {
+                    "type": e.manifest.type,
+                    "version": e.manifest.version,
+                    "category": e.manifest.category,
+                    "trust": e.trust.value,
+                    "name": e.manifest.display_name,
+                }
                 for e in registry.entries()
             ]
         )
         return 0
+
+    if args.cmd == "mcp-serve":
+        return _mcp_serve(args.files, registry, args.data_dir)
 
     source = args.file.read_text(encoding="utf-8")
     secrets = EnvSecretResolver()
@@ -121,6 +133,57 @@ def main(argv: list[str] | None = None) -> int:
         out["events"] = [e.model_dump(mode="json", exclude_none=True) for e in observer.events]
     _print(out)
     return 0 if result.status == RunStatus.SUCCEEDED else 1
+
+
+def _mcp_serve(files: list[Path], registry: Any, data_dir: Path) -> int:
+    """stdio MCP server. stdout carries the protocol, so problems go to stderr only."""
+    try:
+        from .mcp_server import (
+            ExposedGraph,
+            RunReply,
+            build_mcp_server,
+            describe,
+            graph_input_schema,
+            mcp_tool_name,
+            serve_stdio,
+        )
+    except ImportError:  # pragma: no cover - depends on installed extras
+        print("mcp-serve needs the MCP extra: pip install 'agenticmind-runtime[mcp]'", file=sys.stderr)
+        return 2
+    secrets = EnvSecretResolver()
+    graphs: list[ExposedGraph] = []
+    for path in files:
+        doc, report = validate_project(path.read_text(encoding="utf-8"), registry, secrets=secrets)
+        if doc is None:
+            print(f"{path}: invalid IR: {json.dumps(report.to_public())}", file=sys.stderr)
+            return 1
+        try:
+            plan = compile_plan(doc, registry, secrets=secrets)
+        except PlanError as exc:
+            print(f"{path}: not executable: {json.dumps(exc.report.to_public())}", file=sys.stderr)
+            return 1
+
+        async def run(inputs: dict[str, Any], plan: Any = plan) -> RunReply:
+            result = await Engine(
+                observer=InMemoryObserver(),
+                secrets=secrets,
+                artifacts=LocalArtifactStore(data_dir / "artifacts"),
+                memory=InMemoryMemoryStore(),
+            ).run(plan, inputs=inputs)
+            return RunReply(
+                status=result.status.value,
+                outputs=result.outputs,
+                error=result.error.model_dump() if result.error else None,
+                run_id=result.run_id,
+            )
+
+        graphs.append(ExposedGraph(mcp_tool_name(doc.project.name), describe(doc), graph_input_schema(doc), run))
+
+    async def list_graphs() -> list[ExposedGraph]:
+        return graphs
+
+    asyncio.run(serve_stdio(build_mcp_server(list_graphs)))
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover

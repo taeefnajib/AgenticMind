@@ -53,8 +53,26 @@ class Settings:
     assistant_base_url: str | None = field(
         default_factory=lambda: os.environ.get("AGENTICMIND_ASSISTANT_BASE_URL") or None
     )
-    #: Sign-in (ADR-0023): "required" (default) or "off" (single-user tinkering; every request is anonymous).
+    #: Sign-in (ADR-0023, ADR-0032): "off" (default; single local user) or "required" (accounts).
     auth_mode: str = field(default_factory=lambda: os.environ.get("AGENTICMIND_AUTH", "off").strip().lower())
+    #: MCP server endpoint ``/api/mcp`` (ADR-0033): on by default; it only serves projects marked as exposed.
+    mcp_server: bool = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_MCP_SERVER", "1").lower() in ("1", "true", "yes", "on")
+    )
+    #: Optional bearer token MCP clients must send (required for /api/mcp when set).
+    mcp_token: str | None = field(default_factory=lambda: os.environ.get("AGENTICMIND_MCP_TOKEN") or None)
+    #: Host headers accepted by /api/mcp (DNS-rebinding protection); ``host:*`` allows any port.
+    mcp_allowed_hosts: tuple[str, ...] = field(
+        default_factory=lambda: tuple(
+            h.strip()
+            for h in os.environ.get(
+                "AGENTICMIND_MCP_ALLOWED_HOSTS", "localhost,localhost:*,127.0.0.1,127.0.0.1:*,[::1],[::1]:*"
+            ).split(",")
+            if h.strip()
+        )
+    )
+    #: How long an MCP tool call waits for its run before answering "still running".
+    mcp_run_timeout: float = field(default_factory=lambda: float(os.environ.get("AGENTICMIND_MCP_RUN_TIMEOUT", "300")))
     session_days: int = field(default_factory=lambda: int(os.environ.get("AGENTICMIND_SESSION_DAYS", "14")))
     #: Mark the session cookie ``Secure`` (set when the app is served over HTTPS).
     cookie_secure: bool = field(

@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import hmac
 from typing import Any
 from urllib.parse import urlparse
 
@@ -40,6 +41,10 @@ def _origin_allowed(request: Request, allowed: tuple[str, ...]) -> bool:
     return bool(parsed.netloc) and parsed.netloc == request.headers.get("host")
 
 
+def _is_mcp(path: str) -> bool:
+    return path == "/api/mcp" or path.startswith("/api/mcp/")
+
+
 class ApiGuard:
     def __init__(self, app: ASGIApp, *, auth: AuthStore, settings: Settings) -> None:
         self.app = app
@@ -51,6 +56,26 @@ class ApiGuard:
             await self.app(scope, receive, send)
             return
         request = Request(scope)
+        if self.settings.mcp_token and _is_mcp(scope["path"]):
+            # MCP clients authenticate with the bearer token (ADR-0033); browsers' cross-site writes stay refused
+            supplied = request.headers.get("authorization", "")
+            expected = f"Bearer {self.settings.mcp_token}"
+            if not hmac.compare_digest(supplied.encode(), expected.encode()):
+                response = JSONResponse(
+                    {"detail": {"code": "MCP_TOKEN_REQUIRED", "message": "Send Authorization: Bearer <token>."}},
+                    status_code=401,
+                )
+                await response(scope, receive, send)
+                return
+            if request.method in UNSAFE_METHODS and not _origin_allowed(request, self.settings.cors_origins):
+                response = JSONResponse(
+                    {"detail": {"code": "ORIGIN_REFUSED", "message": "Cross-site request refused."}}, status_code=403
+                )
+                await response(scope, receive, send)
+                return
+            scope.setdefault("state", {})[USER_KEY] = None
+            await self.app(scope, receive, send)
+            return
         if request.method in UNSAFE_METHODS and not _origin_allowed(request, self.settings.cors_origins):
             response = JSONResponse(
                 {"detail": {"code": "ORIGIN_REFUSED", "message": "Cross-site request refused."}}, status_code=403

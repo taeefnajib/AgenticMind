@@ -1,0 +1,150 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Agent with MCP tools",
+    "description": "An Agent that uses the tools of a Model Context Protocol server. The MCP Server node points at this AgenticMind server's own MCP endpoint (http://localhost:8000/api/mcp), so first open another project, tick 'Expose as MCP tool' in its Project panel and save: its workflow becomes a tool here. To use any other MCP server, switch the node to stdio (e.g. command 'npx', args ['-y', '<server package>']) or set its URL. Uses OpenRouter (Gemini) via OPENROUTER_API_KEY."
+  },
+  "runtime": {
+    "engine": "agenticmind",
+    "profile": "development"
+  },
+  "nodes": [
+    {
+      "id": "task",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {
+        "key": "task",
+        "value_type": "String",
+        "required": true,
+        "default": "Which tools do you have? Use one of them and tell me what it returned."
+      },
+      "ui": {
+        "position": {
+          "x": 0,
+          "y": 40
+        },
+        "label": "Task"
+      }
+    },
+    {
+      "id": "mcp",
+      "type": "agenticmind.agents.mcp_tools",
+      "version": "1.0.0",
+      "config": {
+        "transport": "http",
+        "url": "http://localhost:8000/api/mcp",
+        "name_prefix": ""
+      },
+      "ui": {
+        "position": {
+          "x": 0,
+          "y": 220
+        },
+        "label": "MCP Server"
+      }
+    },
+    {
+      "id": "agent",
+      "type": "agenticmind.agents.agent",
+      "version": "1.2.0",
+      "config": {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "api_key": {
+          "$secret": "OPENROUTER_API_KEY"
+        },
+        "architecture": "function_calling",
+        "max_turns": 6
+      },
+      "ui": {
+        "position": {
+          "x": 340,
+          "y": 100
+        },
+        "label": "Agent"
+      }
+    },
+    {
+      "id": "answer",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "answer"
+      },
+      "ui": {
+        "position": {
+          "x": 680,
+          "y": 40
+        }
+      }
+    },
+    {
+      "id": "tools_out",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "tools"
+      },
+      "ui": {
+        "position": {
+          "x": 340,
+          "y": 340
+        },
+        "label": "Available tools"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "kind": "data",
+      "source": {
+        "node": "task",
+        "port": "value"
+      },
+      "target": {
+        "node": "agent",
+        "port": "task"
+      }
+    },
+    {
+      "id": "e2",
+      "kind": "data",
+      "source": {
+        "node": "mcp",
+        "port": "tools"
+      },
+      "target": {
+        "node": "agent",
+        "port": "tools"
+      }
+    },
+    {
+      "id": "e3",
+      "kind": "data",
+      "source": {
+        "node": "agent",
+        "port": "answer"
+      },
+      "target": {
+        "node": "answer",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e4",
+      "kind": "data",
+      "source": {
+        "node": "mcp",
+        "port": "catalog"
+      },
+      "target": {
+        "node": "tools_out",
+        "port": "value"
+      }
+    }
+  ],
+  "metadata": {}
+}

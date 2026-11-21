@@ -45,7 +45,7 @@ from agenticmind_providers import (
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .agent import CURRENT_AGENT, AgentConfig, emit_agent, run_agent_loop
+from .agent import CURRENT_AGENT, AgentConfig, emit_agent, load_tools, run_agent_loop
 from .tools import PACKAGE, ToolError, _description_field, _name_field, implementation
 
 #: Supervisor > subagent > sub-subagent ... at most this many agents deep.
@@ -141,7 +141,7 @@ class SubagentConfig(AgentConfig):
     tags=["agents", "tools", "multi-agent"],
 )
 async def subagent(ctx: NodeContext, inputs, config: SubagentConfig) -> NodeResult:
-    tools = [ToolHandle.model_validate(t) for t in inputs.get("tools", [])]
+    tools = load_tools(inputs.get("tools"))
     agent_cfg = config.model_dump(mode="json", exclude={"name", "description", "timeout_seconds"}, by_alias=True)
     permissions = sorted({"network", "credentials"} | {p for t in tools for p in t.permissions})
     handle = ToolHandle(
@@ -175,7 +175,7 @@ async def _run_subagent(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]
     if len(path) >= MAX_AGENT_DEPTH:
         raise ToolError(f"Delegation depth limit ({MAX_AGENT_DEPTH} agents) reached; answer yourself")
     config = AgentConfig.model_validate(tool.binding["agent"])
-    tools = [ToolHandle.model_validate(t) for t in tool.binding.get("tools", [])]
+    tools = load_tools(tool.binding.get("tools"))
     await emit_agent(ctx, "handoff", {"to": tool.name, "task": str(args["task"])[:1000]})
     token = CURRENT_AGENT.set((*path, tool.name))
     try:

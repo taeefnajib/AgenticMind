@@ -102,6 +102,13 @@ blocking, prompt-injection detection, banned words and patterns, allowed/denied 
 PII and credential leaks, policy rules judged by a model) and can ask the model to **repair** a failing output;
 the **PII Redactor** redacts personal data anywhere in a graph (template *Guarded assistant*). See ADR-0031.
 
+To use MCP (Model Context Protocol): the **MCP Server** tool node connects to any MCP server (a local command
+over stdio, or a Streamable HTTP URL with a bearer token) and gives an Agent all of its tools; **MCP Call** calls
+one tool directly. The other way round, tick **Expose as MCP tool** in a project's panel and save: MCP clients
+(Claude, Cursor, other agents) can then call the workflow at `http://localhost:8000/api/mcp`, its Manual Inputs
+being the tool's arguments (set `AGENTICMIND_MCP_TOKEN` to require a bearer token). `agenticmind mcp-serve
+graph.json` serves graph files over stdio. Template *Agent with MCP tools*. See ADR-0033.
+
 To choose a vector database: the **Vector Store** node supports Qdrant (default, embedded), Chroma, FAISS and
 LanceDB on this machine, and Milvus/Zilliz, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis, pgvector
 and Pinecone as servers or cloud services. See ADR-0028.

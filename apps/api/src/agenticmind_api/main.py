@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
+from typing import Any
 
 from agenticmind_registry import NodeRegistry, default_registry
 from agenticmind_runtime import EnvSecretResolver, LocalArtifactStore, SecretResolver
@@ -95,8 +96,17 @@ def create_app(
         local_enabled=settings.local_deploy,
     )
 
+    mcp_app: Any = None
+    mcp_manager: Any = None
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        async with mcp_manager.run() if mcp_manager is not None else nullcontext():
+            async with _core_lifespan(_app):
+                yield
+
+    @asynccontextmanager
+    async def _core_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         orphaned = store.fail_orphaned_runs()
         if orphaned:
             log.warning("marked %d interrupted run(s) as failed", orphaned)
@@ -159,6 +169,12 @@ def create_app(
     app.include_router(auth_routes.router)
     app.include_router(settings_routes.router)
     app.include_router(secret_routes.router)
+    if settings.mcp_server:
+        from .mcp_endpoint import build_mcp_app
+
+        mcp_app, mcp_manager = build_mcp_app(app.state.services)
+        # after every /api router, so it only receives /api paths nothing else matched (i.e. /api/mcp)
+        app.mount("/api", mcp_app)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app

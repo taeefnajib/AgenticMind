@@ -11,7 +11,7 @@ dependencies = [
     "agenticmind-ir",
     "agenticmind-node-sdk",
     "agenticmind-registry",
-    "agenticmind-runtime",
+    "agenticmind-runtime[mcp]",
     "agenticmind-compiler",
     "agenticmind-deployment",
     "agenticmind-plugins",

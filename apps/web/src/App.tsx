@@ -14,6 +14,8 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { readExposure } from "./lib/mcp";
+import type { ProjectMeta } from "./components/Inspector";
 
 import { api, ApiError, apiAlive, isConnectionError, subscribeRunEvents } from "./api/client";
 import type {
@@ -99,7 +101,7 @@ export function App() {
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<ProjectOut | null>(null);
-  const [meta, setMeta] = useState({ name: "", description: "" });
+  const [meta, setMeta] = useState<ProjectMeta>({ name: "", description: "", mcp: { expose: false } });
   const [nodes, setNodes, onNodesChange] = useNodesState<AmFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<AmFlowEdge>([]);
   const [dirty, setDirty] = useState(false);
@@ -161,7 +163,11 @@ export function App() {
     (p: ProjectOut) => {
       const { nodes: n, edges: e } = docToFlow(p.document);
       setProject(p);
-      setMeta({ name: p.document.project.name, description: p.document.project.description });
+      setMeta({
+        name: p.document.project.name,
+        description: p.document.project.description,
+        mcp: readExposure(p.document.metadata),
+      });
       setNodes(n);
       setEdges(e);
       setDirty(false);

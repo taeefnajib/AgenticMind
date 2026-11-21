@@ -48,7 +48,7 @@ from agenticmind_providers import (
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .agent import AGENT_PERMISSIONS, _run_tool, check_tools
+from .agent import AGENT_PERMISSIONS, AGENT_PERMISSIONS_V2, _run_tool, check_tools, granting, load_tools
 from .tools import PACKAGE
 
 _TOOLS_IN = InputPort(
@@ -118,9 +118,8 @@ async def _pick(
     return call.name, call.arguments, resp.usage
 
 
-@define_node(
+_TOOL_ROUTER = dict(
     type="agenticmind.agents.tool_router",
-    version="1.0.0",
     display_name="Tool Router",
     category="agents",
     package=PACKAGE,
@@ -133,12 +132,13 @@ async def _pick(
         OutputPort(name="text", type=PortType.STRING, description="The result as text"),
     ],
     config=ToolRouterConfig,
-    permissions=AGENT_PERMISSIONS,
     execution=ExecutionPolicy(timeout_seconds=300, max_attempts=1, idempotent=False),
     tags=["agents", "tools", "routing"],
 )
-async def tool_router(ctx: NodeContext, inputs, config: ToolRouterConfig) -> NodeResult:
-    tools = [ToolHandle.model_validate(t) for t in inputs.get("tools") or []]
+
+
+async def _tool_router(ctx: NodeContext, inputs, config: ToolRouterConfig) -> NodeResult:
+    tools = load_tools(inputs.get("tools"))
     if not tools:
         raise NodeError("NO_TOOLS", "Connect at least one tool")
     by_name = check_tools(tools)
@@ -240,9 +240,8 @@ def render(value: Any, scope: dict[str, Any]) -> Any:
     return _TEMPLATE.sub(sub, value)
 
 
-@define_node(
+_TOOL_CHAIN = dict(
     type="agenticmind.agents.tool_chain",
-    version="1.0.0",
     display_name="Tool Chain",
     category="agents",
     package=PACKAGE,
@@ -257,12 +256,13 @@ def render(value: Any, scope: dict[str, Any]) -> Any:
         OutputPort(name="steps", type=PortType.JSON, description="Every step: tool, arguments, ok, result"),
     ],
     config=ToolChainConfig,
-    permissions=AGENT_PERMISSIONS,
     execution=ExecutionPolicy(timeout_seconds=600, max_attempts=1, idempotent=False),
     tags=["agents", "tools"],
 )
-async def tool_chain(ctx: NodeContext, inputs, config: ToolChainConfig) -> NodeResult:
-    tools = [ToolHandle.model_validate(t) for t in inputs.get("tools") or []]
+
+
+async def _tool_chain(ctx: NodeContext, inputs, config: ToolChainConfig) -> NodeResult:
+    tools = load_tools(inputs.get("tools"))
     by_name = check_tools(tools)
     missing = sorted({s.tool for s in config.steps} - set(by_name))
     if missing:
@@ -287,3 +287,21 @@ async def tool_chain(ctx: NodeContext, inputs, config: ToolChainConfig) -> NodeR
             raise NodeError("TOOL_CHAIN_FAILED", f"Step {i} ({step_cfg.tool}) failed: {step.get('error')}")
         previous = result
     return NodeResult(outputs={"result": previous, "steps": done})
+
+
+#: 1.1.0 may run tools that start local processes (stdio MCP servers, ADR-0033).
+tool_router = define_node(**_TOOL_ROUTER, version="1.1.0", permissions=AGENT_PERMISSIONS_V2)(
+    granting(AGENT_PERMISSIONS_V2)(_tool_router)
+)
+tool_router_v1 = define_node(**_TOOL_ROUTER, version="1.0.0", permissions=AGENT_PERMISSIONS)(
+    granting(AGENT_PERMISSIONS)(_tool_router)
+)
+
+
+#: 1.1.0 may run tools that start local processes (stdio MCP servers, ADR-0033).
+tool_chain = define_node(**_TOOL_CHAIN, version="1.1.0", permissions=AGENT_PERMISSIONS_V2)(
+    granting(AGENT_PERMISSIONS_V2)(_tool_chain)
+)
+tool_chain_v1 = define_node(**_TOOL_CHAIN, version="1.0.0", permissions=AGENT_PERMISSIONS)(
+    granting(AGENT_PERMISSIONS)(_tool_chain)
+)

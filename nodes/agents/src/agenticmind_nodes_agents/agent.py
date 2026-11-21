@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import functools
 import json
 import time
 from dataclasses import dataclass
@@ -60,6 +61,13 @@ DEFAULT_INSTRUCTIONS = (
 MAX_TOOL_RESULT_CHARS = 12_000
 AGENT_PERMISSIONS = Permissions(
     network=True, filesystem=True, credentials=True, database=True, memory=True, artifacts=True
+)
+#: Agent 1.2.0, Tool Router 1.1.0 and Tool Chain 1.1.0 may also run tools that start local processes
+#: (stdio MCP servers, ADR-0033). Earlier versions keep their original permissions.
+AGENT_PERMISSIONS_V2 = AGENT_PERMISSIONS.model_copy(update={"subprocess": True})
+#: Permissions the running agent-like node was granted (set per node version by ``granting``).
+GRANTED_TOOL_PERMISSIONS: contextvars.ContextVar[frozenset[str] | None] = contextvars.ContextVar(
+    "agenticmind_granted_tool_permissions", default=None
 )
 #: Chain of agents currently running (node > subagent > ...), used to label trace events.
 CURRENT_AGENT: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar("agenticmind_agent", default=())
@@ -156,19 +164,54 @@ def _history(raw: Any) -> list[ChatMessage]:
     return out
 
 
+def granting(permissions: Permissions) -> Any:
+    """Wrap a node handler so the tools it runs are checked against this node version's permissions."""
+    granted = frozenset(_granted(permissions))
+
+    def decorator(handler: Any) -> Any:
+        @functools.wraps(handler)
+        async def wrapped(ctx: NodeContext, inputs: Any, config: Any) -> NodeResult:
+            token = GRANTED_TOOL_PERMISSIONS.set(granted)
+            try:
+                return await handler(ctx, inputs, config)
+            finally:
+                GRANTED_TOOL_PERMISSIONS.reset(token)
+
+        return wrapped
+
+    return decorator
+
+
+def load_tools(raw: Any) -> list[ToolHandle]:
+    """Validate tool values and expand toolkits (an MCP server's tools) into individual tools."""
+    from .mcp_client import expand_toolkit
+
+    tools: list[ToolHandle] = []
+    for value in raw or []:
+        handle = ToolHandle.model_validate(value)
+        if handle.tool_type == "mcp" and "toolkit" in handle.binding:
+            tools.extend(expand_toolkit(handle))
+        else:
+            tools.append(handle)
+    return tools
+
+
 def check_tools(tools: list[ToolHandle]) -> dict[str, ToolHandle]:
     names = [t.name for t in tools]
     if len(names) != len(set(names)):
         dupes = sorted({n for n in names if names.count(n) > 1})
         raise NodeError("DUPLICATE_TOOL_NAME", f"Tool names must be unique; duplicated: {', '.join(dupes)}")
-    granted = _granted(AGENT_PERMISSIONS)
+    granted = GRANTED_TOOL_PERMISSIONS.get()
+    if granted is None:
+        granted = frozenset(_granted(AGENT_PERMISSIONS))
     for t in tools:
         if resolve_implementation(t.tool_type) is None:
             raise NodeError("TOOL_UNKNOWN", f"No implementation for tool type '{t.tool_type}' ({t.name})")
         missing = set(t.permissions) - granted
         if missing:
+            hint = " (use the latest node version, which may run local MCP servers)" if "subprocess" in missing else ""
             raise NodeError(
-                "TOOL_PERMISSION_DENIED", f"Tool '{t.name}' needs permissions: {', '.join(sorted(missing))}"
+                "TOOL_PERMISSION_DENIED", f"Tool '{t.name}' needs permissions: {', '.join(sorted(missing))}{hint}"
             )
     return {t.name: t for t in tools}
 
@@ -378,7 +421,7 @@ async def run_agent_loop(
 
 
 async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResult:
-    tools = [ToolHandle.model_validate(t) for t in inputs.get("tools", [])]
+    tools = load_tools(inputs.get("tools"))
     token = CURRENT_AGENT.set((ctx.node_id,))
     try:
         if config.architecture == "function_calling":
@@ -497,11 +540,19 @@ _COMMON: dict[str, Any] = {
     "description": "A model that decides which connected tools to call, within turn, tool-call, token and cost limits.",
     "outputs": _OUTPUTS,
     "config": AgentConfig,
-    "permissions": AGENT_PERMISSIONS,
     # The loop may perform side effects through tools, so the whole node is never retried blindly.
     "execution": ExecutionPolicy(timeout_seconds=600, max_attempts=1, idempotent=False),
 }
-#: 1.1.0 adds the optional ``history`` input (conversation memory).
-agent = define_node(**_COMMON, version="1.1.0", inputs=[*_INPUTS_V1, _HISTORY], tags=["agents"])(_run_agent)
+#: 1.2.0 may run tools that start local processes (stdio MCP servers, ADR-0033).
+agent = define_node(
+    **_COMMON, version="1.2.0", inputs=[*_INPUTS_V1, _HISTORY], permissions=AGENT_PERMISSIONS_V2, tags=["agents"]
+)(granting(AGENT_PERMISSIONS_V2)(_run_agent))
+#: 1.1.0 adds the optional ``history`` input (conversation memory). Kept so saved projects run unchanged.
+agent_v11 = define_node(
+    **_COMMON, version="1.1.0", inputs=[*_INPUTS_V1, _HISTORY], permissions=AGENT_PERMISSIONS,
+    tags=["agents", "legacy"],
+)(granting(AGENT_PERMISSIONS)(_run_agent))  # fmt: skip
 #: Kept so projects saved with 1.0.0 keep validating and running unchanged.
-agent_v1 = define_node(**_COMMON, version="1.0.0", inputs=_INPUTS_V1, tags=["agents", "legacy"])(_run_agent)
+agent_v1 = define_node(
+    **_COMMON, version="1.0.0", inputs=_INPUTS_V1, permissions=AGENT_PERMISSIONS, tags=["agents", "legacy"]
+)(granting(AGENT_PERMISSIONS)(_run_agent))
