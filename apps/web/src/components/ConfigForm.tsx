@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 
+import { secrets as secretsApi } from "../api/client";
+import type { SecretSource } from "../api/types";
+
 import type { JsonValue, Mode, NodeManifest } from "../api/types";
-import { fieldsFromSchema, type FieldSpec } from "../lib/schemaForm";
+import { fieldsFromSchema, fieldVisible, type FieldSpec } from "../lib/schemaForm";
 import { ArtifactsControl } from "./Files";
 import { RouteRefControl, RoutesControl } from "./RoutesControl";
 
@@ -15,8 +18,9 @@ interface Props {
 
 export function ConfigForm({ manifest, config, mode, errorsByField, onChange }: Props) {
   const fields = fieldsFromSchema(manifest.config_schema);
-  const visible = fields.filter((f) => mode !== "no_code" || !f.advanced);
-  const hidden = fields.length - visible.length;
+  const applicable = fields.filter((f) => fieldVisible(f, config, fields));
+  const visible = applicable.filter((f) => mode !== "no_code" || !f.advanced);
+  const hidden = applicable.length - visible.length;
 
   const set = (name: string, value: JsonValue | undefined) => {
     const next = { ...config };
@@ -190,9 +194,7 @@ function SecretControl({ id, value, onChange }: { id: string; value: JsonValue |
           }}
         />
       </div>
-      <p className="mt-1 text-[11px] text-slate-500">
-        Secret values are never stored in the project. Set this variable on the API server.
-      </p>
+      <SecretStatus name={name} />
       {literal && <p className="mt-1 text-[11px] text-red-600">A literal value is stored here. Replace it with a reference.</p>}
     </div>
   );
@@ -229,5 +231,46 @@ function JsonControl({ id, value, onChange }: { id: string; value: JsonValue | u
       />
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
     </div>
+  );
+}
+
+/** Whether a secret name resolves on the server (Settings → Secrets or the environment). Never the value. */
+const statusCache = new Map<string, SecretSource>();
+
+function SecretStatus({ name }: { name: string }) {
+  const [status, setStatus] = useState<SecretSource | undefined>(() => (name ? statusCache.get(name) : undefined));
+  useEffect(() => {
+    if (!name) return;
+    if (statusCache.has(name)) {
+      setStatus(statusCache.get(name));
+      return;
+    }
+    setStatus(undefined);
+    const timer = window.setTimeout(() => {
+      secretsApi.status([name]).then(
+        (r) => {
+          statusCache.set(name, r[name] ?? null);
+          setStatus(r[name] ?? null);
+        },
+        () => undefined,
+      );
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [name]);
+  if (!name) {
+    return <p className="mt-1 text-[11px] text-slate-500">The name of a secret (Settings → Secrets or the server environment). Values never enter the project.</p>;
+  }
+  if (status === undefined) return <p className="mt-1 text-[11px] text-slate-400">Checking…</p>;
+  if (status === null) {
+    return (
+      <p className="mt-1 text-[11px] text-amber-700">
+        Not set yet. Add <span className="font-mono">{name}</span> in avatar → Settings → Secrets (or the server’s .env).
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-[11px] text-emerald-700">
+      ✓ Set {status === "workspace" ? "in Settings → Secrets" : "in the server environment"}. The value never enters the project.
+    </p>
   );
 }

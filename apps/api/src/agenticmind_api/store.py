@@ -87,9 +87,7 @@ class Store:
             if proj is None:
                 raise KeyError(project_id)
             if expected_revision is not None and expected_revision != proj.current_revision:
-                raise ConflictError(
-                    f"Project is at revision {proj.current_revision}, expected {expected_revision}"
-                )
+                raise ConflictError(f"Project is at revision {proj.current_revision}, expected {expected_revision}")
             current = s.get(ProjectRevisionRow, (project_id, proj.current_revision))
             new_hash = content_hash(doc)
             if current is not None and current.content_hash == new_hash:
@@ -259,9 +257,7 @@ class Store:
             row.error = None
             row.finished_at = None
             now = utcnow()
-            for w in s.scalars(
-                select(RunWaitRow).where(RunWaitRow.run_id == run_id, RunWaitRow.status == "pending")
-            ):
+            for w in s.scalars(select(RunWaitRow).where(RunWaitRow.run_id == run_id, RunWaitRow.status == "pending")):
                 if w.node_id in responses:
                     w.status = "answered"
                     w.response = responses[w.node_id]

@@ -26,8 +26,10 @@ from .routers import deployments as deployment_routes
 from .routers import evaluations as evaluation_routes
 from .routers import files, nodes, plugins, projects, runs
 from .routers import memory as memory_routes
+from .routers import secrets as secret_routes
 from .routers import settings as settings_routes
 from .run_manager import RunManager
+from .secrets_store import ChainedSecrets, SecretVault, load_key
 from .security import ApiGuard
 from .settings import Settings
 from .store import Store
@@ -46,6 +48,8 @@ def create_app(
     secrets = secrets or EnvSecretResolver(prefix=settings.secret_env_prefix)
     session_factory = make_session_factory(make_engine(settings.database_url))
     store = Store(session_factory)
+    vault = SecretVault(session_factory, load_key(settings.data_dir))
+    secrets = ChainedSecrets(secrets, vault)  # environment first, then Settings → Secrets
     auth = AuthStore(session_factory, session_days=settings.session_days)
     memory = SqlMemoryStore(session_factory)
     evals = EvalStore(session_factory)
@@ -151,6 +155,7 @@ def create_app(
     app.include_router(assistant_routes.router)
     app.include_router(auth_routes.router)
     app.include_router(settings_routes.router)
+    app.include_router(secret_routes.router)
     if settings.web_dist and settings.web_dist.is_dir():
         app.mount("/", StaticFiles(directory=settings.web_dist, html=True), name="web")
     return app

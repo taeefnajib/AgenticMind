@@ -132,6 +132,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   limited), HttpOnly session cookies stored as hashes, admin/member roles, People management, profile and
   password change, sign out other browsers, cross-site write guard; Settings page to choose the AI
   assistant's provider and model (browse the provider's models, test the connection), and the theme.
+- **Data sources** (ADR-0026): Database Connector for PostgreSQL (Supabase, Neon, RDS...), MySQL/MariaDB, SQL
+  Server/Azure SQL, Snowflake, Databricks, DuckDB/MotherDuck, ClickHouse and BigQuery with structured, secret-backed
+  credentials and per-engine read-only limits; S3 Loader (AWS and S3-compatible); Settings → Secrets (encrypted,
+  write-only) with set/unset status in config forms.
 - **Vision and local models** (ADR-0025): `Image` port type; Image Input (upload in Run inputs or attach in
   Chat) and Image Loader; LLM 1.2.0 sends images to vision models; Ollama and Hugging Face providers on every
   model-using node; open-source OCR (RapidOCR) as an OCR node and inside the Document Loader for images and
@@ -183,6 +187,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Node packages: one process per invocation (~0.3–0.6 s); no OS-level network/filesystem enforcement on
   Windows workers (container workers next); no package signing (`verified` reserved); package nodes cannot
   use project files or memory, provide agent tools, or be exported in standalone apps yet.
+- Databases: only SQLite and DuckDB are exercised live in CI; other engines are tested against mocked APIs/drivers.
+  SQL Server, Snowflake, Databricks and BigQuery are read-only by policy (use read-only logins). No Oracle yet.
 - Vision/OCR: no image resizing; OCR models cover Chinese and English; exported apps cannot take image uploads yet.
 - Model Router: one provider for all routes; no per-route providers, fallback chains or cost budgets.
   Spreadsheet dates are read as serial numbers; legacy .xls/.ppt/.doc and scanned images (OCR) unsupported.
@@ -195,7 +201,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-Plan "build any agentic workflow" (one reviewed step each; step 1 done, ADR-0025):
+Plan "build any agentic workflow" (one reviewed step each; steps 1-2 done, ADR-0025, ADR-0026):
 - Step 2: data sources: S3 / S3-compatible loader; database connector credentials for PostgreSQL/Supabase,
   MySQL, SQL Server, Databricks, Snowflake and other popular databases.
 - Step 3: chunking and parsing: document, semantic, recursive character, parent-child, layout-aware.

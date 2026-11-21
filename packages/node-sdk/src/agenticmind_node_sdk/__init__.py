@@ -8,6 +8,7 @@ from .documents import Document, Offsets, RetrievedDocument, SourceRef
 from .errors import NodeError, SecretAccessError, SuspendNode, TransientNodeError
 from .handles import (
     HANDLE_PORT_TYPES,
+    DatabaseEngine,
     DatabaseHandle,
     EmbeddingModelHandle,
     OntologyHandle,
@@ -48,6 +49,7 @@ __all__ = [
     "coerce_images",
     "image_ref",
     "is_image",
+    "DatabaseEngine",
     "DatabaseHandle",
     "OntologyHandle",
     "SuspendNode",

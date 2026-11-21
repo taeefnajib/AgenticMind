@@ -5,7 +5,7 @@ import type { ArtifactInfo } from "../api/types";
 import { useWorkbench } from "../lib/workbench";
 
 export const ACCEPT =
-  ".pdf,.docx,.xlsx,.pptx,.epub,.txt,.md,.markdown,.rst,.log,.html,.htm,.csv,.tsv,.json,.jsonl,.ndjson,.xml,.yaml,.yml,.sqlite,.sqlite3,.db";
+  ".pdf,.docx,.xlsx,.pptx,.epub,.txt,.md,.markdown,.rst,.log,.html,.htm,.csv,.tsv,.json,.jsonl,.ndjson,.xml,.yaml,.yml,.sqlite,.sqlite3,.db,.duckdb,.png,.jpg,.jpeg,.webp,.gif,.bmp,.tif,.tiff";
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -15,7 +15,7 @@ export function formatBytes(n: number): string {
 
 function fileIcon(name: string): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  return { pdf: "PDF", docx: "DOC", md: "MD", markdown: "MD", html: "HTM", htm: "HTM", csv: "CSV", tsv: "TSV", json: "JSN", jsonl: "JSL", ndjson: "JSL", xlsx: "XLS", pptx: "PPT", epub: "EPB", xml: "XML", yaml: "YML", yml: "YML", rst: "RST", log: "LOG", txt: "TXT", sqlite: "DB", sqlite3: "DB", db: "DB" }[ext] ?? "FILE";
+  return { pdf: "PDF", docx: "DOC", md: "MD", markdown: "MD", html: "HTM", htm: "HTM", csv: "CSV", tsv: "TSV", json: "JSN", jsonl: "JSL", ndjson: "JSL", xlsx: "XLS", pptx: "PPT", epub: "EPB", xml: "XML", yaml: "YML", yml: "YML", rst: "RST", log: "LOG", txt: "TXT", sqlite: "DB", sqlite3: "DB", db: "DB", duckdb: "DDB", png: "IMG", jpg: "IMG", jpeg: "IMG", webp: "IMG", gif: "IMG", bmp: "IMG", tif: "IMG", tiff: "IMG" }[ext] ?? "FILE";
 }
 
 /** Upload button + drop zone shared by the project Files panel and the file picker field. */
@@ -74,7 +74,7 @@ export function UploadZone({ onUploaded, compact = false }: { onUploaded?: (file
           }}
         />
       </div>
-      {!compact && <p className="mt-1 text-[11px] text-slate-400">PDF, Word, Excel, PowerPoint, EPUB, Markdown, CSV/TSV, JSON/JSONL, HTML, XML, YAML, text, SQLite</p>}
+      {!compact && <p className="mt-1 text-[11px] text-slate-400">PDF, Word, Excel, PowerPoint, EPUB, Markdown, CSV/TSV, JSON/JSONL, HTML, XML, YAML, text, images, SQLite, DuckDB</p>}
       {error && <p className="mt-1 text-[11px] text-red-600">{error}</p>}
     </div>
   );

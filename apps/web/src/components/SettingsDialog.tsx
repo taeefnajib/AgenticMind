@@ -12,9 +12,10 @@ import type {
 } from "../api/types";
 import type { ThemePreference } from "../lib/useTheme";
 import { errorMessage, Field, useAuth } from "./AuthGate";
+import { SecretsSection } from "./SecretsSection";
 import { Avatar } from "./UserMenu";
 
-export type SettingsSection = "profile" | "projects" | "assistant" | "people" | "appearance";
+export type SettingsSection = "profile" | "projects" | "assistant" | "secrets" | "people" | "appearance";
 
 interface Props {
   open: boolean;
@@ -43,6 +44,7 @@ export function SettingsDialog(p: Props) {
     { id: "profile", label: mode === "off" ? "Account" : "Profile", show: true },
     { id: "projects", label: "Projects", show: true },
     { id: "assistant", label: "AI assistant", show: true },
+    { id: "secrets", label: "Secrets", show: true },
     { id: "people", label: "People", show: mode === "required" && isAdmin },
     { id: "appearance", label: "Appearance", show: true },
   ];
@@ -107,6 +109,7 @@ export function SettingsDialog(p: Props) {
             />
           )}
           {p.section === "assistant" && <AssistantSection notify={p.notify} />}
+          {p.section === "secrets" && <SecretsSection notify={p.notify} />}
           {p.section === "people" && isAdmin && mode === "required" && <PeopleSection notify={p.notify} />}
           {p.section === "appearance" && <AppearanceSection theme={p.theme} onTheme={p.onTheme} />}
         </div>

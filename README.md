@@ -85,6 +85,11 @@ Document Loader read text from images and scanned PDFs with open-source RapidOCR
 from OpenRouter, **Hugging Face** (`HF_TOKEN`), **Ollama** on your machine (no key) or any OpenAI-compatible
 server. See ADR-0025.
 
+To connect your data: the **Database Connector** speaks PostgreSQL (incl. Supabase, Neon), MySQL/MariaDB, SQL
+Server, Snowflake, Databricks, DuckDB, ClickHouse and BigQuery; the **S3 Loader** reads documents from S3 or
+S3-compatible storage. Add passwords and tokens under avatar → **Settings** → *Secrets* (encrypted, never shown
+again) and refer to them by name in node settings. See ADR-0026.
+
 To use different models for different tasks: add a **Model Router** node. It sends each request to a route
 (e.g. code → a coding model, maths → a reasoning model, quick questions → a cheap model) chosen by
 keywords, a small classifier model, or both. See ADR-0024.

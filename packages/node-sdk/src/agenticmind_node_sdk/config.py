@@ -32,10 +32,12 @@ def ui(
     advanced: bool = False,
     placeholder: str | None = None,
     secret: bool = False,
+    show_when: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Build ``json_schema_extra`` UI hints consumed by the visual inspector.
 
-    ``advanced`` fields are hidden in no-code mode. Hints never change semantics.
+    ``advanced`` fields are hidden in no-code mode. ``show_when={"engine": ["mysql", "sqlserver"]}`` shows a
+    field only while another field has one of those values. Hints never change semantics.
     """
     hints: dict[str, Any] = {}
     if widget:
@@ -44,17 +46,22 @@ def ui(
         hints["advanced"] = True
     if placeholder:
         hints["placeholder"] = placeholder
+    if show_when:
+        hints["show_when"] = show_when
     extra: dict[str, Any] = {"x-ui": hints}
     if secret:
         extra["x-secret"] = True
     return extra
 
 
-def secret_field(description: str = "", *, required: bool = False) -> Any:
+def secret_field(
+    description: str = "", *, required: bool = False, show_when: dict[str, list[str]] | None = None
+) -> Any:
     """Declare a config field holding a secret reference."""
+    extra = ui(secret=True, show_when=show_when)
     if required:
-        return Field(description=description, json_schema_extra=ui(secret=True))
-    return Field(default=None, description=description, json_schema_extra=ui(secret=True))
+        return Field(description=description, json_schema_extra=extra)
+    return Field(default=None, description=description, json_schema_extra=extra)
 
 
 def secret_fields(schema: dict[str, Any]) -> set[str]:

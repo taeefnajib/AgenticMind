@@ -51,18 +51,44 @@ class VectorStoreHandle(_Handle):
     namespace: str | None = None
 
 
-class DatabaseHandle(_Handle):
-    """A read-only connection description (no credentials: ``dsn`` is a secret reference).
+#: Database engines the connector supports (ADR-0018, ADR-0026).
+DatabaseEngine = Literal[
+    "sqlite", "postgresql", "mysql", "sqlserver", "snowflake", "databricks", "duckdb", "clickhouse", "bigquery"
+]
 
-    ``engine`` is ``sqlite`` (an uploaded project file, opened read-only) or ``postgresql`` (``dsn`` secret).
-    ``schemas`` limits which schemas/tables queries may touch; ``max_rows`` and ``timeout_seconds`` bound
-    every query. Writes are refused by the SQL policy *and* by a read-only connection.
+
+class DatabaseHandle(_Handle):
+    """A read-only connection description. Credentials are secret *references* only.
+
+    ``engine`` picks the driver; connection details are either a ``dsn`` secret (PostgreSQL, MySQL, SQL
+    Server, SQLite path) or structured fields (``host``/``port``/``database``/``user`` plus ``password`` or
+    ``token`` secrets, and engine-specific ones such as Snowflake ``account``/``warehouse`` or Databricks
+    ``warehouse_id``). ``schemas`` limits which schemas/tables queries may touch; ``max_rows`` and
+    ``timeout_seconds`` bound every query. Writes are refused by the SQL policy and, where the engine offers
+    it, by a read-only session as well.
     """
 
     kind: Literal["database"] = "database"
-    engine: Literal["sqlite", "postgresql"]
+    engine: DatabaseEngine
     artifact_id: str | None = None
     dsn: SecretRef | None = None
+    host: str | None = None
+    port: int | None = Field(default=None, ge=1, le=65535)
+    database: str | None = None
+    user: str | None = None
+    password: SecretRef | None = None
+    token: SecretRef | None = None
+    private_key: SecretRef | None = None
+    #: BigQuery: a service-account JSON key, kept in a secret.
+    service_account: SecretRef | None = None
+    ssl: Literal["require", "prefer", "disable"] = "require"
+    account: str | None = None
+    warehouse: str | None = None
+    role: str | None = None
+    catalog: str | None = None
+    default_schema: str | None = None
+    project: str | None = None
+    location: str | None = None
     schemas: list[str] = Field(default_factory=list)
     max_rows: int = Field(default=500, ge=1, le=100_000)
     timeout_seconds: float = Field(default=15, gt=0, le=300)

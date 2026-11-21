@@ -450,6 +450,11 @@ def parse_epub(data: bytes) -> list[ParsedPart]:
 
 #: Formats read as plain text.
 TEXT_EXTENSIONS = (".txt", ".md", ".markdown", ".rst", ".log", ".yaml", ".yml", ".xml")
+#: Every extension the loaders can turn into text (images and scanned PDFs via OCR).
+SUPPORTED_EXTENSIONS = frozenset(
+    {".pdf", ".docx", ".html", ".htm", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".xlsx", ".pptx", ".epub",
+     *TEXT_EXTENSIONS, ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
+)  # fmt: skip
 
 
 def parse_bytes(

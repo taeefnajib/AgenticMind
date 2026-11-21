@@ -8,7 +8,9 @@ import type {
   AuthStatus,
   ProviderModel,
   Role,
+  SecretSource,
   User,
+  WorkspaceSecret,
   AssistantTurn,
   Deployment,
   NodePackage,
@@ -154,6 +156,15 @@ export const auth = {
     request<User>("/users", { method: "POST", ...json(body) }),
   updateUser: (id: string, body: { display_name?: string; role?: Role; active?: boolean; password?: string }) =>
     request<User>(`/users/${id}`, { method: "PATCH", ...json(body) }),
+};
+
+export const secrets = {
+  list: () => request<{ secrets: WorkspaceSecret[]; can_edit: boolean }>("/secrets"),
+  status: (names: string[]) =>
+    request<Record<string, SecretSource>>("/secrets/status", { method: "POST", ...json({ names }) }),
+  save: (name: string, value: string) =>
+    request<WorkspaceSecret>(`/secrets/${encodeURIComponent(name)}`, { method: "PUT", ...json({ value }) }),
+  remove: (name: string) => request<void>(`/secrets/${encodeURIComponent(name)}`, { method: "DELETE" }),
 };
 
 export const settings = {

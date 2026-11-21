@@ -9,6 +9,7 @@ import re
 from typing import Any, Literal
 
 from agenticmind_node_sdk import (
+    DatabaseEngine,
     DatabaseHandle,
     ExecutionPolicy,
     InputPort,
@@ -58,16 +59,90 @@ async def _with_db(ctx: NodeContext, raw: Any, fn):  # noqa: ANN001, ANN202
 
 
 # ---- Database Connector -------------------------------------------------------------------------
+def _on(*engines: str) -> dict[str, list[str]]:
+    return {"engine": list(engines)}
+
+
+SERVER_ENGINES = ("postgresql", "mysql", "sqlserver", "clickhouse")
+
+
 class DatabaseConfig(NodeConfig):
-    engine: Literal["sqlite", "postgresql"] = Field(
-        default="sqlite", description="sqlite: an uploaded .sqlite/.db file (read-only). postgresql: a dsn secret."
+    engine: DatabaseEngine = Field(
+        default="sqlite",
+        description="sqlite / duckdb: an uploaded database file. postgresql: also Supabase (Project → Connect → "
+        "Session pooler string), Neon, Amazon RDS/Aurora, CockroachDB, Redshift. mysql: also MariaDB, PlanetScale, "
+        "TiDB. sqlserver: also Azure SQL. snowflake, databricks (SQL warehouse), clickhouse, bigquery. Use a "
+        "read-only login: queries are checked by a read-only SQL policy as well.",
     )
     file: list[str] = Field(
         default_factory=list,
-        description="SQLite: the uploaded database file (pick one).",
-        json_schema_extra=ui(widget="artifacts"),
+        description="The uploaded database file (.sqlite/.db, or .duckdb). Pick one.",
+        json_schema_extra=ui(widget="artifacts", show_when=_on("sqlite", "duckdb")),
     )
-    dsn: SecretRef | None = secret_field("PostgreSQL connection string secret, e.g. ANALYTICS_DB_DSN")
+    dsn: SecretRef | None = secret_field(
+        "Connection string secret (instead of the fields below), e.g. postgresql://user:pass@host:5432/db",
+        show_when=_on("sqlite", *SERVER_ENGINES),
+    )
+    host: str | None = Field(
+        default=None,
+        description="Server host, e.g. db.example.com. Databricks: the workspace host (dbc-1234.cloud.databricks.com).",
+        json_schema_extra=ui(show_when=_on(*SERVER_ENGINES, "databricks")),
+    )
+    port: int | None = Field(
+        default=None, ge=1, le=65535, description="Empty: the engine's default port.",
+        json_schema_extra=ui(show_when=_on(*SERVER_ENGINES), advanced=True),
+    )  # fmt: skip
+    database: str | None = Field(
+        default=None,
+        description="Database name. BigQuery: the dataset. DuckDB: the MotherDuck database.",
+        json_schema_extra=ui(show_when=_on(*SERVER_ENGINES, "snowflake", "bigquery", "duckdb")),
+    )
+    user: str | None = Field(default=None, json_schema_extra=ui(show_when=_on(*SERVER_ENGINES, "snowflake")))
+    password: SecretRef | None = secret_field(
+        "Password secret (Snowflake: a password or programmatic access token)",
+        show_when=_on(*SERVER_ENGINES, "snowflake"),
+    )
+    ssl: Literal["require", "prefer", "disable"] = Field(
+        default="require",
+        description="Encrypt the connection (cloud databases require it).",
+        json_schema_extra=ui(show_when=_on("postgresql", "mysql", "clickhouse"), advanced=True),
+    )
+    account: str | None = Field(
+        default=None, description="Snowflake account identifier, e.g. myorg-myaccount.",
+        json_schema_extra=ui(show_when=_on("snowflake")),
+    )  # fmt: skip
+    warehouse: str | None = Field(
+        default=None,
+        description="Snowflake: the virtual warehouse. Databricks: the SQL warehouse ID or its HTTP path.",
+        json_schema_extra=ui(show_when=_on("snowflake", "databricks")),
+    )
+    role: str | None = Field(default=None, json_schema_extra=ui(show_when=_on("snowflake"), advanced=True))
+    private_key: SecretRef | None = secret_field(
+        "Key-pair authentication: secret holding the PEM private key (instead of a password)",
+        show_when=_on("snowflake"),
+    )
+    catalog: str | None = Field(
+        default=None, description="Unity Catalog catalog.", json_schema_extra=ui(show_when=_on("databricks"))
+    )
+    default_schema: str | None = Field(
+        default=None, description="Default schema.", json_schema_extra=ui(show_when=_on("snowflake", "databricks"))
+    )
+    token: SecretRef | None = secret_field(
+        "Databricks: personal access / OAuth token secret. DuckDB: MotherDuck token secret.",
+        show_when=_on("databricks", "duckdb"),
+    )
+    project: str | None = Field(
+        default=None, description="Google Cloud project (default: the service account's project).",
+        json_schema_extra=ui(show_when=_on("bigquery")),
+    )  # fmt: skip
+    service_account: SecretRef | None = secret_field(
+        "Secret holding the service-account JSON key (role: BigQuery Data Viewer + Job User)",
+        show_when=_on("bigquery"),
+    )
+    location: str | None = Field(
+        default=None, description="Dataset location, e.g. US or EU.",
+        json_schema_extra=ui(show_when=_on("bigquery"), advanced=True),
+    )  # fmt: skip
     schemas: list[str] = Field(
         default_factory=list,
         description="Limit queries to these schemas or schema.table names (empty = everything readable).",
@@ -78,10 +153,29 @@ class DatabaseConfig(NodeConfig):
 
     @model_validator(mode="after")
     def _check(self) -> DatabaseConfig:
-        if self.engine == "sqlite" and len(self.file) > 1:
-            raise ValueError("pick a single SQLite file")
-        if self.engine == "postgresql" and self.dsn is None:
-            raise ValueError('postgresql needs a dsn secret reference (e.g. {"$secret": "ANALYTICS_DB_DSN"})')
+        e = self.engine
+        need: list[str] = []
+        if e in ("sqlite", "duckdb") and len(self.file) > 1:
+            raise ValueError("pick a single database file")
+        if e == "postgresql" and self.dsn is None and not self.host:
+            need.append('a dsn secret (e.g. {"$secret": "ANALYTICS_DB_DSN"}) or a host')
+        if e in ("mysql", "sqlserver") and self.dsn is None and not (self.host and self.user):
+            need.append("a dsn secret, or host and user")
+        if e == "clickhouse" and self.dsn is None and not self.host:
+            need.append("a dsn secret or a host")
+        if e == "snowflake":
+            if not (self.account and self.user):
+                need.append("account and user")
+            if self.password is None and self.private_key is None:
+                need.append("a password (or token) secret or a private key secret")
+        if e == "databricks" and not (self.host and self.warehouse and self.token):
+            need.append("host, SQL warehouse and a token secret")
+        if e == "duckdb" and self.token is not None and not self.database:
+            need.append("the MotherDuck database name")
+        if e == "bigquery" and self.service_account is None:
+            need.append("a service-account JSON key secret")
+        if need:
+            raise ValueError(f"{e} needs " + "; ".join(need))
         return self
 
 
@@ -91,23 +185,19 @@ class DatabaseConfig(NodeConfig):
     display_name="Database Connector",
     category="semantic",
     package=PACKAGE,
-    description="A read-only database connection (SQLite file or PostgreSQL via a secret) for the nodes it feeds.",
+    description="A read-only database connection for the nodes it feeds: SQLite, DuckDB, PostgreSQL (Supabase, "
+    "Neon, RDS...), MySQL/MariaDB, SQL Server/Azure SQL, Snowflake, Databricks, ClickHouse or BigQuery. "
+    "Credentials are secret references.",
     outputs=[OutputPort(name="database", type=PortType.DATABASE)],
     config=DatabaseConfig,
     permissions=Permissions(credentials=True),
     tags=["database", "semantic"],
 )
 async def database(ctx: NodeContext, inputs, config: DatabaseConfig) -> NodeResult:
-    if config.engine == "sqlite" and not config.file and config.dsn is None:
-        raise NodeError("DATABASE_NOT_CONFIGURED", "Select an uploaded SQLite file (or set a dsn secret)")
-    handle = DatabaseHandle(
-        engine=config.engine,
-        artifact_id=config.file[0] if config.file else None,
-        dsn=config.dsn,
-        schemas=config.schemas,
-        max_rows=config.max_rows,
-        timeout_seconds=config.timeout_seconds,
-    )
+    if config.engine in ("sqlite", "duckdb") and not config.file and config.dsn is None and config.token is None:
+        raise NodeError("DATABASE_NOT_CONFIGURED", "Select an uploaded database file")
+    fields = config.model_dump(exclude={"file"}, exclude_none=True, by_alias=True)
+    handle = DatabaseHandle(artifact_id=config.file[0] if config.file else None, **fields)
     return NodeResult(outputs={"database": handle_value(handle)})
 
 
@@ -198,22 +288,27 @@ def profile_table(db: Database, config: ProfileConfig) -> dict[str, Any]:
             "TABLE_NOT_FOUND", f"No table '{config.table}'. Available: {', '.join(t.qualified for t in tables[:30])}"
         )
     cols = [c for c in target.columns if not config.columns or c["name"] in config.columns]
+    # written as PostgreSQL with quoted aliases, translated per engine (TOP, backticks, LEN, ...)
     source = f"(SELECT * FROM {db.qualified(target)} LIMIT {int(config.max_rows_scanned)}) AS s"
-    total = int(db.query(f"SELECT COUNT(*) AS n FROM {source}", limit=1).rows[0]["n"])
+
+    def ask(sql: str, limit: int) -> list[dict[str, Any]]:
+        return [{k.lower(): v for k, v in r.items()} for r in db.query(db.portable(sql), limit=limit).rows]
+
+    total = int(next(iter(ask(f'SELECT COUNT(*) AS "n" FROM {source}', 1)[0].values())))
     profiles = []
     for col in cols:
         q = quote_ident(col["name"])
         numeric = bool(_NUMERIC.search(col["type"] or ""))
         stats_sql = (
-            f"SELECT COUNT({q}) AS non_null, COUNT(DISTINCT {q}) AS distinct_values, "
+            f'SELECT COUNT({q}) AS "non_null", COUNT(DISTINCT {q}) AS "distinct_values", '
             + (
-                f"MIN({q}) AS min, MAX({q}) AS max, AVG({q}) AS mean"
+                f'MIN({q}) AS "min", MAX({q}) AS "max", AVG({q}) AS "mean"'
                 if numeric
-                else f"MIN(LENGTH({q})) AS min_length, MAX(LENGTH({q})) AS max_length"
+                else f'MIN(LENGTH({q})) AS "min_length", MAX(LENGTH({q})) AS "max_length"'
             )
             + f" FROM {source}"
         )
-        stats = db.query(stats_sql, limit=1).rows[0]
+        stats = ask(stats_sql, 1)[0]
         entry: dict[str, Any] = {
             "name": col["name"],
             "type": col["type"],
@@ -226,11 +321,11 @@ def profile_table(db: Database, config: ProfileConfig) -> dict[str, Any]:
             },
         }
         if config.top_values:
-            top = db.query(
-                f"SELECT {q} AS value, COUNT(*) AS count FROM {source} WHERE {q} IS NOT NULL "
+            top = ask(
+                f'SELECT {q} AS "value", COUNT(*) AS "count" FROM {source} WHERE {q} IS NOT NULL '
                 f"GROUP BY {q} ORDER BY COUNT(*) DESC LIMIT {int(config.top_values)}",
-                limit=config.top_values,
-            ).rows
+                config.top_values,
+            )
             entry["top_values"] = top
         profiles.append(entry)
     return {"table": target.qualified, "rows_profiled": total, "columns": profiles}
@@ -438,7 +533,7 @@ async def nl_to_sql(ctx: NodeContext, inputs, config: NLToSQLConfig) -> NodeResu
         provider = get_provider(config.provider)
         api_key = ctx.secret(config.api_key) if config.api_key else None
         system = (
-            f"You write {('SQLite' if handle.engine == 'sqlite' else 'PostgreSQL')} SQL for analytics questions. "
+            f"You write {db.sql_name} SQL for analytics questions. "
             f"Read-only: one SELECT statement (CTEs allowed). {config.instructions}\n\nSchema:\n{schema}"
             + (f"\n\nBusiness context:\n{inputs['context']}" if inputs.get("context") else "")
         )

@@ -23,6 +23,18 @@ DENIED_FUNCTIONS = frozenset(
         # stalling / admin
         "pg_sleep", "pg_sleep_for", "pg_sleep_until", "pg_terminate_backend", "pg_cancel_backend",
         "pg_reload_conf", "set_config", "pg_advisory_lock", "pg_advisory_xact_lock",
+        # MySQL / MariaDB
+        "sleep", "benchmark", "load_file", "get_lock", "sys_exec", "sys_eval",
+        # SQL Server
+        "xp_cmdshell", "openrowset", "opendatasource", "openquery", "openjson_file",
+        # DuckDB: reading files or URLs outside the database
+        "read_csv", "read_csv_auto", "read_parquet", "parquet_scan", "read_json", "read_json_auto",
+        "read_json_objects", "read_ndjson", "read_text", "read_blob", "glob", "sniff_csv", "read_xlsx",
+        # ClickHouse table functions reaching other systems or files
+        "url", "file", "s3", "s3cluster", "hdfs", "remote", "remotesecure", "mysql", "postgresql", "jdbc",
+        "odbc", "executable", "input", "azureblobstorage", "gcs", "sleepeachrow",
+        # Snowflake / BigQuery
+        "system$wait", "external_query",
     }
 )  # fmt: skip
 WRITE_NODES = (exp.Insert, exp.Update, exp.Delete, exp.Merge, exp.Create, exp.Drop, exp.Alter, exp.Command, exp.Into)

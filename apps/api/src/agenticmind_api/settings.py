@@ -20,16 +20,14 @@ class Settings:
         default_factory=lambda: int(os.environ.get("AGENTICMIND_MAX_UPLOAD_MB", "50")) * 1024 * 1024
     )
     database_url: str = field(
-        default_factory=lambda: os.environ.get(
-            "AGENTICMIND_DATABASE_URL", "sqlite:///./.agenticmind/agenticmind.db"
-        )
+        default_factory=lambda: os.environ.get("AGENTICMIND_DATABASE_URL", "sqlite:///./.agenticmind/agenticmind.db")
     )
     cors_origins: tuple[str, ...] = field(
         default_factory=lambda: tuple(
             o.strip()
-            for o in os.environ.get(
-                "AGENTICMIND_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-            ).split(",")
+            for o in os.environ.get("AGENTICMIND_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(
+                ","
+            )
             if o.strip()
         )
     )

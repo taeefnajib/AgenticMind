@@ -12,7 +12,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Database drivers (the API installs all of them). Databricks, ClickHouse and BigQuery use their HTTP APIs
+# through httpx, so they need no driver; BigQuery signs its service-account token with `cryptography`.
 postgres = ["psycopg[binary]>=3.1"]
+mysql = ["pymysql>=1.1"]
+sqlserver = ["pymssql>=2.3"]
+snowflake = ["snowflake-connector-python>=3.12"]
+duckdb = ["duckdb>=1.2"]
+bigquery = ["cryptography>=44"]
+all = ["agenticmind-nodes-semantic[postgres,mysql,sqlserver,snowflake,duckdb,bigquery]"]
 
 [project.entry-points."agenticmind.nodes"]
 semantic = "agenticmind_nodes_semantic:register"

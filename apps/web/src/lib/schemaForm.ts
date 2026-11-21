@@ -16,6 +16,8 @@ export interface FieldSpec {
   advanced: boolean;
   placeholder?: string;
   required: boolean;
+  /** Show only while another field has one of these values (e.g. {engine: ["mysql"]}). */
+  showWhen?: Record<string, string[]>;
 }
 
 function deref(root: JsonSchema, schema: JsonSchema): JsonSchema {
@@ -72,7 +74,17 @@ export function fieldsFromSchema(root: JsonSchema): FieldSpec[] {
       maximum: prop.maximum,
       advanced: Boolean(ui.advanced),
       placeholder: ui.placeholder,
+      showWhen: ui.show_when,
       required: required.has(name),
     };
+  });
+}
+
+/** Whether a field's ``show_when`` condition holds for this config (missing values use the field defaults). */
+export function fieldVisible(spec: FieldSpec, config: Record<string, unknown>, fields: FieldSpec[]): boolean {
+  if (!spec.showWhen) return true;
+  return Object.entries(spec.showWhen).every(([name, allowed]) => {
+    const value = config[name] !== undefined ? config[name] : fields.find((f) => f.name === name)?.default;
+    return allowed.includes(String(value));
   });
 }

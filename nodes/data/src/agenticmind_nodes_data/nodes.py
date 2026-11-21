@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import mimetypes
 import re
 import unicodedata
 from pathlib import Path
@@ -19,18 +20,20 @@ from agenticmind_node_sdk import (
     OutputPort,
     Permissions,
     PortType,
+    SecretRef,
     SourceRef,
     coerce_images,
     define_node,
     image_ref,
+    secret_field,
     ui,
 )
 from agenticmind_node_sdk.documents import parse_documents, to_values
 from agenticmind_node_sdk.images import IMAGE_MEDIA_TYPES, is_image_media_type
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from .ocr_engine import ENGINE_NAME, ocr_bytes, pdf_page_images
-from .parsers import ParsedPart, ParseError, parse_bytes
+from .parsers import SUPPORTED_EXTENSIONS, ParsedPart, ParseError, parse_bytes
 
 PACKAGE = "agenticmind-nodes-data"
 LOADER = "agenticmind.data.document_loader@1.0.0"
@@ -106,6 +109,28 @@ def _ocr_meta(result) -> dict:
     return {"ocr": ENGINE_NAME, "ocr_lines": len(result.lines), "ocr_confidence": result.mean_confidence}
 
 
+async def parse_file(data: bytes, filename: str, config: DocumentLoaderConfig | S3LoaderConfig) -> list[ParsedPart]:
+    """Bytes of one file → text parts, with OCR for images and scanned pages (shared by the file loaders)."""
+    try:
+        if _is_image_file(filename):
+            if config.ocr == "off":
+                raise ParseError("OCR_OFF", "this is an image: set OCR to 'auto' to read its text")
+            parts: list[ParsedPart] = []
+        else:
+            parts = await asyncio.to_thread(
+                parse_bytes, data, filename, split_pdf_pages=config.split_pdf_pages, csv_mode=config.csv_mode
+            )
+        if config.ocr == "auto":
+            parts = await asyncio.to_thread(_ocr_parts, data, filename, parts, config.ocr_min_confidence)
+    except ParseError as exc:
+        raise NodeError(exc.code, f"{filename}: {exc}") from exc
+    kept = [p for p in parts if p.content.strip()] if config.skip_empty else parts
+    if not kept:
+        hint = "" if config.ocr == "auto" else " (scanned PDFs and images need OCR: set OCR to 'auto')"
+        raise NodeError("NO_TEXT_EXTRACTED", f"{filename}: no text could be extracted{hint}")
+    return kept
+
+
 @define_node(
     type="agenticmind.data.document_loader",
     version="1.0.0",
@@ -140,23 +165,7 @@ async def document_loader(ctx: NodeContext, inputs, config: DocumentLoaderConfig
     for artifact_id in file_ids:
         info = ctx.artifact_info(artifact_id)
         data = ctx.read_artifact(artifact_id)
-        try:
-            if _is_image_file(info.filename):
-                if config.ocr == "off":
-                    raise ParseError("OCR_OFF", "this is an image: set OCR to 'auto' to read its text")
-                parts = []
-            else:
-                parts = await asyncio.to_thread(
-                    parse_bytes, data, info.filename, split_pdf_pages=config.split_pdf_pages, csv_mode=config.csv_mode
-                )
-            if config.ocr == "auto":
-                parts = await asyncio.to_thread(_ocr_parts, data, info.filename, parts, config.ocr_min_confidence)
-        except ParseError as exc:
-            raise NodeError(exc.code, f"{info.filename}: {exc}") from exc
-        kept = [p for p in parts if p.content.strip()] if config.skip_empty else parts
-        if not kept:
-            hint = "" if config.ocr == "auto" else " (scanned PDFs and images need OCR: set OCR to 'auto')"
-            raise NodeError("NO_TEXT_EXTRACTED", f"{info.filename}: no text could be extracted{hint}")
+        kept = await parse_file(data, info.filename, config)
         for part in kept:
             documents.append(
                 Document(
@@ -360,3 +369,164 @@ async def ocr(ctx: NodeContext, inputs, config: OcrConfig) -> NodeResult:
                                      "chars": sum(len(p.content) for p in parts)})  # fmt: skip
     text = "\n\n".join(d.content for d in documents if d.content)
     return NodeResult(outputs={"text": text, "documents": to_values(documents)})
+
+
+# -- S3 Loader ------------------------------------------------------------------------------------
+S3_LOADER = "agenticmind.data.s3_loader@1.0.0"
+
+
+def _auth(*modes: str) -> dict[str, list[str]]:
+    return {"auth": list(modes)}
+
+
+class S3LoaderConfig(NodeConfig):
+    bucket: str = Field(
+        default="",
+        pattern=r"^$|^[a-zA-Z0-9][a-zA-Z0-9._-]{1,254}$",
+        description="Bucket name (no s3:// prefix).",
+    )
+    prefix: str = Field(default="", description="Only objects under this folder/prefix, e.g. reports/2026/.")
+    keys: list[str] = Field(
+        default_factory=list, description="Exact object keys to load (instead of listing the prefix)."
+    )
+    include: list[str] = Field(
+        default_factory=list,
+        description="File patterns to load when listing, e.g. *.pdf, *.md (empty = every supported file).",
+    )
+    max_files: int = Field(default=50, ge=1, le=1000, description="Stop after this many objects.")
+    max_file_mb: int = Field(default=50, ge=1, le=500, json_schema_extra=ui(advanced=True))
+    auth: Literal["keys", "environment", "anonymous"] = Field(
+        default="keys",
+        description="keys: access key secrets. environment: the API server's own AWS identity (env vars, "
+        "~/.aws, instance or task role). anonymous: a public bucket.",
+    )
+    access_key_id: SecretRef | None = secret_field(
+        "Access key ID secret, e.g. AWS_ACCESS_KEY_ID", show_when=_auth("keys")
+    )
+    secret_access_key: SecretRef | None = secret_field(
+        "Secret access key secret, e.g. AWS_SECRET_ACCESS_KEY", show_when=_auth("keys")
+    )
+    session_token: SecretRef | None = secret_field(
+        "Session token secret (temporary credentials)", show_when=_auth("keys")
+    )
+    region: str | None = Field(default=None, description="e.g. us-east-1 (R2: auto).")
+    endpoint_url: str | None = Field(
+        default=None,
+        description="S3-compatible storage: MinIO http://localhost:9000, Cloudflare R2 "
+        "https://<account>.r2.cloudflarestorage.com, Wasabi https://s3.wasabisys.com ... (empty = AWS).",
+    )
+
+    # parsing, as in the Document Loader
+    split_pdf_pages: bool = Field(default=True, description="One document per PDF page (enables page citations).")
+    csv_mode: Literal["file", "rows"] = Field(default="file", json_schema_extra=ui(advanced=True))
+    skip_empty: bool = Field(default=True, json_schema_extra=ui(advanced=True))
+    ocr: Literal["auto", "off"] = Field(
+        default="auto", description="auto: read images and scanned PDFs with open-source OCR."
+    )
+    ocr_min_confidence: float = Field(default=0.5, ge=0, le=1, json_schema_extra=ui(advanced=True))
+
+    @model_validator(mode="after")
+    def _check_s3(self) -> S3LoaderConfig:
+        if self.auth == "keys" and (self.access_key_id is None or self.secret_access_key is None):
+            raise ValueError("auth 'keys' needs access_key_id and secret_access_key secret references")
+        return self
+
+
+@define_node(
+    type="agenticmind.data.s3_loader",
+    version="1.0.0",
+    display_name="S3 Loader",
+    category="data",
+    package=PACKAGE,
+    description="Loads and parses files from Amazon S3 or S3-compatible storage (MinIO, Cloudflare R2, Wasabi...) "
+    "into documents, like the Document Loader (PDF, Office, Markdown, CSV, images via OCR...).",
+    inputs=[InputPort(name="keys", type=PortType.JSON, required=False, description="Extra object keys (list)")],
+    outputs=[
+        OutputPort(name="documents", type=PortType.DOCUMENT_SET),
+        OutputPort(name="objects", type=PortType.JSON, description="Objects loaded: key, size, etag, last_modified"),
+    ],
+    config=S3LoaderConfig,
+    permissions=Permissions(network=True, credentials=True),
+    execution=ExecutionPolicy(timeout_seconds=900, max_attempts=2),
+    tags=["ingestion", "rag", "cloud"],
+)
+async def s3_loader(ctx: NodeContext, inputs, config: S3LoaderConfig) -> NodeResult:
+    from . import s3
+
+    if not config.bucket:
+        raise NodeError("S3_CONFIG_INVALID", "Enter a bucket name")
+    extra = inputs.get("keys")
+    if extra is not None and not (isinstance(extra, list) and all(isinstance(x, str) for x in extra)):
+        raise NodeError("INPUT_TYPE_MISMATCH", "'keys' input must be a list of object keys")
+    if config.endpoint_url:
+        await asyncio.to_thread(s3.check_endpoint, config.endpoint_url)
+
+    def secret(ref: SecretRef | None) -> str | None:
+        return ctx.secret(ref) if ref is not None else None
+
+    client = s3.make_client(
+        region=config.region,
+        endpoint_url=config.endpoint_url,
+        auth=config.auth,
+        access_key_id=secret(config.access_key_id),
+        secret_access_key=secret(config.secret_access_key),
+        session_token=secret(config.session_token),
+        timeout=120,
+    )
+    explicit = list(dict.fromkeys([*config.keys, *(extra or [])]))
+    if explicit:
+        keys = explicit[: config.max_files]
+    else:
+        listed = await asyncio.to_thread(
+            s3.list_objects, client, config.bucket, config.prefix, config.include, config.max_files * 4
+        )
+        keys = [o.key for o in listed]
+    max_bytes = config.max_file_mb * 2**20
+    documents: list[Document] = []
+    loaded: list[dict] = []
+    skipped: list[str] = []
+    for key in keys:
+        if len(loaded) >= config.max_files:
+            break
+        filename = key.rsplit("/", 1)[-1]
+        supported = Path(filename).suffix.lower() in SUPPORTED_EXTENSIONS
+        if not explicit and not supported:
+            skipped.append(key)
+            continue
+        data, obj = await asyncio.to_thread(s3.get_object, client, config.bucket, key, max_bytes)
+        try:
+            parts = await parse_file(data, filename, config)
+        except NodeError as exc:
+            if explicit:
+                raise
+            skipped.append(key)
+            await ctx.emit("s3_object_skipped", {"key": key, "reason": exc.code})
+            continue
+        media_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        for part in parts:
+            documents.append(
+                Document(
+                    id=f"s3://{config.bucket}/{key}{part.id_suffix}",
+                    content=part.content,
+                    source=SourceRef(
+                        uri=f"s3://{config.bucket}/{key}",
+                        filename=filename,
+                        media_type=media_type,
+                        page=part.page,
+                        section=part.section,
+                    ),
+                    metadata={"s3_key": key, "etag": obj.etag, "last_modified": obj.last_modified,
+                              "char_count": len(part.content), **part.metadata},
+                    ingestion_version=S3_LOADER,
+                )
+            )  # fmt: skip
+        loaded.append(obj.to_json())
+        await ctx.emit(
+            "document_loaded", {"filename": key, "parts": len(parts), "chars": sum(len(p.content) for p in parts)}
+        )
+    if not documents:
+        where = f"s3://{config.bucket}/{config.prefix}"
+        raise NodeError(
+            "NO_FILES", f"No loadable files found in {where}" + (f" (skipped {len(skipped)})" if skipped else "")
+        )
+    return NodeResult(outputs={"documents": to_values(documents), "objects": loaded})

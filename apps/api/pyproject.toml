@@ -16,14 +16,16 @@ dependencies = [
     "agenticmind-plugins",
     "agenticmind-evaluation",
     "agenticmind-nodes-core",
-    "agenticmind-nodes-data[ocr]",
+    "agenticmind-nodes-data[ocr,s3]",
     "agenticmind-nodes-rag",
     "agenticmind-nodes-agents",
-    "agenticmind-nodes-semantic",
+    "agenticmind-nodes-semantic[all]",
     "agenticmind-providers[local]",
     "agenticmind-vectorstores",
     "python-multipart>=0.0.34",
     "python-dotenv>=1.2.4",
+    # encrypts secrets saved in Settings → Secrets (AES-GCM)
+    "cryptography>=44",
 ]
 
 [project.optional-dependencies]

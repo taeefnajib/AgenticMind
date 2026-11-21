@@ -2,10 +2,13 @@
 
 * **SQLite**: an uploaded project file, copied into node storage (keyed by its SHA-256) and opened with
   ``mode=ro``; a progress handler enforces the timeout.
-* **PostgreSQL**: ``dsn`` from a secret reference; every session runs with
-  ``default_transaction_read_only=on`` and ``statement_timeout``.
+* **PostgreSQL** (also Supabase, Neon, RDS/Aurora, CockroachDB, Redshift): ``dsn`` secret or host/user/
+  password-secret fields; every session runs with ``default_transaction_read_only=on`` and
+  ``statement_timeout``.
+* **MySQL/MariaDB, SQL Server, Snowflake, Databricks, DuckDB/MotherDuck, ClickHouse, BigQuery**: see
+  ``engines.py`` (ADR-0026).
 
-Writes are therefore refused twice: by the SQL policy (``policy.py``) and by the connection itself.
+Writes are refused by the SQL policy (``policy.py``) and, where the engine offers it, by the connection.
 """
 
 from __future__ import annotations
@@ -19,7 +22,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import sqlglot
 from agenticmind_node_sdk import DatabaseHandle, NodeContext, NodeError, TransientNodeError
+
+from . import engines
+from .engines import ENGINES
 
 SYSTEM_SCHEMAS = ("pg_catalog", "information_schema", "pg_toast")
 
@@ -82,7 +89,19 @@ class Database:
 
     @property
     def dialect(self) -> str:
-        return "sqlite" if self.handle.engine == "sqlite" else "postgres"
+        """sqlglot dialect name (used by the SQL policy)."""
+        return ENGINES[self.handle.engine].dialect
+
+    @property
+    def sql_name(self) -> str:
+        """How prompts name this SQL flavour, e.g. "T-SQL (SQL Server)"."""
+        return ENGINES[self.handle.engine].sql_name
+
+    def portable(self, sql: str) -> str:
+        """Translate PostgreSQL-style SQL written by AgenticMind (LIMIT, "quoted" names) to this engine."""
+        if self.dialect == "postgres":
+            return sql
+        return sqlglot.transpile(sql, read="postgres", write=self.dialect)[0]
 
     # -- queries ----------------------------------------------------------------------------------
     def _run(self, sql: str, params: tuple = (), *, limit: int | None = None) -> QueryResult:
@@ -104,20 +123,18 @@ class Database:
             raise NodeError("SQL_EXECUTION_ERROR", str(exc)) from exc
         except sqlite3.Error as exc:
             raise NodeError("SQL_EXECUTION_ERROR", str(exc)) from exc
-        except Exception as exc:  # psycopg errors (optional dependency)
-            name = type(exc).__name__
-            if name == "QueryCanceled":
-                raise NodeError("SQL_TIMEOUT", f"Query exceeded {self.handle.timeout_seconds:g}s") from exc
-            if name in ("OperationalError", "InterfaceError"):
-                raise TransientNodeError("DATABASE_UNAVAILABLE", str(exc).strip()) from exc
-            if hasattr(exc, "sqlstate"):
-                raise NodeError("SQL_EXECUTION_ERROR", str(exc).strip()) from exc
+        except NodeError:
             raise
+        except Exception as exc:  # driver errors (psycopg, PyMySQL, pymssql, Snowflake, DuckDB)
+            raise _driver_error(exc, self.handle.timeout_seconds) from exc
         finally:
             if self.handle.engine == "sqlite":
                 self.conn.set_progress_handler(None, 0)
             else:
-                self.conn.rollback()
+                try:
+                    self.conn.rollback()
+                except Exception:  # noqa: BLE001 - a broken connection is reported by the query itself
+                    pass
         rows = [{c: _json_safe(v) for c, v in zip(columns, r, strict=False)} for r in fetched[:limit]]
         return QueryResult(columns, rows, len(fetched) > limit, round((time.perf_counter() - t0) * 1000, 1))
 
@@ -126,7 +143,60 @@ class Database:
 
     # -- introspection ----------------------------------------------------------------------------
     def tables(self) -> list[Table]:
-        return self._sqlite_tables() if self.handle.engine == "sqlite" else self._pg_tables()
+        if self.handle.engine == "sqlite":
+            return self._sqlite_tables()
+        if self.handle.engine == "postgresql":
+            return self._pg_tables()
+        return self._generic_tables()
+
+    def _rows(self, sql: str) -> list[tuple]:
+        cur = self.conn.cursor()
+        try:
+            cur.execute(sql)
+            return list(cur.fetchall())
+        except NodeError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise _driver_error(exc, self.handle.timeout_seconds) from exc
+
+    def _generic_tables(self) -> list[Table]:
+        tables_sql, columns_sql = engines.introspection_sql(self.handle)
+        tables: dict[tuple[str | None, str], Table] = {}
+        for schema, name, kind in self._rows(tables_sql):
+            if self._allowed(schema, name):
+                is_view = "VIEW" in str(kind).upper()
+                tables[(schema, name)] = Table(schema=schema, name=name, kind="view" if is_view else "table")
+        for schema, table, col, dtype, nullable, key in self._rows(columns_sql):
+            if (schema, table) in tables:
+                tables[(schema, table)].columns.append(
+                    {
+                        "name": col,
+                        "type": str(dtype or ""),
+                        "nullable": str(nullable).upper() in ("YES", "TRUE", "1"),
+                        "primary_key": str(key).upper() in ("PRI", "TRUE", "1"),
+                    }
+                )
+        pk_sql = engines.primary_keys_sql(self.handle)
+        if pk_sql:
+            try:
+                for schema, table, col in self._rows(pk_sql):
+                    for c in tables.get((schema, table), Table(None, "")).columns:
+                        if c["name"] == col:
+                            c["primary_key"] = True
+            except NodeError:
+                pass  # informational constraints are optional
+        fk_sql = engines.foreign_keys_sql(self.handle)
+        if fk_sql:
+            for schema, table, col, rs, rt, rc in self._rows(fk_sql):
+                if (schema, table) in tables:
+                    tables[(schema, table)].foreign_keys.append(
+                        {"columns": [col], "ref_table": f"{rs}.{rt}" if rs else rt, "ref_columns": [rc]}
+                    )
+        try:
+            self.conn.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        return list(tables.values())
 
     def _allowed(self, schema: str | None, name: str) -> bool:
         if not self.handle.schemas:
@@ -203,8 +273,8 @@ class Database:
         return list(tables.values())
 
     def row_count(self, table: Table) -> int:
-        result = self._run(f"SELECT COUNT(*) AS n FROM {self.qualified(table)}", limit=1)
-        return int(result.rows[0]["n"]) if result.rows else 0
+        result = self._run(self.portable(f'SELECT COUNT(*) AS "n" FROM {self.qualified(table)}'), limit=1)
+        return int(next(iter(result.rows[0].values()))) if result.rows else 0
 
     def qualified(self, table: Table) -> str:
         return f"{quote_ident(table.schema)}.{quote_ident(table.name)}" if table.schema else quote_ident(table.name)
@@ -237,7 +307,83 @@ def _sqlite_copy(ctx: NodeContext, artifact_id: str) -> Path:
     return target
 
 
+def _driver_error(exc: Exception, timeout: float) -> NodeError:
+    """Map DB-API driver exceptions (by class name; drivers are optional imports) to node errors."""
+    name = type(exc).__name__
+    text = str(exc).strip() or name
+    if name == "QueryCanceled" or "timeout" in text.lower() and "exceed" in text.lower():
+        return NodeError("SQL_TIMEOUT", f"Query exceeded {timeout:g}s")
+    if name in ("OperationalError", "InterfaceError", "ConnectionException", "IOException"):
+        return TransientNodeError("DATABASE_UNAVAILABLE", text)
+    if name.endswith(("Error", "Exception")):
+        return NodeError("SQL_EXECUTION_ERROR", text)
+    return NodeError("SQL_EXECUTION_ERROR", f"{name}: {text}")
+
+
+def _duckdb_copy(ctx: NodeContext, artifact_id: str) -> Path:
+    info = ctx.artifact_info(artifact_id)
+    target = ctx.storage_path("databases") / f"{info.sha256}.duckdb"
+    with _COPY_GUARD:
+        lock = _COPY_LOCKS.setdefault(str(target), threading.Lock())
+    with lock:
+        if not target.exists():
+            data = ctx.read_artifact(artifact_id)
+            if data[8:12] != b"DUCK":
+                raise NodeError("DATABASE_INVALID_FILE", f"'{info.filename}' is not a DuckDB database")
+            tmp = target.with_name(f"{target.stem}.{uuid.uuid4().hex[:8]}.tmp")
+            tmp.write_bytes(data)
+            tmp.replace(target)
+    return target
+
+
+def _connect_postgres(ctx: NodeContext, handle: DatabaseHandle) -> Any:
+    try:
+        import psycopg
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise NodeError(
+            "DATABASE_DRIVER_MISSING", "Install agenticmind-nodes-semantic[postgres] for PostgreSQL"
+        ) from exc
+    timeout_ms = int(handle.timeout_seconds * 1000)
+    options = f"-c default_transaction_read_only=on -c statement_timeout={timeout_ms}"
+    if handle.dsn is not None:
+        args: dict[str, Any] = {"conninfo": ctx.secret(handle.dsn)}
+    else:
+        if not handle.host:
+            raise NodeError("DATABASE_NOT_CONFIGURED", "PostgreSQL needs a dsn secret or a host")
+        args = {
+            "host": handle.host,
+            "port": handle.port or 5432,
+            "dbname": handle.database or "postgres",
+            "user": handle.user,
+            "password": ctx.secret(handle.password) if handle.password is not None else None,
+            "sslmode": handle.ssl,
+        }
+        args = {k: v for k, v in args.items() if v is not None}
+    try:
+        return psycopg.connect(**args, connect_timeout=10, options=options)
+    except psycopg.OperationalError as exc:
+        raise TransientNodeError("DATABASE_UNAVAILABLE", str(exc).strip()) from exc
+
+
 def _connect(ctx: NodeContext, handle: DatabaseHandle) -> Any:
+    engine = handle.engine
+    if engine == "postgresql":
+        return _connect_postgres(ctx, handle)
+    if engine == "mysql":
+        return engines.connect_mysql(ctx, handle)
+    if engine == "sqlserver":
+        return engines.connect_sqlserver(ctx, handle)
+    if engine == "snowflake":
+        return engines.connect_snowflake(ctx, handle)
+    if engine == "databricks":
+        return engines.connect_databricks(ctx, handle)
+    if engine == "clickhouse":
+        return engines.connect_clickhouse(ctx, handle)
+    if engine == "bigquery":
+        return engines.connect_bigquery(ctx, handle)
+    if engine == "duckdb":
+        local = str(_duckdb_copy(ctx, handle.artifact_id)) if handle.artifact_id else None
+        return engines.connect_duckdb(ctx, handle, local)
     if handle.engine == "sqlite":
         if handle.artifact_id:
             path = _sqlite_copy(ctx, handle.artifact_id)
@@ -249,23 +395,7 @@ def _connect(ctx: NodeContext, handle: DatabaseHandle) -> Any:
             raise NodeError("DATABASE_NOT_CONFIGURED", "Select an uploaded SQLite file or a dsn secret")
         conn.execute("PRAGMA query_only = ON")
         return conn
-    if handle.dsn is None:
-        raise NodeError("DATABASE_NOT_CONFIGURED", "PostgreSQL needs a dsn secret reference")
-    try:
-        import psycopg
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise NodeError(
-            "DATABASE_DRIVER_MISSING", "Install agenticmind-nodes-semantic[postgres] for PostgreSQL"
-        ) from exc
-    timeout_ms = int(handle.timeout_seconds * 1000)
-    try:
-        return psycopg.connect(
-            ctx.secret(handle.dsn),
-            connect_timeout=10,
-            options=f"-c default_transaction_read_only=on -c statement_timeout={timeout_ms}",
-        )
-    except psycopg.OperationalError as exc:
-        raise TransientNodeError("DATABASE_UNAVAILABLE", str(exc).strip()) from exc
+    raise NodeError("DATABASE_NOT_CONFIGURED", f"Unknown database engine {engine!r}")
 
 
 async def open_database(ctx: NodeContext, handle: DatabaseHandle) -> Database:

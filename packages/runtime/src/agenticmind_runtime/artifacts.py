@@ -63,6 +63,7 @@ ALLOWED_TYPES: dict[str, str] = {
     ".sqlite": "application/vnd.sqlite3",
     ".sqlite3": "application/vnd.sqlite3",
     ".db": "application/vnd.sqlite3",
+    ".duckdb": "application/vnd.duckdb",
 }
 
 

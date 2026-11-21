@@ -271,6 +271,17 @@ class AppSettingRow(Base):
     updated_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
+class SecretRow(Base):
+    """A workspace secret (ADR-0026): AES-GCM ciphertext only; values are never returned by the API."""
+
+    __tablename__ = "workspace_secrets"
+    name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
 def make_engine(url: str) -> Engine:
     kwargs: dict[str, Any] = {}
     if url.startswith("sqlite"):

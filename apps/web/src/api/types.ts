@@ -36,7 +36,7 @@ export interface JsonSchema {
   anyOf?: JsonSchema[];
   $ref?: string;
   $defs?: Record<string, JsonSchema>;
-  "x-ui"?: { widget?: string; advanced?: boolean; placeholder?: string };
+  "x-ui"?: { widget?: string; advanced?: boolean; placeholder?: string; show_when?: Record<string, string[]> };
   "x-secret"?: boolean;
 }
 
@@ -646,3 +646,13 @@ export interface ProviderModel {
   name: string;
   context_length?: number | null;
 }
+
+/** Settings → Secrets (ADR-0026): names only, values are write-only. */
+export interface WorkspaceSecret {
+  name: string;
+  updated_at: string | null;
+  updated_by: string | null;
+  overridden_by_environment: boolean;
+}
+
+export type SecretSource = "environment" | "workspace" | null;
