@@ -40,6 +40,7 @@ from agenticmind_providers.embeddings import (
     get_embedding_provider,
 )
 from agenticmind_vectorstores import (
+    LOCAL_BACKENDS,
     KeywordIndex,
     KeywordRecord,
     StoreRecord,
@@ -89,7 +90,7 @@ async def embed_texts(
 
 def open_vector_store(ctx: NodeContext, handle: VectorStoreHandle) -> VectorStore:
     local_path = None
-    if handle.backend in ("qdrant", "chroma") and not handle.url:
+    if handle.backend in (*LOCAL_BACKENDS, "milvus") and not handle.url:  # embedded on this server
         local_path = ctx.storage_path("vectors", handle.backend)
     spec = StoreSpec(
         backend=handle.backend,
@@ -190,11 +191,34 @@ async def embedding_model(ctx: NodeContext, inputs, config: EmbeddingModelConfig
 
 
 # -- Vector Store ---------------------------------------------------------------------------------
+VectorBackend = Literal[
+    "qdrant",
+    "chroma",
+    "faiss",
+    "lancedb",
+    "pgvector",
+    "pinecone",
+    "milvus",
+    "weaviate",
+    "elasticsearch",
+    "opensearch",
+    "mongodb",
+    "redis",
+]
+URL_BACKENDS = ("qdrant", "chroma", "lancedb", "milvus", "weaviate", "elasticsearch", "opensearch", "redis")
+KEY_BACKENDS = ("qdrant", "chroma", "lancedb", "pinecone", "milvus", "weaviate", "elasticsearch")
+
+
+def _on(*backends: str) -> dict[str, list[str]]:
+    return {"backend": list(backends)}
+
+
 class VectorStoreConfig(NodeConfig):
-    backend: Literal["qdrant", "chroma", "pgvector", "pinecone"] = Field(
+    backend: VectorBackend = Field(
         default="qdrant",
-        description="qdrant / chroma run embedded locally when no URL is set. pgvector needs a dsn secret, "
-        "pinecone an api_key secret.",
+        description="Embedded on this server (no URL): qdrant, chroma, faiss, lancedb. Servers / cloud: qdrant, "
+        "chroma, lancedb (db://), milvus / Zilliz, weaviate, elasticsearch, opensearch, redis (URL); pgvector and "
+        "mongodb (Atlas Vector Search) via a dsn secret; pinecone via an api_key secret.",
     )
     collection: str = Field(
         default="documents",
@@ -209,25 +233,48 @@ class VectorStoreConfig(NodeConfig):
     distance: Literal["cosine", "dot"] = Field(default="cosine", json_schema_extra=ui(advanced=True))
     url: str | None = Field(
         default=None,
-        description="Server URL (Qdrant/Chroma server or cloud). Empty = embedded local storage.",
-        json_schema_extra=ui(advanced=True, placeholder="http://localhost:6333"),
+        description="Server URL, e.g. http://localhost:6333 (Qdrant), http://localhost:19530 (Milvus), "
+        "https://my-cluster.weaviate.cloud, https://localhost:9200 (Elasticsearch; OpenSearch with "
+        "user:password@), redis://localhost:6379, db://my-database (LanceDB Cloud). Empty = embedded on this "
+        "server where the backend supports it.",
+        json_schema_extra=ui(show_when=_on(*URL_BACKENDS)),
     )
-    api_key: SecretRef | None = secret_field("API key (Pinecone, Qdrant Cloud, Chroma Cloud)")
-    dsn: SecretRef | None = secret_field("PostgreSQL connection string for pgvector")
+    api_key: SecretRef | None = secret_field(
+        "API key / token secret (Pinecone, Qdrant Cloud, Chroma Cloud, LanceDB Cloud, Milvus/Zilliz token, "
+        "Weaviate Cloud, Elasticsearch)",
+        show_when=_on(*KEY_BACKENDS),
+    )
+    dsn: SecretRef | None = secret_field(
+        "Connection string secret: PostgreSQL (pgvector), mongodb+srv://... (MongoDB Atlas) or redis://... "
+        "with a password",
+        show_when=_on("pgvector", "mongodb", "redis"),
+    )
     cloud: str | None = Field(
-        default=None, description="Pinecone cloud (default aws)", json_schema_extra=ui(advanced=True)
-    )
+        default=None, description="Pinecone cloud (default aws)",
+        json_schema_extra=ui(advanced=True, show_when=_on("pinecone")),
+    )  # fmt: skip
     region: str | None = Field(
-        default=None, description="Pinecone region (default us-east-1)", json_schema_extra=ui(advanced=True)
-    )
-    namespace: str | None = Field(default=None, description="Pinecone namespace", json_schema_extra=ui(advanced=True))
+        default=None, description="Pinecone region (default us-east-1); LanceDB Cloud region.",
+        json_schema_extra=ui(advanced=True, show_when=_on("pinecone", "lancedb")),
+    )  # fmt: skip
+    namespace: str | None = Field(
+        default=None, description="Pinecone namespace; MongoDB database (default agenticmind).",
+        json_schema_extra=ui(advanced=True, show_when=_on("pinecone", "mongodb")),
+    )  # fmt: skip
 
     @model_validator(mode="after")
     def _check(self) -> VectorStoreConfig:
-        if self.backend == "pgvector" and self.dsn is None:
-            raise ValueError("pgvector needs a dsn secret reference")
-        if self.backend == "pinecone" and self.api_key is None:
+        b = self.backend
+        if b in ("pgvector", "mongodb") and self.dsn is None:
+            raise ValueError(f"{b} needs a dsn secret reference")
+        if b == "pinecone" and self.api_key is None:
             raise ValueError("pinecone needs an api_key secret reference")
+        if b in ("weaviate", "elasticsearch", "opensearch") and not self.url:
+            raise ValueError(f"{b} needs a server URL")
+        if b == "redis" and not self.url and self.dsn is None:
+            raise ValueError("redis needs a URL (redis://host:6379) or a dsn secret")
+        if self.url and not self.url.startswith(("http://", "https://", "redis://", "rediss://", "db://")):
+            raise ValueError("url must start with http(s)://, redis(s):// or db://")
         return self
 
 

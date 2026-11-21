@@ -1,7 +1,7 @@
 [project]
 name = "agenticmind-vectorstores"
 version = "0.1.0"
-description = "AgenticMind vector store adapter layer (Qdrant default; Chroma, pgvector, Pinecone optional)"
+description = "AgenticMind vector store adapter layer (Qdrant default; Chroma, FAISS, LanceDB, pgvector, Pinecone, Milvus, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis)"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7,<3",
@@ -18,6 +18,14 @@ pgvector = [
 pinecone = [
     "pinecone>=10.3.0",
 ]
+faiss = ["faiss-cpu>=1.9", "numpy>=1.26"]
+lancedb = ["lancedb>=0.25", "pyarrow>=17"]
+milvus = ["pymilvus>=2.6"]
+weaviate = ["weaviate-client>=4.16"]
+mongodb = ["pymongo>=4.10"]
+redis = ["redis>=5.2", "numpy>=1.26"]
+# Elasticsearch and OpenSearch use their REST APIs through httpx (no client library needed)
+search = ["httpx>=0.28.1"]
 
 [build-system]
 requires = ["hatchling"]

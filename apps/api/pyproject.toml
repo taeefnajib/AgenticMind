@@ -21,7 +21,7 @@ dependencies = [
     "agenticmind-nodes-agents",
     "agenticmind-nodes-semantic[all]",
     "agenticmind-providers[local]",
-    "agenticmind-vectorstores",
+    "agenticmind-vectorstores[chroma,faiss,lancedb,pgvector,pinecone,milvus,weaviate,mongodb,redis,search]",
     "python-multipart>=0.0.34",
     "python-dotenv>=1.2.4",
     # encrypts secrets saved in Settings → Secrets (AES-GCM)

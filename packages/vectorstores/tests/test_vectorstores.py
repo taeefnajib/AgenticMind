@@ -6,7 +6,10 @@ when ``AGENTICMIND_TEST_PGVECTOR_DSN`` / ``AGENTICMIND_TEST_PINECONE_API_KEY`` a
 
 import math
 import os
+import sys
 import uuid
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from agenticmind_vectorstores import (
@@ -18,6 +21,8 @@ from agenticmind_vectorstores import (
     normalize_filter,
     open_store,
 )
+
+sys.path.insert(0, str(Path(__file__).parent))  # fakes.py
 
 
 def unit(*xs):
@@ -39,24 +44,70 @@ def record(i, vec, **kw):
     )
 
 
-BACKENDS = ["qdrant", "chroma"]
+BACKENDS = ["qdrant", "chroma", "faiss", "lancedb"]
+try:  # Milvus Lite (local file) is published for Linux and macOS only
+    import milvus_lite  # noqa: F401
+
+    BACKENDS.append("milvus")
+except ImportError:
+    pass
 if os.environ.get("AGENTICMIND_TEST_PGVECTOR_DSN"):
     BACKENDS.append("pgvector")
 if os.environ.get("AGENTICMIND_TEST_PINECONE_API_KEY"):
     BACKENDS.append("pinecone")
+# live servers, opt-in: URL / connection string per backend
+LIVE = {
+    "weaviate": "AGENTICMIND_TEST_WEAVIATE_URL",
+    "elasticsearch": "AGENTICMIND_TEST_ELASTICSEARCH_URL",
+    "opensearch": "AGENTICMIND_TEST_OPENSEARCH_URL",
+    "mongodb": "AGENTICMIND_TEST_MONGODB_URI",
+    "redis": "AGENTICMIND_TEST_REDIS_URL",
+}
+BACKENDS += [b for b, env in LIVE.items() if os.environ.get(env)]
+# server backends against in-memory fakes of their APIs (always)
+FAKES = ["milvus-fake", "weaviate-fake", "elasticsearch-fake", "opensearch-fake", "mongodb-fake", "redis-fake"]
 
 
-@pytest.fixture(params=BACKENDS)
-def store(request, tmp_path):
+def make_fake(kind: str, spec: StoreSpec):
+    import fakes
+    from agenticmind_vectorstores.milvus_store import MilvusStore
+    from agenticmind_vectorstores.mongodb_store import MongoDBStore
+    from agenticmind_vectorstores.redis_store import RedisStore
+    from agenticmind_vectorstores.search_store import SearchEngineStore
+    from agenticmind_vectorstores.weaviate_store import WeaviateStore
+
+    if kind == "milvus":
+        return MilvusStore(spec, client=fakes.FakeMilvusClient())
+    if kind == "weaviate":
+        return WeaviateStore(spec, client=fakes.FakeWeaviateClient())
+    if kind in ("elasticsearch", "opensearch"):
+        server = fakes.FakeSearchServer(kind)
+        return SearchEngineStore(replace(spec, url="http://search.test:9200"), transport=server.transport())
+    if kind == "mongodb":
+        return MongoDBStore(spec, client=fakes.FakeMongoClient(), wait_seconds=10)
+    return RedisStore(spec, client=fakes.FakeRedis())
+
+
+@pytest.fixture(params=BACKENDS + FAKES)
+def store(request, tmp_path, monkeypatch):
     name = f"test-{uuid.uuid4().hex[:8]}"
+    backend = request.param.removesuffix("-fake")
     spec = StoreSpec(
-        backend=request.param,
+        backend=backend,
         collection=name,
-        local_path=tmp_path / request.param,
-        dsn=os.environ.get("AGENTICMIND_TEST_PGVECTOR_DSN"),
-        api_key=os.environ.get("AGENTICMIND_TEST_PINECONE_API_KEY"),
-    )
-    s = open_store(spec)
+        local_path=tmp_path / backend,
+        dsn=os.environ.get("AGENTICMIND_TEST_PGVECTOR_DSN") if backend == "pgvector" else os.environ.get(
+            LIVE.get(backend, "_"), None) if backend in ("mongodb", "redis") else None,
+        api_key=os.environ.get("AGENTICMIND_TEST_PINECONE_API_KEY") if backend == "pinecone" else None,
+        url=os.environ.get(LIVE.get(backend, "_")) if backend in ("weaviate", "elasticsearch", "opensearch") else None,
+    )  # fmt: skip
+    if request.param.endswith("-fake"):
+        import agenticmind_vectorstores.mongodb_store as mongo
+
+        monkeypatch.setattr(mongo.time, "sleep", lambda s: None)
+        s = make_fake(backend, spec)
+    else:
+        s = open_store(spec)
     yield s
     s.drop()
 
@@ -121,12 +172,14 @@ def test_unknown_backend():
 
 
 def test_local_cleanup_by_prefix(tmp_path):
-    for backend in ("qdrant", "chroma"):
+    for backend in ("qdrant", "chroma", "faiss", "lancedb"):
         for name in ("prj_a__docs", "prj_a__faq", "prj_b__docs"):
             s = open_store(StoreSpec(backend=backend, collection=name, local_path=tmp_path / "vectors" / backend))
             s.ensure_collection(3)
     removed = delete_local_collections(tmp_path, "prj_a__")
-    assert sorted(removed) == ["chroma:prj_a__docs", "chroma:prj_a__faq", "qdrant:prj_a__docs", "qdrant:prj_a__faq"]
+    assert sorted(removed) == sorted(
+        f"{b}:{n}" for b in ("qdrant", "chroma", "faiss", "lancedb") for n in ("prj_a__docs", "prj_a__faq")
+    )
     remaining = open_store(
         StoreSpec(backend="qdrant", collection="prj_b__docs", local_path=tmp_path / "vectors" / "qdrant")
     )

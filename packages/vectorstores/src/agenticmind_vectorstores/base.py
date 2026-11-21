@@ -125,3 +125,21 @@ class VectorStore(ABC):
 
     @abstractmethod
     def drop(self) -> None: ...
+
+
+def similarity(query: Sequence[float], vector: Sequence[float], distance: Distance) -> float:
+    """The contract's score: cosine similarity or dot product (higher = more similar).
+
+    Adapters whose engines report their own score scales (Elasticsearch, OpenSearch, MongoDB, LanceDB,
+    Weaviate) recompute it from the stored vector, so scores mean the same thing on every backend."""
+    dot = sum(a * b for a, b in zip(query, vector, strict=False))
+    if distance == "dot":
+        return float(dot)
+    nq = sum(a * a for a in query) ** 0.5
+    nv = sum(b * b for b in vector) ** 0.5
+    return float(dot / (nq * nv)) if nq and nv else 0.0
+
+
+def matches(fields: Mapping[str, Any], filters: Mapping[str, Scalar]) -> bool:
+    """Exact equality on flat fields (used where an engine cannot pre-filter a field)."""
+    return all(fields.get(k) == v for k, v in filters.items())

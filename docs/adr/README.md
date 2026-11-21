@@ -29,5 +29,6 @@
 | [0025](0025-vision-local-models-ocr.md) | Image port type, Image Input/Loader, vision LLM 1.2.0, Ollama + Hugging Face providers, RapidOCR (OCR node, scanned PDFs) | Accepted |
 | [0026](0026-data-sources-databases-s3-secrets.md) | Database engines (Supabase/Postgres, MySQL, SQL Server, Snowflake, Databricks, DuckDB, ClickHouse, BigQuery), S3 Loader, encrypted workspace secrets | Accepted |
 | [0027](0027-chunking-strategies-layout-parsing.md) | Chunker 1.1.0 (sentence, layout, semantic, document, parent-child), Parent Expander, layout-aware PDF/HTML/DOCX parsing | Accepted |
+| [0028](0028-vector-databases.md) | FAISS, LanceDB, Milvus, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas and Redis vector stores; one score scale | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

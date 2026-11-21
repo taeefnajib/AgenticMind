@@ -85,6 +85,10 @@ Document Loader read text from images and scanned PDFs with open-source RapidOCR
 from OpenRouter, **Hugging Face** (`HF_TOKEN`), **Ollama** on your machine (no key) or any OpenAI-compatible
 server. See ADR-0025.
 
+To choose a vector database: the **Vector Store** node supports Qdrant (default, embedded), Chroma, FAISS and
+LanceDB on this machine, and Milvus/Zilliz, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis, pgvector
+and Pinecone as servers or cloud services. See ADR-0028.
+
 To control chunking: the **Chunker** (1.1.0) offers recursive, fixed, sentence, markdown, layout-aware,
 semantic, whole-document and parent-child strategies; pair parent-child with the **Parent Expander** after
 retrieval (template *RAG with parent-child chunks*). Turn on `pdf_layout` in the loaders to turn PDF headings

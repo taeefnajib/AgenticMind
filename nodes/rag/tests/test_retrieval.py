@@ -1,4 +1,4 @@
-"""End-to-end retrieval through the real engine: hash embeddings + embedded Qdrant/Chroma."""
+"""End-to-end retrieval through the real engine: hash embeddings + embedded Qdrant, Chroma, FAISS, LanceDB."""
 
 import pytest
 from agenticmind_ir import load_project
@@ -93,7 +93,7 @@ async def run(registry, doc, env, targets=None, inputs=None, secrets=None):
     return await engine.run(plan, inputs=inputs or {}), obs, plan
 
 
-@pytest.mark.parametrize("backend", ["qdrant", "chroma"])
+@pytest.mark.parametrize("backend", ["qdrant", "chroma", "faiss", "lancedb"])
 async def test_ingest_then_query_with_targets(registry, env, backend):
     doc = rag_doc(env[1], backend=backend)
 
@@ -202,8 +202,27 @@ async def test_api_embeddings_flow_uses_delegated_secret(registry, env, monkeypa
             "api_key": {"$secret": "OPENROUTER_API_KEY"},
         },
     )
-    secrets = MappingSecretResolver({"OPENROUTER_API_KEY": "sk-or-test-secret"})
+    secrets = MappingSecretResolver({"OPENROUTER_API_KEY": "fixture-router-value"})
     result, obs, _ = await run(registry, doc, env, targets=["report"], secrets=secrets)
     assert result.status == RunStatus.SUCCEEDED, result.error
-    assert seen and all(h == "Bearer sk-or-test-secret" for h in seen)
-    assert "sk-or-test-secret" not in "".join(e.model_dump_json() for e in obs.events) + str(obs.outputs)
+    assert seen and all(h == "Bearer fixture-router-value" for h in seen)
+    assert "fixture-router-value" not in "".join(e.model_dump_json() for e in obs.events) + str(obs.outputs)
+
+
+def test_vector_store_config_per_backend():
+    from agenticmind_nodes_rag.retrieval import VectorStoreConfig, vector_store
+
+    assert VectorStoreConfig(backend="faiss").url is None
+    assert VectorStoreConfig(backend="lancedb", url="db://team-kb", api_key={"$secret": "LANCE_KEY"}).url
+    with pytest.raises(ValueError, match="weaviate needs a server URL"):
+        VectorStoreConfig(backend="weaviate")
+    with pytest.raises(ValueError, match="mongodb needs a dsn"):
+        VectorStoreConfig(backend="mongodb")
+    with pytest.raises(ValueError, match="redis needs a URL"):
+        VectorStoreConfig(backend="redis")
+    with pytest.raises(ValueError, match="url must start"):
+        VectorStoreConfig(backend="milvus", url="localhost:19530")
+    assert VectorStoreConfig(backend="redis", url="redis://localhost:6379").backend == "redis"
+    props = vector_store.manifest.config_schema["properties"]
+    assert props["dsn"]["x-ui"]["show_when"] == {"backend": ["pgvector", "mongodb", "redis"]}
+    assert "weaviate" in props["backend"]["enum"] and "opensearch" in props["backend"]["enum"]

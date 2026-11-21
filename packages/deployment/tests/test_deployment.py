@@ -149,3 +149,22 @@ def test_plan_rejects_bad_settings(env, message):
         plan("rag-answers", "docker_server", env=env)
     with pytest.raises(PlanError, match="Unknown target"):
         plan("rag-answers", "mainframe")
+
+
+def test_vector_backends_decide_persistent_storage():
+    """Embedded stores (FAISS, local LanceDB) need a persistent volume; server stores do not (ADR-0028)."""
+
+    def with_store(**cfg):
+        doc = load_template("rag-answers")
+        store = next(n for n in doc["nodes"] if n["id"] == "store")
+        store["config"] = {"collection": "documents", **cfg}
+        return build_plan(load_project(doc), REG, revision=1, content_hash="sha256:x", target="cloud_run",
+                          profile="production", secret_available=lambda n: True,
+                          local_status=(True, "Docker test"))  # fmt: skip
+
+    faiss = with_store(backend="faiss")
+    assert any("FAISS" in p for p in faiss.requirements.persistent_data)
+    assert "persistent-data" in ids(faiss, "blocker")
+    weaviate = with_store(backend="weaviate", url="https://kb.weaviate.cloud", api_key={"$secret": "WEAVIATE_KEY"})
+    assert not any("Weaviate" in p for p in weaviate.requirements.persistent_data)
+    assert "WEAVIATE_KEY" in weaviate.requirements.secrets

@@ -8,7 +8,7 @@ dependencies = [
     "agenticmind-node-sdk",
     "agenticmind-registry",
     "agenticmind-providers[local]",
-    "agenticmind-vectorstores[chroma,pgvector,pinecone]",
+    "agenticmind-vectorstores[chroma,faiss,lancedb,pgvector,pinecone,milvus,weaviate,mongodb,redis,search]",
     "agenticmind-runtime",
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",
@@ -25,6 +25,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.2",
+    # Milvus Lite (local file mode) for the vector store contract tests; not published for Windows
+    "milvus-lite>=2.5; sys_platform != 'win32'",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
     "ruff>=0.6",

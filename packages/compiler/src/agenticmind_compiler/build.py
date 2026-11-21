@@ -117,14 +117,24 @@ def analyze(doc: ProjectDocument, registry: NodeRegistry, endpoints: list[Endpoi
             local_models.append(f"reranker {cfg['model']} (fastembed, downloaded on first use)")
         if node.type == "agenticmind.rag.vector_store":
             backend = cfg.get("backend", "qdrant")
-            if backend in ("chroma", "pgvector", "pinecone"):
-                extras.setdefault("agenticmind-vectorstores", set()).add(backend)
+            extra = "search" if backend in ("elasticsearch", "opensearch") else backend
+            if backend != "qdrant":  # qdrant-client is a base dependency
+                extras.setdefault("agenticmind-vectorstores", set()).add(extra)
+            # the phrase "under DATA_DIR" marks embedded storage (deployment needs a persistent volume)
             where = "server at configured URL" if cfg.get("url") else "embedded, under DATA_DIR"
             services.append(
                 {
                     "qdrant": f"Qdrant ({where})",
                     "chroma": f"Chroma ({where})",
+                    "faiss": "FAISS (embedded, under DATA_DIR)",
+                    "lancedb": f"LanceDB ({'LanceDB Cloud' if cfg.get('url') else 'embedded, under DATA_DIR'})",
+                    "milvus": f"Milvus ({where if cfg.get('url') else 'Milvus Lite, under DATA_DIR'})",
+                    "weaviate": "Weaviate (server at configured URL)",
+                    "elasticsearch": "Elasticsearch (server at configured URL)",
+                    "opensearch": "OpenSearch (server at configured URL)",
                     "pgvector": "PostgreSQL with pgvector (dsn secret)",
+                    "mongodb": "MongoDB Atlas Vector Search (dsn secret)",
+                    "redis": "Redis query engine (URL or dsn secret)",
                     "pinecone": "Pinecone serverless (api_key secret)",
                 }.get(backend, backend)
             )
