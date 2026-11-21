@@ -30,5 +30,6 @@
 | [0026](0026-data-sources-databases-s3-secrets.md) | Database engines (Supabase/Postgres, MySQL, SQL Server, Snowflake, Databricks, DuckDB, ClickHouse, BigQuery), S3 Loader, encrypted workspace secrets | Accepted |
 | [0027](0027-chunking-strategies-layout-parsing.md) | Chunker 1.1.0 (sentence, layout, semantic, document, parent-child), Parent Expander, layout-aware PDF/HTML/DOCX parsing | Accepted |
 | [0028](0028-vector-databases.md) | FAISS, LanceDB, Milvus, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas and Redis vector stores; one score scale | Accepted |
+| [0029](0029-agent-architectures-reasoning-tool-flows.md) | Agent architectures (function calling, ReAct, plan-and-execute), Reasoning node (CoT/self-consistency, decomposition, ToT, GoT, MCTS, backtracking), Tool Router, Tool Chain | Accepted |
 
 Template: Context → Decision → Consequences → Revisit when.

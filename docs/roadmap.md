@@ -132,6 +132,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   limited), HttpOnly session cookies stored as hashes, admin/member roles, People management, profile and
   password change, sign out other browsers, cross-site write guard; Settings page to choose the AI
   assistant's provider and model (browse the provider's models, test the connection), and the theme.
+- **Agents and reasoning** (ADR-0029): Agent architectures (function calling with parallel tool calls, ReAct,
+  plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
+  graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
+  Chain; *Think it through* template.
 - **Vector databases** (ADR-0028): FAISS and LanceDB (embedded), Milvus, Weaviate, Elasticsearch, OpenSearch,
   MongoDB Atlas Vector Search and Redis, next to Qdrant, Chroma, pgvector and Pinecone; one score scale; per-backend
   fields in the Vector Store node; exporter/deployment aware of embedded vs server stores.
@@ -193,6 +197,8 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Node packages: one process per invocation (~0.3–0.6 s); no OS-level network/filesystem enforcement on
   Windows workers (container workers next); no package signing (`verified` reserved); package nodes cannot
   use project files or memory, provide agent tools, or be exported in standalone apps yet.
+- Reasoning: MCTS uses model value estimates (no rollouts) and backtracking relies on model step checks; search
+  methods cost more model calls (bounded by max_llm_calls).
 - Vector stores: Milvus, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas and Redis are verified against API fakes
   (and opt-in live runs), not real servers in CI; no OpenSearch SigV4; FAISS is single-process.
 - Chunking: token sizes are approximate; PDF layout detection is heuristic (no table extraction, multi-column order
@@ -211,7 +217,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 
 ## Next tasks (in order)
 
-Plan "build any agentic workflow" (one reviewed step each; steps 1-4 done, ADR-0025 to ADR-0028):
+Plan "build any agentic workflow" (one reviewed step each; steps 1-5 done, ADR-0025 to ADR-0029):
 - Step 2: data sources: S3 / S3-compatible loader; database connector credentials for PostgreSQL/Supabase,
   MySQL, SQL Server, Databricks, Snowflake and other popular databases.
 - Step 3: chunking and parsing: document, semantic, recursive character, parent-child, layout-aware.

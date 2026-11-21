@@ -85,6 +85,12 @@ Document Loader read text from images and scanned PDFs with open-source RapidOCR
 from OpenRouter, **Hugging Face** (`HF_TOKEN`), **Ollama** on your machine (no key) or any OpenAI-compatible
 server. See ADR-0025.
 
+To build agents: the **Agent** node runs as native function calling (parallel tool calls), **ReAct**
+(visible thoughts) or **plan-and-execute**; the **Reasoning** node answers with chain of thought /
+self-consistency, task decomposition, tree of thoughts, graph of thoughts, Monte Carlo tree search or
+backtracking (template *Think it through*); **Tool Router** sends a request to the best tool and **Tool
+Chain** runs tools in sequence. See ADR-0029.
+
 To choose a vector database: the **Vector Store** node supports Qdrant (default, embedded), Chroma, FAISS and
 LanceDB on this machine, and Milvus/Zilliz, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis, pgvector
 and Pinecone as servers or cloud services. See ADR-0028.

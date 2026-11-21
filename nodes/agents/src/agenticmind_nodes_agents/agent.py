@@ -74,6 +74,22 @@ class AgentConfig(NodeConfig):
     instructions: str = Field(
         default=DEFAULT_INSTRUCTIONS, description="System instructions.", json_schema_extra=ui(widget="textarea")
     )
+    architecture: Literal["function_calling", "react", "plan_and_execute"] = Field(
+        default="function_calling",
+        description="function_calling: the model calls tools natively (parallel calls allowed) until it answers. "
+        "react: Thought → Action → Observation steps written as text, visible in the trace and usable with "
+        "models without native tool calling. plan_and_execute: write a short plan first, run each step with "
+        "tools, then combine the results.",
+    )
+    parallel_tool_calls: bool = Field(
+        default=True,
+        description="Run the tool calls the model makes in one turn at the same time.",
+        json_schema_extra=ui(advanced=True, show_when={"architecture": ["function_calling", "plan_and_execute"]}),
+    )
+    max_plan_steps: int = Field(
+        default=5, ge=1, le=12, description="Most steps a plan may have.",
+        json_schema_extra=ui(show_when={"architecture": ["plan_and_execute"]}),
+    )  # fmt: skip
     max_turns: int = Field(default=6, ge=1, le=30, description="Maximum model calls.")
     max_tool_calls: int = Field(default=12, ge=0, le=100, description="Maximum tool executions in total.")
     token_budget: int = Field(
@@ -269,9 +285,17 @@ async def run_agent_loop(
             if tool_calls_used + len(resp.tool_calls) > config.max_tool_calls:
                 raise _Limit("max_tool_calls", f"Tool-call limit of {config.max_tool_calls} reached")
             messages.append(ChatMessage(role="assistant", content=resp.text or "", tool_calls=resp.tool_calls))
-            for call in resp.tool_calls:
+            if config.parallel_tool_calls and len(resp.tool_calls) > 1:  # independent calls: run them together
+                ran = await asyncio.gather(*(
+                    _run_tool(ctx, by_name, c.name, c.arguments, config.tool_timeout_seconds) for c in resp.tool_calls
+                ))  # fmt: skip
+            else:
+                ran = [
+                    await _run_tool(ctx, by_name, c.name, c.arguments, config.tool_timeout_seconds)
+                    for c in resp.tool_calls
+                ]
+            for call, step in zip(resp.tool_calls, ran, strict=True):
                 tool_calls_used += 1
-                step = await _run_tool(ctx, by_name, call.name, call.arguments, config.tool_timeout_seconds)
                 step["turn"] = turns
                 usage = step.pop("_usage", None)
                 if usage:  # a subagent's model usage counts toward this agent's budgets
@@ -357,7 +381,13 @@ async def _run_agent(ctx: NodeContext, inputs, config: AgentConfig) -> NodeResul
     tools = [ToolHandle.model_validate(t) for t in inputs.get("tools", [])]
     token = CURRENT_AGENT.set((ctx.node_id,))
     try:
-        out = await run_agent_loop(
+        if config.architecture == "function_calling":
+            runner = run_agent_loop
+        else:
+            from .architectures import run_plan_and_execute, run_react_loop
+
+            runner = run_react_loop if config.architecture == "react" else run_plan_and_execute
+        out = await runner(
             ctx,
             config,
             task=inputs["task"],

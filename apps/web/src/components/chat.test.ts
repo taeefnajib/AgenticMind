@@ -104,3 +104,16 @@ describe("NL-to-SQL answers", () => {
     expect(m.sql).toEqual({ query: "SELECT 1", columns: ["category", "revenue"], rows: [{ category: "Office", revenue: 10 }, { category: "Bags", revenue: 5 }], total: 2, truncated: false });
   });
 });
+
+describe("agent step shapes (ADR-0029)", () => {
+  it("shows plan-and-execute steps as steps with nested tool calls", async () => {
+    const { normaliseSteps } = await import("./ChatPanel");
+    const [plan, react] = normaliseSteps([
+      { plan_step: 1, step: "Compute 12*3", result: "36", ok: true, tools: [{ tool: "calculator", ok: true }] },
+      { tool: "calculator", ok: true, thought: "multiply" },
+    ]);
+    expect(plan).toMatchObject({ tool: "plan step 1: Compute 12*3", result_summary: "36", ok: true });
+    expect(plan?.substeps?.[0]?.tool).toBe("calculator");
+    expect(react?.thought).toBe("multiply");
+  });
+});

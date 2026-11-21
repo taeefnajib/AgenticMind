@@ -1,0 +1,151 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Think it through (reasoning)",
+    "description": "Answers hard questions with a reasoning strategy and shows how it got there. The Reasoning node is set to tree of thoughts (beam search over reasoning steps); switch its method to chain of thought, self-consistency (samples > 1), task decomposition, graph of thoughts, Monte Carlo tree search or backtracking. Ask in the Chat tab. Uses OpenRouter (Gemini) via OPENROUTER_API_KEY; the 'Explored thoughts' output holds the whole search tree."
+  },
+  "runtime": {
+    "engine": "agenticmind",
+    "profile": "development"
+  },
+  "nodes": [
+    {
+      "id": "question",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {
+        "key": "question",
+        "value_type": "String",
+        "required": true,
+        "default": "A bat and a ball cost 1.10 in total. The bat costs 1.00 more than the ball. How much does the ball cost?"
+      },
+      "ui": {
+        "position": {
+          "x": 0,
+          "y": 80
+        },
+        "label": "Question"
+      }
+    },
+    {
+      "id": "think",
+      "type": "agenticmind.agents.reasoning",
+      "version": "1.0.0",
+      "config": {
+        "method": "tree_of_thoughts",
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "api_key": {
+          "$secret": "OPENROUTER_API_KEY"
+        },
+        "branching": 3,
+        "beam_width": 2,
+        "depth": 3,
+        "max_llm_calls": 30
+      },
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 80
+        },
+        "label": "Reasoning"
+      }
+    },
+    {
+      "id": "answer",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "answer"
+      },
+      "ui": {
+        "position": {
+          "x": 660,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "how",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "reasoning"
+      },
+      "ui": {
+        "position": {
+          "x": 660,
+          "y": 120
+        },
+        "label": "Reasoning path"
+      }
+    },
+    {
+      "id": "tree",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "explored"
+      },
+      "ui": {
+        "position": {
+          "x": 660,
+          "y": 240
+        },
+        "label": "Explored thoughts"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "kind": "data",
+      "source": {
+        "node": "question",
+        "port": "value"
+      },
+      "target": {
+        "node": "think",
+        "port": "question"
+      }
+    },
+    {
+      "id": "e2",
+      "kind": "data",
+      "source": {
+        "node": "think",
+        "port": "answer"
+      },
+      "target": {
+        "node": "answer",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e3",
+      "kind": "data",
+      "source": {
+        "node": "think",
+        "port": "reasoning"
+      },
+      "target": {
+        "node": "how",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e4",
+      "kind": "data",
+      "source": {
+        "node": "think",
+        "port": "result"
+      },
+      "target": {
+        "node": "tree",
+        "port": "value"
+      }
+    }
+  ],
+  "metadata": {}
+}

@@ -9,6 +9,8 @@ from agenticmind_node_sdk import NodeDefinition
 from .agent import agent, agent_v1
 from .memory import conversation_history, memory_tool, recall, remember, save_turn
 from .orchestration import critic, planner, subagent
+from .reasoning import reasoning
+from .tool_flow import tool_chain, tool_router
 from .tools import TOOL_IMPLEMENTATIONS, calculator_tool, datetime_tool, knowledge_search_tool, web_fetch_tool
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
@@ -17,6 +19,9 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     subagent,
     planner,
     critic,
+    reasoning,
+    tool_router,
+    tool_chain,
     conversation_history,
     save_turn,
     remember,

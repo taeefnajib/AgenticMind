@@ -36,6 +36,8 @@ export interface AgentStep {
   turn?: number;
   /** Steps taken by a subagent this call delegated to (ADR-0014). */
   substeps?: AgentStep[];
+  /** ReAct: the model's reasoning before this action (ADR-0029). */
+  thought?: string;
   subreport?: { stop_reason?: string; turns?: number };
 }
 
@@ -475,7 +477,24 @@ function SqlResult({ sql }: { sql: NonNullable<Message["sql"]> }) {
   );
 }
 
-function AgentSteps({ steps, stopReason }: { steps: AgentStep[]; stopReason?: string }) {
+/** Plan-and-execute steps ({plan_step, step, result, tools}) shown like tool calls with nested tool steps. */
+export function normaliseSteps(raw: unknown[]): AgentStep[] {
+  return raw.map((s) => {
+    const step = s as Record<string, unknown>;
+    if (typeof step.plan_step === "number") {
+      return {
+        tool: `plan step ${step.plan_step}: ${String(step.step ?? "")}`,
+        ok: step.ok !== false,
+        result_summary: String(step.result ?? ""),
+        substeps: Array.isArray(step.tools) ? normaliseSteps(step.tools) : undefined,
+      };
+    }
+    return step as unknown as AgentStep;
+  });
+}
+
+function AgentSteps({ steps: rawSteps, stopReason }: { steps: AgentStep[]; stopReason?: string }) {
+  const steps = normaliseSteps(rawSteps);
   const [open, setOpen] = useState(false);
   const failed = steps.filter((s) => !s.ok).length;
   const tools = [...new Set(steps.map((s) => s.tool))];
@@ -490,6 +509,7 @@ function AgentSteps({ steps, stopReason }: { steps: AgentStep[]; stopReason?: st
         <ol className="mt-1.5 space-y-1.5">
           {steps.map((s, i) => (
             <li key={i} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5">
+              {s.thought && <div className="mb-1 italic text-slate-500">Thought: {s.thought}</div>}
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono font-semibold text-slate-700">
                   {s.ok ? "✓" : "✗"} {s.tool}
