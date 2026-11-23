@@ -113,7 +113,7 @@ def parse_output(stdout: bytes, stderr: bytes, exit_code: int | None) -> Executi
         message = "The code ended without a result"
         if exit_code == 137 or (exit_code is not None and exit_code < 0):
             message = "The sandbox killed the process (memory limit or a crash)"
-        first = next((ln.strip() for ln in err.splitlines() if ln.strip()), "")
+        first = next((ln.strip(" #") for ln in err.splitlines() if any(c.isalnum() for c in ln)), "")
         if first:
             message += f": {first[:300]}"
         tail = (err or text).strip()[-2000:]
@@ -246,7 +246,7 @@ def _process_env(tmp: str) -> dict[str, str]:
     return env
 
 
-def _posix_limits(limits: Limits) -> Any:
+def _posix_limits(limits: Limits, *, address_space: bool = True) -> Any:
     if sys.platform == "win32":
         return None
 
@@ -254,7 +254,8 @@ def _posix_limits(limits: Limits) -> Any:
         import resource
 
         mem = limits.memory_mb * 1024 * 1024
-        for res, value in ((resource.RLIMIT_AS, mem), (resource.RLIMIT_CPU, int(limits.timeout_seconds) + 1),
+        caps = [(resource.RLIMIT_AS, mem)] if address_space else []  # V8 reserves far more address space
+        for res, value in (*caps, (resource.RLIMIT_CPU, int(limits.timeout_seconds) + 1),
                            (resource.RLIMIT_FSIZE, 50 * 1024 * 1024), (resource.RLIMIT_CORE, 0)):  # fmt: skip
             try:
                 resource.setrlimit(res, (value, value))
@@ -302,7 +303,8 @@ async def _run_process(language: Language, code: str, inputs: Any, limits: Limit
         proc = await asyncio.create_subprocess_exec(
             *argv, cwd=tmp, env=_process_env(tmp),
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
-            preexec_fn=_posix_limits(limits), start_new_session=sys.platform != "win32",
+            preexec_fn=_posix_limits(limits, address_space=language == "python"),
+            start_new_session=sys.platform != "win32",
         )  # fmt: skip
 
         async def kill() -> None:
