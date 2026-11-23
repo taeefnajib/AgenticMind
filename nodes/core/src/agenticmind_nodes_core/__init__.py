@@ -7,6 +7,7 @@ from typing import Any
 from agenticmind_node_sdk import NodeDefinition
 
 from .approval import human_approval
+from .code import code
 from .control import conditional
 from .flow import join, loop, loop_end, loop_end_v1, router
 from .guardrails import input_guard, output_guard, pii_redactor
@@ -42,6 +43,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     input_guard,
     output_guard,
     pii_redactor,
+    code,
 )
 
 

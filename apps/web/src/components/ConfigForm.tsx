@@ -150,6 +150,8 @@ function Control({
           onChange={(e) => onChange(e.target.value)}
         />
       );
+    case "code":
+      return <CodeControl id={id} value={typeof value === "string" ? value : ""} onChange={onChange} />;
     case "routes":
       return <RoutesControl value={value} onChange={onChange} />;
     case "route_ref":
@@ -272,5 +274,27 @@ function SecretStatus({ name }: { name: string }) {
     <p className="mt-1 text-[11px] text-emerald-700">
       ✓ Set {status === "workspace" ? "in Settings → Secrets" : "in the server environment"}. The value never enters the project.
     </p>
+  );
+}
+
+/** Monospace code editor: Tab indents (4 spaces) instead of leaving the field. */
+export function CodeControl({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <textarea
+      id={id}
+      className="am-input min-h-[220px] whitespace-pre font-mono text-xs leading-5"
+      spellCheck={false}
+      wrap="off"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key !== "Tab" || e.shiftKey) return;
+        e.preventDefault();
+        const el = e.currentTarget;
+        const { selectionStart: start, selectionEnd: end } = el;
+        onChange(value.slice(0, start) + "    " + value.slice(end));
+        requestAnimationFrame(() => el.setSelectionRange(start + 4, start + 4));
+      }}
+    />
   );
 }

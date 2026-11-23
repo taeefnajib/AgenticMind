@@ -33,6 +33,7 @@ members = [
     "agenticmind-providers",
     "agenticmind-registry",
     "agenticmind-runtime",
+    "agenticmind-sandbox",
     "agenticmind-vectorstores",
     "agenticmind-workspace",
 ]
@@ -192,9 +193,11 @@ version = "0.1.0"
 source = { editable = "nodes/agents" }
 dependencies = [
     { name = "agenticmind-node-sdk" },
+    { name = "agenticmind-nodes-core" },
     { name = "agenticmind-nodes-data" },
     { name = "agenticmind-nodes-rag" },
     { name = "agenticmind-providers" },
+    { name = "agenticmind-sandbox" },
     { name = "agenticmind-vectorstores" },
     { name = "jsonschema" },
     { name = "mcp" },
@@ -204,9 +207,11 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
+    { name = "agenticmind-nodes-core", editable = "nodes/core" },
     { name = "agenticmind-nodes-data", editable = "nodes/data" },
     { name = "agenticmind-nodes-rag", editable = "nodes/rag" },
     { name = "agenticmind-providers", editable = "packages/providers" },
+    { name = "agenticmind-sandbox", editable = "packages/sandbox" },
     { name = "agenticmind-vectorstores", editable = "packages/vectorstores" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "mcp", specifier = ">=2.3.0" },
@@ -220,6 +225,7 @@ source = { editable = "nodes/core" }
 dependencies = [
     { name = "agenticmind-node-sdk" },
     { name = "agenticmind-providers" },
+    { name = "agenticmind-sandbox" },
     { name = "jsonschema" },
 ]
 
@@ -227,6 +233,7 @@ dependencies = [
 requires-dist = [
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
     { name = "agenticmind-providers", editable = "packages/providers" },
+    { name = "agenticmind-sandbox", editable = "packages/sandbox" },
     { name = "jsonschema", specifier = ">=4.26.0" },
 ]
 
@@ -417,6 +424,11 @@ requires-dist = [
 provides-extras = ["mcp"]
 
 [[package]]
+name = "agenticmind-sandbox"
+version = "0.1.0"
+source = { editable = "packages/sandbox" }
+
+[[package]]
 name = "agenticmind-vectorstores"
 version = "0.1.0"
 source = { editable = "packages/vectorstores" }
@@ -502,6 +514,7 @@ dependencies = [
     { name = "agenticmind-providers", extra = ["local"] },
     { name = "agenticmind-registry" },
     { name = "agenticmind-runtime", extra = ["mcp"] },
+    { name = "agenticmind-sandbox" },
     { name = "agenticmind-vectorstores", extra = ["chroma", "faiss", "lancedb", "milvus", "mongodb", "pgvector", "pinecone", "redis", "search", "weaviate"] },
 ]
 
@@ -531,6 +544,7 @@ requires-dist = [
     { name = "agenticmind-providers", extras = ["local"], editable = "packages/providers" },
     { name = "agenticmind-registry", editable = "packages/node-registry" },
     { name = "agenticmind-runtime", extras = ["mcp"], editable = "packages/runtime" },
+    { name = "agenticmind-sandbox", editable = "packages/sandbox" },
     { name = "agenticmind-vectorstores", extras = ["chroma", "faiss", "lancedb", "pgvector", "pinecone", "milvus", "weaviate", "mongodb", "redis", "search"], editable = "packages/vectorstores" },
 ]
 

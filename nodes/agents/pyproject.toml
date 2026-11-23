@@ -10,6 +10,8 @@ dependencies = [
     "agenticmind-vectorstores",
     "agenticmind-nodes-rag",
     "agenticmind-nodes-data",
+    "agenticmind-nodes-core",
+    "agenticmind-sandbox",
     "jsonschema>=4.26.0",
     "tzdata>=2026.6",
     "mcp>=2.3.0",

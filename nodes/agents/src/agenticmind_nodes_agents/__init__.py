@@ -7,6 +7,7 @@ from typing import Any
 from agenticmind_node_sdk import NodeDefinition
 
 from .agent import agent, agent_v1, agent_v11
+from .code_tool import code_tool
 from .mcp_client import mcp_call, mcp_tools
 from .memory import conversation_history, memory_tool, recall, remember, save_turn
 from .orchestration import critic, planner, subagent
@@ -37,6 +38,7 @@ ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     web_fetch_tool,
     mcp_tools,
     mcp_call,
+    code_tool,
 )
 
 

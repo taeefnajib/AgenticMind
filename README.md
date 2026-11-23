@@ -109,6 +109,12 @@ one tool directly. The other way round, tick **Expose as MCP tool** in a project
 being the tool's arguments (set `AGENTICMIND_MCP_TOKEN` to require a bearer token). `agenticmind mcp-serve
 graph.json` serves graph files over stdio. Template *Agent with MCP tools*. See ADR-0033.
 
+To run code: the **Code** node runs Python or JavaScript on the connected value (`inputs`; set `result` /
+`return` it), and the **Code Interpreter Tool** lets an Agent write and run code and fix it from the traceback.
+Code runs in a **Docker** container by default (no network, read-only, memory/CPU/process limits, unprivileged),
+so start Docker; for trusted code on your own machine `AGENTICMIND_SANDBOX=process` runs a local interpreter
+instead (not a security boundary). Template *Analyse data with code*. See ADR-0034.
+
 To choose a vector database: the **Vector Store** node supports Qdrant (default, embedded), Chroma, FAISS and
 LanceDB on this machine, and Milvus/Zilliz, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis, pgvector
 and Pinecone as servers or cloud services. See ADR-0028.

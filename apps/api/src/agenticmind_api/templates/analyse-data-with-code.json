@@ -1,0 +1,298 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Analyse data with code (sandbox)",
+    "description": "A Code node summarises sales data in Python, and an Agent with the Code Interpreter tool answers questions by writing and running its own code. Code runs in the sandbox: Docker containers by default (start Docker), or set AGENTICMIND_SANDBOX=process for trusted local use. The agent uses OpenRouter (Gemini) via OPENROUTER_API_KEY."
+  },
+  "runtime": {
+    "engine": "agenticmind",
+    "profile": "development"
+  },
+  "nodes": [
+    {
+      "id": "data",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {
+        "key": "sales",
+        "value_type": "JSON",
+        "required": false,
+        "default": [
+          {
+            "month": "2026-01",
+            "region": "north",
+            "revenue": 12400,
+            "units": 310
+          },
+          {
+            "month": "2026-01",
+            "region": "south",
+            "revenue": 9800,
+            "units": 260
+          },
+          {
+            "month": "2026-02",
+            "region": "north",
+            "revenue": 13900,
+            "units": 342
+          },
+          {
+            "month": "2026-02",
+            "region": "south",
+            "revenue": 8700,
+            "units": 231
+          },
+          {
+            "month": "2026-03",
+            "region": "north",
+            "revenue": 15100,
+            "units": 365
+          },
+          {
+            "month": "2026-03",
+            "region": "south",
+            "revenue": 10350,
+            "units": 274
+          }
+        ]
+      },
+      "ui": {
+        "position": {
+          "x": 0,
+          "y": 120
+        },
+        "label": "Sales data"
+      }
+    },
+    {
+      "id": "question",
+      "type": "agenticmind.core.manual_input",
+      "version": "1.0.0",
+      "config": {
+        "key": "question",
+        "value_type": "String",
+        "required": false,
+        "default": "Which region has the higher average price per unit, and by how much (in %)?"
+      },
+      "ui": {
+        "position": {
+          "x": 0,
+          "y": 320
+        },
+        "label": "Question"
+      }
+    },
+    {
+      "id": "stats",
+      "type": "agenticmind.core.code",
+      "version": "1.0.0",
+      "config": {
+        "language": "python",
+        "code": "# `inputs` is the list of sales rows. Set `result` to any JSON value.\nfrom collections import defaultdict\nfrom statistics import mean\n\nby_region = defaultdict(list)\nfor row in inputs:\n    by_region[row[\"region\"]].append(row)\n\nresult = {\n    region: {\n        \"revenue\": sum(r[\"revenue\"] for r in rows),\n        \"avg_price\": round(sum(r[\"revenue\"] for r in rows) / sum(r[\"units\"] for r in rows), 2),\n        \"growth_pct\": round((rows[-1][\"revenue\"] / rows[0][\"revenue\"] - 1) * 100, 1),\n    }\n    for region, rows in by_region.items()\n}\nprint(f\"{len(inputs)} rows, {len(result)} regions, mean revenue {mean(r['revenue'] for r in inputs):.0f}\")\n",
+        "timeout_seconds": 30
+      },
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 0
+        },
+        "label": "Code: region summary"
+      }
+    },
+    {
+      "id": "interpreter",
+      "type": "agenticmind.agents.code_tool",
+      "version": "1.0.0",
+      "config": {
+        "name": "run_code",
+        "language": "python"
+      },
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 420
+        },
+        "label": "Code Interpreter"
+      }
+    },
+    {
+      "id": "context",
+      "type": "agenticmind.core.to_text",
+      "version": "1.0.0",
+      "config": {},
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 240
+        },
+        "label": "Data as text"
+      }
+    },
+    {
+      "id": "analyst",
+      "type": "agenticmind.agents.agent",
+      "version": "1.2.0",
+      "config": {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "api_key": {
+          "$secret": "OPENROUTER_API_KEY"
+        },
+        "max_turns": 6,
+        "instructions": "You are a careful data analyst. The sales data is in the background as JSON. Always compute numbers with the run_code tool (pass the data as `inputs`) instead of doing arithmetic yourself, then answer in two sentences."
+      },
+      "ui": {
+        "position": {
+          "x": 640,
+          "y": 300
+        },
+        "label": "Analyst agent"
+      }
+    },
+    {
+      "id": "summary",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "summary"
+      },
+      "ui": {
+        "position": {
+          "x": 640,
+          "y": 0
+        },
+        "label": "Summary"
+      }
+    },
+    {
+      "id": "printed",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "printed"
+      },
+      "ui": {
+        "position": {
+          "x": 640,
+          "y": 130
+        },
+        "label": "Printed"
+      }
+    },
+    {
+      "id": "answer",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "answer"
+      },
+      "ui": {
+        "position": {
+          "x": 960,
+          "y": 300
+        },
+        "label": "Answer"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "kind": "data",
+      "source": {
+        "node": "data",
+        "port": "value"
+      },
+      "target": {
+        "node": "stats",
+        "port": "inputs"
+      }
+    },
+    {
+      "id": "e2",
+      "kind": "data",
+      "source": {
+        "node": "stats",
+        "port": "result"
+      },
+      "target": {
+        "node": "summary",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e3",
+      "kind": "data",
+      "source": {
+        "node": "stats",
+        "port": "stdout"
+      },
+      "target": {
+        "node": "printed",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e4",
+      "kind": "data",
+      "source": {
+        "node": "data",
+        "port": "value"
+      },
+      "target": {
+        "node": "context",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e5",
+      "kind": "data",
+      "source": {
+        "node": "context",
+        "port": "text"
+      },
+      "target": {
+        "node": "analyst",
+        "port": "context"
+      }
+    },
+    {
+      "id": "e6",
+      "kind": "data",
+      "source": {
+        "node": "question",
+        "port": "value"
+      },
+      "target": {
+        "node": "analyst",
+        "port": "task"
+      }
+    },
+    {
+      "id": "e7",
+      "kind": "data",
+      "source": {
+        "node": "interpreter",
+        "port": "tool"
+      },
+      "target": {
+        "node": "analyst",
+        "port": "tools"
+      }
+    },
+    {
+      "id": "e8",
+      "kind": "data",
+      "source": {
+        "node": "analyst",
+        "port": "answer"
+      },
+      "target": {
+        "node": "answer",
+        "port": "value"
+      }
+    }
+  ],
+  "metadata": {}
+}

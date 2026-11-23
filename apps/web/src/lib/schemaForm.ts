@@ -2,7 +2,7 @@
 
 import type { JsonSchema } from "../api/types";
 
-export type FieldKind = "artifacts" | "routes" | "route_ref" | "secret" | "enum" | "boolean" | "integer" | "number" | "string" | "textarea" | "json";
+export type FieldKind = "artifacts" | "routes" | "route_ref" | "secret" | "enum" | "boolean" | "integer" | "number" | "string" | "textarea" | "code" | "json";
 
 export interface FieldSpec {
   name: string;
@@ -60,7 +60,7 @@ export function fieldsFromSchema(root: JsonSchema): FieldSpec[] {
     } else if (prop.type === "boolean") kind = "boolean";
     else if (prop.type === "integer") kind = "integer";
     else if (prop.type === "number") kind = "number";
-    else if (prop.type === "string") kind = ui.widget === "textarea" ? "textarea" : "string";
+    else if (prop.type === "string") kind = ui.widget === "textarea" ? "textarea" : ui.widget === "code" ? "code" : "string";
     else kind = "json";
     return {
       name,
