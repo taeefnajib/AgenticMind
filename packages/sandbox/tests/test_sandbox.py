@@ -62,6 +62,8 @@ async def test_javascript_return_console_and_permissions():
     # Node's permission model: no child processes in process mode
     spawn = "return require('child_process').execSync('echo hi').toString()"
     r = await execute("javascript", spawn, None, policy=PROCESS)
+    if any("no permission model" in n for n in r.notes):  # Node < 20: said so instead of pretending
+        return
     assert not r.ok and "restricted" in r.error["message"]
     r = await execute("javascript", "return require('fs').readFileSync('README.md', 'utf8')", None, policy=PROCESS)
     assert not r.ok and "restricted" in r.error["message"]  # no file system reads either
@@ -96,6 +98,16 @@ def test_docker_argv_is_locked_down():
 def test_parse_output_handles_crashes():
     crashed = parse_output(b"partial", b"Killed", 137)
     assert not crashed.ok and crashed.error["type"] == "SandboxCrash" and "memory" in crashed.error["message"]
+    bad_flag = parse_output(b"", b"node: bad option: --nope\n", 9)
+    assert bad_flag.error["message"] == "The code ended without a result: node: bad option: --nope"
+
+
+def test_daemon_unreachable_is_not_a_missing_image():
+    from agenticmind_sandbox.runner import _daemon_unreachable
+
+    assert not _daemon_unreachable("Error response from daemon: No such image: python:3.12-slim")
+    assert _daemon_unreachable("Cannot connect to the Docker daemon at unix:///var/run/docker.sock.")
+    assert _daemon_unreachable("failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine")
 
 
 @pytest.mark.skipif(not docker_ready(), reason="Docker is not available")

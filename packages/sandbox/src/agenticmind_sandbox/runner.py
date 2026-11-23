@@ -111,8 +111,11 @@ def parse_output(stdout: bytes, stderr: bytes, exit_code: int | None) -> Executi
     at = text.rfind("\n" + MARKER)
     if at < 0:
         message = "The code ended without a result"
-        if exit_code is not None and exit_code < 0 or exit_code in (137, 9):
+        if exit_code == 137 or (exit_code is not None and exit_code < 0):
             message = "The sandbox killed the process (memory limit or a crash)"
+        first = next((ln.strip() for ln in err.splitlines() if ln.strip()), "")
+        if first:
+            message += f": {first[:300]}"
         tail = (err or text).strip()[-2000:]
         return ExecutionResult(ok=False, stdout=text[-20_000:], stderr=err, exit_code=exit_code,
                                error={"type": "SandboxCrash", "message": message, "traceback": tail})  # fmt: skip
@@ -181,11 +184,27 @@ async def ensure_image(image: str) -> None:
     code, out = await _run_quiet("docker", "image", "inspect", "--format", "{{.Id}}", image, timeout=30)
     if code == 0:
         return
-    if "daemon" in out.lower() or "connect" in out.lower() or "pipe" in out.lower():
+    if _daemon_unreachable(out):
         raise SandboxError("SANDBOX_UNAVAILABLE", _DOCKER_HELP.format(detail=out.strip().splitlines()[-1][:300]))
     code, out = await _run_quiet("docker", "pull", "--quiet", image, timeout=600)
     if code != 0:
         raise SandboxError("SANDBOX_IMAGE_UNAVAILABLE", f"Could not pull {image}: {out.strip()[-300:]}")
+
+
+_UNREACHABLE = (
+    "cannot connect",
+    "failed to connect",
+    "is the docker daemon running",
+    "connection refused",
+    "error during connect",
+    "permission denied while trying to connect",
+)
+
+
+def _daemon_unreachable(output: str) -> bool:
+    """True when Docker itself cannot be reached (not e.g. "No such image", which also mentions the daemon)."""
+    low = output.lower()
+    return any(marker in low for marker in _UNREACHABLE)
 
 
 _DOCKER_HELP = (
@@ -245,6 +264,28 @@ def _posix_limits(limits: Limits) -> Any:
     return apply
 
 
+_NODE_FLAGS: dict[str, str | None] = {}
+
+
+async def _node_permission_flag(node: str) -> str | None:
+    """``--permission`` (Node 22.13+ / 23.5+), ``--experimental-permission`` (Node 20 to 22.12), else None."""
+    if node in _NODE_FLAGS:
+        return _NODE_FLAGS[node]
+    code, out = await _run_quiet(node, "--version", timeout=15)
+    flag: str | None = None
+    try:
+        major, minor = (int(x) for x in out.strip().lstrip("v").split(".")[:2])
+    except ValueError:
+        major = minor = 0
+    if code == 0:
+        if (major, minor) >= (23, 5) or (major == 22 and minor >= 13):
+            flag = "--permission"
+        elif major >= 20:
+            flag = "--experimental-permission"
+    _NODE_FLAGS[node] = flag
+    return flag
+
+
 async def _run_process(language: Language, code: str, inputs: Any, limits: Limits) -> ExecutionResult:
     notes = ["process mode: not a security boundary; network access is not blocked"]
     if language == "python":
@@ -253,7 +294,10 @@ async def _run_process(language: Language, code: str, inputs: Any, limits: Limit
         node = shutil.which("node")
         if node is None:
             raise SandboxError("SANDBOX_UNAVAILABLE", "JavaScript needs Node.js (node) on this machine")
-        argv = [node, "--permission", "--max-old-space-size=" + str(max(limits.memory_mb, 32)), "-e", JAVASCRIPT]
+        flag = await _node_permission_flag(node)
+        if flag is None:
+            notes.append("this Node.js has no permission model (needs Node 20+): file system access is not restricted")
+        argv = [node, *([flag] if flag else []), f"--max-old-space-size={max(limits.memory_mb, 32)}", "-e", JAVASCRIPT]
     with tempfile.TemporaryDirectory(prefix="am-sbx-") as tmp:
         proc = await asyncio.create_subprocess_exec(
             *argv, cwd=tmp, env=_process_env(tmp),
