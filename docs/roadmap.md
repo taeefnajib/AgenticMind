@@ -136,6 +136,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **Native model providers** (ADR-0036): OpenAI, Anthropic (official SDK: caching, thinking replay, refusal
+  fallbacks), Gemini (generateContent: function ids, thought signatures), Azure OpenAI (v1), Amazon Bedrock
+  (Converse + API key), Mistral, Groq, DeepSeek, Together, xAI; provider info table driving validation, the
+  settings picker and model lists.
 - **Triggers** (ADR-0035): Webhook (token / HMAC, ack or wait), Schedule (cron + time zone / interval), Queue
   (Redis Streams, SQS) and Chat (Slack, Telegram, WhatsApp, email) trigger nodes; a trigger service activating
   the latest saved revision, verifying each platform's signature, deduplicating retries, starting recorded runs
@@ -179,6 +183,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
+
+- Native providers report tokens but not cost (no price tables yet); no native embeddings for them, no OpenAI
+  Responses API, no Vertex AI provider; the native adapters were verified with mock transports, not live keys.
 
 - Triggers run inside the API process: several API processes on one database would double-fire schedules and
   queue polls; missed schedules are not replayed; exported apps do not host triggers; chat platforms need a
@@ -264,8 +271,8 @@ AI methods in ADR-0030):
 
 Open-source production plan (ADR-0032; one reviewed feature each):
 - Done: MCP client and server (ADR-0033); sandboxed code execution (ADR-0034); triggers
-  (ADR-0035).
-- Next: native model providers; observability export; GitHub integration (push projects with version
+  (ADR-0035); native model providers (ADR-0036).
+- Next: observability export; GitHub integration (push projects with version
   control); durable execution; streaming.
 
 1. Version history panel and visual diff of revisions (requested in the blueprint, not yet built).

@@ -23,14 +23,72 @@ from agenticmind_node_sdk import ModelUsage
 from pydantic import BaseModel, Field
 
 #: Chat providers a node config may name (one list, so every model-using node offers the same choice).
-ChatProviderName = Literal["openrouter", "huggingface", "ollama", "openai_compatible", "mock"]
+#: Adding a name is a compatible config change (an extra enum option); see ADR-0036.
+ChatProviderName = Literal[
+    "openrouter",
+    "openai",
+    "anthropic",
+    "gemini",
+    "azure_openai",
+    "bedrock",
+    "mistral",
+    "groq",
+    "deepseek",
+    "together",
+    "xai",
+    "huggingface",
+    "ollama",
+    "openai_compatible",
+    "mock",
+]
+
+
+class ProviderInfo(BaseModel):
+    name: str
+    label: str
+    #: Secret the API key is usually kept in (None: no key needed).
+    key_secret: str | None = None
+    #: What ``base_url`` means for this provider, when it must be given.
+    base_url_required: str | None = None
+    default_model: str = ""
+    native: bool = False
+
+
+PROVIDERS: dict[str, ProviderInfo] = {p.name: p for p in [
+    ProviderInfo(name="openrouter", label="OpenRouter (Gemini, Claude, GPT and more)", key_secret="OPENROUTER_API_KEY",
+                 default_model="google/gemini-3.8-flash"),
+    ProviderInfo(name="openai", label="OpenAI", key_secret="OPENAI_API_KEY", native=True),
+    ProviderInfo(name="anthropic", label="Anthropic (Claude)", key_secret="ANTHROPIC_API_KEY",
+                 default_model="claude-opus-5-5", native=True),
+    ProviderInfo(name="gemini", label="Google Gemini", key_secret="GEMINI_API_KEY", default_model="gemini-3.8-flash",
+                 native=True),
+    ProviderInfo(name="azure_openai", label="Azure OpenAI", key_secret="AZURE_OPENAI_API_KEY",
+                 base_url_required="the resource endpoint, e.g. https://my-resource.openai.azure.com",
+                 default_model="your deployment name", native=True),
+    ProviderInfo(name="bedrock", label="Amazon Bedrock", key_secret="AWS_BEARER_TOKEN_BEDROCK",
+                 base_url_required="the AWS region, e.g. us-east-1", default_model="us.anthropic.claude-sonnet-4-6",
+                 native=True),
+    ProviderInfo(name="mistral", label="Mistral AI", key_secret="MISTRAL_API_KEY",
+                 default_model="mistral-medium-latest", native=True),
+    ProviderInfo(name="groq", label="Groq", key_secret="GROQ_API_KEY", native=True),
+    ProviderInfo(name="deepseek", label="DeepSeek", key_secret="DEEPSEEK_API_KEY", default_model="deepseek-chat",
+                 native=True),
+    ProviderInfo(name="together", label="Together AI", key_secret="TOGETHER_API_KEY", native=True),
+    ProviderInfo(name="xai", label="xAI (Grok)", key_secret="XAI_API_KEY", native=True),
+    ProviderInfo(name="huggingface", label="Hugging Face Inference Providers", key_secret="HF_TOKEN"),
+    ProviderInfo(name="ollama", label="Ollama (models on your machine)"),
+    ProviderInfo(name="openai_compatible", label="Any OpenAI-compatible API (vLLM, LM Studio, ...)",
+                 base_url_required="the API root ending before /chat/completions"),
+    ProviderInfo(name="mock", label="Mock (offline test responses)", default_model="mock-1"),
+]}  # fmt: skip
 #: Providers that always need an API key, and the secret it is usually kept in.
-KEYED_CHAT_PROVIDERS: dict[str, str] = {"openrouter": "OPENROUTER_API_KEY", "huggingface": "HF_TOKEN"}
+KEYED_CHAT_PROVIDERS: dict[str, str] = {n: p.key_secret for n, p in PROVIDERS.items() if p.key_secret}
 CHAT_PROVIDER_HELP = (
-    "openrouter: Gemini, Claude, GPT and many more (OPENROUTER_API_KEY). huggingface: open models via Hugging "
-    "Face Inference Providers (HF_TOKEN). ollama: models on your own machine (no key; default "
-    "http://localhost:11434/v1). openai_compatible: any OpenAI-style API (vLLM, TGI, LM Studio...; needs "
-    "base_url). mock: offline test responses."
+    "openrouter: one key for Gemini, Claude, GPT and many more. openai / anthropic / gemini / mistral / groq / "
+    "deepseek / together / xai: the provider's own API with its own key. azure_openai: your Azure resource "
+    "(base_url = resource endpoint, model = deployment). bedrock: Amazon Bedrock (base_url = region, Bedrock API "
+    "key). huggingface: open models via Hugging Face (HF_TOKEN). ollama: models on your own machine. "
+    "openai_compatible: any OpenAI-style API (needs base_url). mock: offline test responses."
 )
 
 
@@ -39,8 +97,9 @@ def check_chat_provider(provider: str, api_key: Any, base_url: str | None) -> No
     if provider in KEYED_CHAT_PROVIDERS and api_key is None:
         name = KEYED_CHAT_PROVIDERS[provider]
         raise ValueError(f'{provider} needs an api_key secret reference (e.g. {{"$secret": "{name}"}})')
-    if provider == "openai_compatible" and not base_url:
-        raise ValueError("openai_compatible needs a base_url")
+    info = PROVIDERS.get(provider)
+    if info is not None and info.base_url_required and not base_url:
+        raise ValueError(f"{provider} needs base_url: {info.base_url_required}")
 
 
 class ImagePart(BaseModel):
@@ -76,6 +135,9 @@ class ChatMessage(BaseModel):
     name: str | None = None
     #: Images for vision models (user messages only).
     images: list[ImagePart] = Field(default_factory=list)
+    #: Opaque provider data an assistant turn must carry back unchanged (Claude thinking blocks, Gemini
+    #: thought signatures). Copied from ``ChatResponse.provider_state``; other providers ignore it.
+    provider_state: Any = None
 
 
 class ChatRequest(BaseModel):
@@ -94,6 +156,13 @@ class ChatResponse(BaseModel):
     tool_calls: list[ToolCall] = Field(default_factory=list)
     finish_reason: str | None = None
     model: str | None = None
+    #: See ``ChatMessage.provider_state``: put it on the assistant message that records this response.
+    provider_state: Any = None
+
+    def assistant_message(self) -> ChatMessage:
+        """The assistant turn to append to the conversation (keeps provider state for the next request)."""
+        return ChatMessage(role="assistant", content=self.text or "", tool_calls=self.tool_calls or None,
+                           provider_state=self.provider_state)  # fmt: skip
 
 
 class ProviderError(Exception):
@@ -227,16 +296,40 @@ def provider_names() -> list[str]:
     return sorted(_PROVIDERS)
 
 
-from .chat import OpenAICompatibleChat  # noqa: E402  (needs the types above)
+from .anthropic_chat import AnthropicChat  # noqa: E402  (needs the types above)
+from .bedrock_chat import BedrockChat  # noqa: E402
+from .chat import OpenAICompatibleChat, list_openai_models  # noqa: E402
+from .gemini_chat import GeminiChat  # noqa: E402
 
-register_provider(OpenAICompatibleChat("openrouter"))
-register_provider(OpenAICompatibleChat("openai_compatible"))
-register_provider(OpenAICompatibleChat("huggingface"))
-register_provider(OpenAICompatibleChat("ollama"))
+for _name in ("openrouter", "openai_compatible", "huggingface", "ollama", "openai", "azure_openai", "mistral", "groq",
+              "deepseek", "together", "xai"):  # fmt: skip
+    register_provider(OpenAICompatibleChat(_name))
+register_provider(AnthropicChat())
+register_provider(GeminiChat())
+register_provider(BedrockChat())
+
+
+async def list_models(provider: str, api_key: str | None, base_url: str | None = None) -> list[dict[str, Any]]:
+    """Models a provider offers (for model pickers). Raises ``ProviderError`` / ``httpx`` errors on failure."""
+    if provider == "mock":
+        return [{"id": "mock-1", "name": "Mock (deterministic, offline)"}]
+    if provider == "bedrock":
+        return []  # listing needs the AWS control-plane API; enter a model or inference-profile id
+    impl = get_provider(provider)
+    lister = getattr(impl, "list_models", None)
+    if lister is not None:
+        if not api_key:
+            raise ProviderError("PROVIDER_AUTH_MISSING", f"{provider} needs an API key to list models")
+        return await lister(api_key, base_url)
+    return await list_openai_models(provider, api_key, base_url)
+
 
 __all__ = [
     "CHAT_PROVIDER_HELP",
     "KEYED_CHAT_PROVIDERS",
+    "PROVIDERS",
+    "ProviderInfo",
+    "list_models",
     "ChatMessage",
     "ChatProviderName",
     "ImagePart",

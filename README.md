@@ -115,6 +115,12 @@ Code runs in a **Docker** container by default (no network, read-only, memory/CP
 so start Docker; for trusted code on your own machine `AGENTICMIND_SANDBOX=process` runs a local interpreter
 instead (not a security boundary). Template *Analyse data with code*. See ADR-0034.
 
+To choose a model provider: every model node can use **OpenRouter** (one key, many models), the providers'
+own APIs (**OpenAI**, **Anthropic** (official SDK, prompt caching, thinking kept across tool calls),
+**Google Gemini**, **Azure OpenAI**, **Amazon Bedrock**, **Mistral**, **Groq**, **DeepSeek**, **Together**,
+**xAI**), **Hugging Face**, local **Ollama** or any OpenAI-compatible server. Put the key in `.env` or Settings →
+Secrets under the provider's usual name (e.g. `ANTHROPIC_API_KEY`). See ADR-0036.
+
 To start workflows from events: **Webhook Trigger** (token or HMAC protected; can wait and return the outputs),
 **Schedule Trigger** (cron with a time zone, or every N minutes), **Queue Trigger** (Redis Streams, Amazon SQS) and
 **Chat Trigger** (Slack, Telegram, WhatsApp, email), which replies with a run output. Tick *Enabled* and save:

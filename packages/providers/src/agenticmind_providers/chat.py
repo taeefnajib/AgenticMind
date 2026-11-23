@@ -25,14 +25,20 @@ from . import ChatRequest, ChatResponse, ProviderError, ToolCall
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 HUGGINGFACE_BASE_URL = "https://router.huggingface.co/v1"
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
-#: Default base URL per provider (None: the config must give one).
+#: Default base URL per provider (None: the config must give one). Verified Nov 2026 (ADR-0036).
 DEFAULT_BASE_URLS: dict[str, str] = {
     "openrouter": OPENROUTER_BASE_URL,
     "huggingface": HUGGINGFACE_BASE_URL,
     "ollama": OLLAMA_BASE_URL,
+    "openai": "https://api.openai.com/v1",
+    "mistral": "https://api.mistral.ai/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "deepseek": "https://api.deepseek.com",
+    "together": "https://api.together.ai/v1",
+    "xai": "https://api.x.ai/v1",
 }
-#: Providers that read the older ``max_tokens`` field.
-_MAX_TOKENS_FIELD = {"ollama": "max_tokens", "huggingface": "max_tokens"}
+#: Providers that read the older ``max_tokens`` field (the rest take ``max_completion_tokens``).
+_MAX_TOKENS_FIELD = {p: "max_tokens" for p in ("ollama", "huggingface", "mistral", "deepseek", "together", "xai")}
 DEFAULT_OPENROUTER_MODEL = "google/gemini-3.8-flash"
 APP_TITLE = "AgenticMind"
 
@@ -116,6 +122,34 @@ def parse_response(payload: dict[str, Any], provider: str, requested_model: str)
     )
 
 
+def chat_base_url(provider: str, base_url: str | None) -> str | None:
+    """The API root for a provider. Azure OpenAI accepts the resource endpoint and adds ``/openai/v1``."""
+    url = (base_url or DEFAULT_BASE_URLS.get(provider) or "").strip() or None
+    if provider == "azure_openai" and url and "/openai/" not in url:
+        url = url.rstrip("/") + "/openai/v1"
+    return url
+
+
+def auth_headers(provider: str, api_key: str) -> dict[str, str]:
+    # Azure OpenAI's v1 API takes the resource key in ``api-key`` (Entra tokens would use Bearer)
+    return {"api-key": api_key} if provider == "azure_openai" else {"Authorization": f"Bearer {api_key}"}
+
+
+async def list_openai_models(provider: str, api_key: str | None, base_url: str | None) -> list[dict[str, Any]]:
+    """``GET {base}/models`` (OpenAI-compatible)."""
+    import httpx
+
+    base = chat_base_url(provider, base_url)
+    if not base:
+        raise ProviderError("PROVIDER_CONFIG_INVALID", f"{provider} needs a base_url")
+    async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10)) as client:
+        res = await client.get(f"{base.rstrip('/')}/models", headers=auth_headers(provider, api_key) if api_key else {})
+    res.raise_for_status()
+    data = res.json().get("data") or []
+    return [{"id": str(m["id"]), "name": str(m.get("name") or m["id"]), "context_length": m.get("context_length")}
+            for m in data if isinstance(m, dict) and m.get("id")]  # fmt: skip
+
+
 class OpenAICompatibleChat:
     def __init__(self, name: str) -> None:
         self.name = name
@@ -125,16 +159,18 @@ class OpenAICompatibleChat:
     ) -> ChatResponse:
         import httpx
 
-        base_url = base_url or DEFAULT_BASE_URLS.get(self.name)
-        if self.name == "openrouter" and not api_key:
-            raise ProviderError("PROVIDER_AUTH_MISSING", "OpenRouter needs an API key (OPENROUTER_API_KEY)")
-        if self.name == "huggingface" and not api_key:
-            raise ProviderError("PROVIDER_AUTH_MISSING", "Hugging Face needs a token (HF_TOKEN)")
+        from . import KEYED_CHAT_PROVIDERS
+
+        base_url = chat_base_url(self.name, base_url)
+        if self.name in KEYED_CHAT_PROVIDERS and not api_key:
+            raise ProviderError(
+                "PROVIDER_AUTH_MISSING", f"{self.name} needs an API key ({KEYED_CHAT_PROVIDERS[self.name]})"
+            )
         if not base_url:
             raise ProviderError("PROVIDER_CONFIG_INVALID", f"{self.name} needs a base_url")
         headers = {"Content-Type": "application/json", "X-Title": APP_TITLE}
         if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+            headers.update(auth_headers(self.name, api_key))
         url = base_url.rstrip("/") + "/chat/completions"
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15)) as client:

@@ -31,11 +31,6 @@ interface Props {
   onProjectDeleted: (id: string) => Promise<void>;
 }
 
-const PROVIDER_LABEL: Record<string, string> = {
-  openrouter: "OpenRouter",
-  openai_compatible: "OpenAI-compatible API",
-  mock: "Mock (offline, deterministic)",
-};
 
 export function SettingsDialog(p: Props) {
   const { user, mode } = useAuth();
@@ -336,6 +331,7 @@ function AssistantSection({ notify }: { notify: Props["notify"] }) {
     settingsApi.assistant().then(apply, (err) => setLoadError(errorMessage(err)));
   }, [apply]);
 
+  const providerInfo = state?.providers.find((p) => p.name === form?.provider);
   const needsKey = useMemo(
     () => state?.providers.find((p) => p.name === form?.provider)?.needs_key ?? false,
     [state, form?.provider],
@@ -450,19 +446,25 @@ function AssistantSection({ notify }: { notify: Props["notify"] }) {
                 className="am-input"
                 value={form.provider}
                 onChange={(e) => {
-                  set({ provider: e.target.value });
+                  const next = state.providers.find((p) => p.name === e.target.value);
+                  // suggest the provider's usual secret name and model when switching
+                  set({
+                    provider: e.target.value,
+                    ...(next?.key_secret ? { api_key_secret: next.key_secret } : {}),
+                    ...(next?.default_model && !next.default_model.includes(" ") ? { model: next.default_model } : {}),
+                  });
                   setModels(null);
                 }}
               >
                 {state.providers.map((p) => (
                   <option key={p.name} value={p.name}>
-                    {PROVIDER_LABEL[p.name] ?? p.name}
+                    {p.label ?? p.name}
                   </option>
                 ))}
               </select>
               {err("provider")}
             </Field>
-            <Field label="Model" hint={form.provider === "openrouter" ? "An OpenRouter model id, e.g. google/gemini-3.8-flash." : undefined}>
+            <Field label="Model" hint={providerInfo?.default_model ? `e.g. ${providerInfo.default_model}` : undefined}>
               <div className="flex gap-1.5">
                 <input
                   className="am-input font-mono text-[13px]"
@@ -545,14 +547,14 @@ function AssistantSection({ notify }: { notify: Props["notify"] }) {
                 {err("api_key_secret")}
               </Field>
               <Field
-                label={form.provider === "openai_compatible" ? "Base URL" : "Base URL (optional)"}
-                hint={form.provider === "openrouter" ? "Leave empty for https://openrouter.ai/api/v1." : "The API root, ending before /chat/completions."}
+                label={providerInfo?.base_url_required ? (form.provider === "bedrock" ? "Region" : "Base URL") : "Base URL (optional)"}
+                hint={providerInfo?.base_url_required ? `Enter ${providerInfo.base_url_required}.` : "Leave empty for the provider's default API address."}
               >
                 <input
                   className="am-input font-mono text-[13px]"
                   value={form.base_url ?? ""}
                   onChange={(e) => set({ base_url: e.target.value || null })}
-                  placeholder={form.provider === "openrouter" ? "https://openrouter.ai/api/v1" : "https://…/v1"}
+                  placeholder={form.provider === "bedrock" ? "us-east-1" : providerInfo?.base_url_required ? "https://…" : "(default)"}
                   spellCheck={false}
                 />
                 {err("base_url")}
@@ -593,7 +595,7 @@ function AssistantSection({ notify }: { notify: Props["notify"] }) {
 
       {state.source === "workspace" && (
         <p className="text-[11px] text-slate-500">
-          Server default: <span className="font-mono">{PROVIDER_LABEL[state.defaults.provider] ?? state.defaults.provider}</span> ·{" "}
+          Server default: <span className="font-mono">{state.providers.find((p) => p.name === state.defaults.provider)?.label ?? state.defaults.provider}</span> ·{" "}
           <span className="font-mono">{state.defaults.model}</span>
         </p>
       )}

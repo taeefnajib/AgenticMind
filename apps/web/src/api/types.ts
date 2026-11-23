@@ -632,7 +632,7 @@ export interface AssistantSettings {
   source: "workspace" | "environment";
   defaults: AssistantConfig;
   configured: boolean;
-  providers: { name: string; needs_key: boolean }[];
+  providers: { name: string; needs_key: boolean; label?: string; key_secret?: string | null; base_url_required?: string | null; default_model?: string }[];
   can_edit: boolean;
   updated_at: string | null;
 }

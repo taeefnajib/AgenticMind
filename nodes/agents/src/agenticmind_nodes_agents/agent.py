@@ -327,7 +327,7 @@ async def run_agent_loop(
 
             if tool_calls_used + len(resp.tool_calls) > config.max_tool_calls:
                 raise _Limit("max_tool_calls", f"Tool-call limit of {config.max_tool_calls} reached")
-            messages.append(ChatMessage(role="assistant", content=resp.text or "", tool_calls=resp.tool_calls))
+            messages.append(resp.assistant_message())  # keeps provider state (e.g. thinking blocks)
             if config.parallel_tool_calls and len(resp.tool_calls) > 1:  # independent calls: run them together
                 ran = await asyncio.gather(*(
                     _run_tool(ctx, by_name, c.name, c.arguments, config.tool_timeout_seconds) for c in resp.tool_calls

@@ -5,8 +5,17 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, get_provider, provider_names
-from agenticmind_providers.chat import OPENROUTER_BASE_URL
+from agenticmind_providers import (
+    PROVIDERS,
+    ChatMessage,
+    ChatRequest,
+    ProviderError,
+    get_provider,
+    provider_names,
+)
+from agenticmind_providers import (
+    list_models as provider_list_models,
+)
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -56,7 +65,17 @@ def _state(svc: Services, request: Request) -> dict[str, Any]:
         "source": source,
         "defaults": assistant_json(env_assistant(svc.settings)),
         "configured": (not cfg.needs_key) or bool(_key(svc, cfg)),
-        "providers": [{"name": n, "needs_key": n in KEYED_PROVIDERS} for n in provider_names()],
+        "providers": [
+            {
+                "name": n,
+                "needs_key": n in KEYED_PROVIDERS,
+                "label": PROVIDERS[n].label if n in PROVIDERS else n,
+                "key_secret": PROVIDERS[n].key_secret if n in PROVIDERS else None,
+                "base_url_required": PROVIDERS[n].base_url_required if n in PROVIDERS else None,
+                "default_model": PROVIDERS[n].default_model if n in PROVIDERS else "",
+            }
+            for n in provider_names()
+        ],
         "can_edit": svc.settings.auth_mode == "off" or (user is not None and user.role == "admin"),
         "updated_at": row.updated_at.isoformat() if row else None,
     }
@@ -112,32 +131,21 @@ async def test_assistant(body: AssistantIn, svc: Services = Depends(services)) -
 
 @router.post("/assistant/models", dependencies=[Depends(require_admin)])
 async def list_models(body: AssistantIn, svc: Services = Depends(services)) -> dict[str, Any]:
-    """Models the provider offers (``GET {base}/models``, OpenAI-compatible). Mock lists its one model."""
-    if body.provider == "mock":
-        return {"models": [{"id": "mock-1", "name": "Mock (deterministic, offline)"}]}
-    if body.provider not in KEYED_PROVIDERS:
+    """Models the provider offers (each provider's own model list; OpenAI-compatible ``GET {base}/models``)."""
+    if body.provider not in provider_names():
         return {"models": []}
-    import httpx
-
-    base = (body.base_url or "").strip() or (OPENROUTER_BASE_URL if body.provider == "openrouter" else "")
-    if not base.startswith(("http://", "https://")):
-        raise HTTPException(422, {"code": "SETTINGS_INVALID", "field": "base_url", "message": "Enter a base URL."})
     secret = (body.api_key_secret or "").strip()
     key = svc.secrets.get(secret) if secret else None
-    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    base = (body.base_url or "").strip() or None
+    if body.provider == "openai_compatible" and not (base or "").startswith(("http://", "https://")):
+        raise HTTPException(422, {"code": "SETTINGS_INVALID", "field": "base_url", "message": "Enter a base URL."})
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10)) as client:
-            res = await client.get(f"{base.rstrip('/')}/models", headers=headers)
-        res.raise_for_status()
-        data = res.json().get("data") or []
-    except (httpx.HTTPError, ValueError, AttributeError) as exc:
+        models = await provider_list_models(body.provider, key, base)
+    except ProviderError as exc:
+        raise HTTPException(422, {"code": exc.code, "message": str(exc)}) from exc
+    except Exception as exc:  # noqa: BLE001 - network / HTTP / payload errors from many providers
         raise HTTPException(
             502, {"code": "MODELS_UNAVAILABLE", "message": f"Could not list models: {type(exc).__name__}"}
         ) from exc
-    models = [
-        {"id": str(m["id"]), "name": str(m.get("name") or m["id"]), "context_length": m.get("context_length")}
-        for m in data
-        if isinstance(m, dict) and m.get("id")
-    ]
     models.sort(key=lambda m: m["id"])
     return {"models": models[:MAX_MODELS], "total": len(models)}

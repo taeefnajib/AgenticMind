@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlparse
 
-from agenticmind_providers import provider_names
+from agenticmind_providers import KEYED_CHAT_PROVIDERS, PROVIDERS, provider_names
 
 from .auth import AuthStore
 from .settings import Settings
@@ -20,8 +20,8 @@ from .settings import Settings
 ASSISTANT_KEY = "assistant"
 SECRET_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 MODEL_RE = re.compile(r"^\S{1,200}$")
-#: Providers that call a remote API and therefore need a key.
-KEYED_PROVIDERS = {"openrouter", "huggingface", "openai_compatible"}
+#: Providers that call a remote API and therefore need a key (an OpenAI-compatible server usually does too).
+KEYED_PROVIDERS = set(KEYED_CHAT_PROVIDERS) | {"openai_compatible"}
 
 
 class SettingsError(ValueError):
@@ -65,19 +65,23 @@ def validate_assistant(raw: dict[str, Any]) -> AssistantConfig:
             "api_key_secret", "Enter the name of the secret holding the key, e.g. OPENROUTER_API_KEY (A-Z, 0-9, _)."
         )
     base_url = str(raw.get("base_url") or "").strip() or None
-    if base_url is not None:
+    region_ok = provider == "bedrock" and base_url is not None and re.fullmatch(r"[a-z]{2}(-[a-z]+)+-\d", base_url)
+    if base_url is not None and not region_ok:
         parsed = urlparse(base_url)
         if parsed.scheme not in ("http", "https") or not parsed.netloc or len(base_url) > 500:
-            raise SettingsError("base_url", "The base URL must be an http(s) URL.")
-    if provider == "openai_compatible" and base_url is None:
-        raise SettingsError("base_url", "An OpenAI-compatible provider needs a base URL.")
+            raise SettingsError("base_url", "The base URL must be an http(s) URL." if provider != "bedrock"
+                                else "Enter the AWS region (e.g. us-east-1) or the Bedrock runtime URL.")  # fmt: skip
+    info = PROVIDERS.get(provider)
+    if info is not None and info.base_url_required and base_url is None:
+        raise SettingsError("base_url", f"{info.label} needs {info.base_url_required}.")
     try:
         attempts = int(raw.get("max_attempts", 3))
     except (TypeError, ValueError):
         attempts = 0
     if not 1 <= attempts <= 5:
         raise SettingsError("max_attempts", "Repair attempts must be between 1 and 5.")
-    return AssistantConfig(provider, model, secret or "OPENROUTER_API_KEY", base_url, attempts)
+    default_secret = (info.key_secret if info else None) or "OPENROUTER_API_KEY"
+    return AssistantConfig(provider, model, secret or default_secret, base_url, attempts)
 
 
 def effective_assistant(settings: Settings, auth: AuthStore) -> tuple[AssistantConfig, str]:

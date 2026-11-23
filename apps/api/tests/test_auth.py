@@ -197,7 +197,9 @@ def test_settings_choose_the_assistant_model(app):
     admin = signed_in(app, setup=True)
     state = admin.get("/api/settings/assistant").json()
     assert state["source"] == "environment" and state["assistant"]["model"] == "mock-1" and state["can_edit"]
-    assert {"name": "openrouter", "needs_key": True} in state["providers"]
+    providers = {p["name"]: p for p in state["providers"]}
+    assert providers["openrouter"]["needs_key"] and providers["anthropic"]["key_secret"] == "ANTHROPIC_API_KEY"
+    assert "region" in providers["bedrock"]["base_url_required"] and providers["ollama"]["needs_key"] is False
 
     bad = admin.put("/api/settings/assistant", json={"provider": "nope", "model": "m"})
     assert bad.status_code == 422 and bad.json()["detail"]["field"] == "provider"
