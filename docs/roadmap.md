@@ -136,6 +136,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **GitHub version control** (ADR-0038): link a project to a repository; atomic commits of the canonical IR,
+  a README and optionally the exported app (Git Data API, fast-forward only); remote-change detection, pull,
+  history, restore as new revisions, auto-push on save, repository creation, GitHub Enterprise.
 - **Observability export** (ADR-0037): every finished run exported as an OpenTelemetry trace (OTLP/HTTP protobuf
   or JSON; GenAI spans for workflow, nodes, models, agents and tools; content opt-in), configured by the standard
   OTEL_* variables or Settings → Observability (header secrets, presets, test span); Prometheus `/api/metrics`
@@ -187,6 +190,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
+
+- Version control: GitHub only (no GitLab / Bitbucket yet); pulls replace the project as a new revision (no
+  three-way merge); no GitHub-to-AgenticMind webhook pulls.
 
 - Observability: traces are exported when a run ends (no live spans); metrics counters reset on restart; CLI runs
   and exported apps do not export; no OTLP logs or metrics push.
@@ -278,9 +284,8 @@ AI methods in ADR-0030):
 
 Open-source production plan (ADR-0032; one reviewed feature each):
 - Done: MCP client and server (ADR-0033); sandboxed code execution (ADR-0034); triggers
-  (ADR-0035); native model providers (ADR-0036); observability export (ADR-0037).
-- Next: GitHub integration (push projects with version
-  control); durable execution; streaming.
+  (ADR-0035); native model providers (ADR-0036); observability export (ADR-0037); GitHub version control (ADR-0038).
+- Next: durable execution; streaming.
 
 1. Version history panel and visual diff of revisions (requested in the blueprint, not yet built).
 2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).

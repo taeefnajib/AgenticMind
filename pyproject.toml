@@ -13,6 +13,7 @@ dependencies = [
     "agenticmind-runtime[mcp]",
     "agenticmind-sandbox",
     "agenticmind-observability",
+    "agenticmind-git",
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",
@@ -49,6 +50,7 @@ agenticmind-providers = { workspace = true }
 agenticmind-vectorstores = { workspace = true }
 agenticmind-sandbox = { workspace = true }
 agenticmind-observability = { workspace = true }
+agenticmind-git = { workspace = true }
 agenticmind-runtime = { workspace = true }
 agenticmind-nodes-core = { workspace = true }
 agenticmind-nodes-data = { workspace = true }

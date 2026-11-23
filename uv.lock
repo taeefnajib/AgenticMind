@@ -22,6 +22,7 @@ members = [
     "agenticmind-compiler",
     "agenticmind-deployment",
     "agenticmind-evaluation",
+    "agenticmind-git",
     "agenticmind-ir",
     "agenticmind-node-sdk",
     "agenticmind-nodes-agents",
@@ -47,6 +48,7 @@ dependencies = [
     { name = "agenticmind-compiler" },
     { name = "agenticmind-deployment" },
     { name = "agenticmind-evaluation" },
+    { name = "agenticmind-git" },
     { name = "agenticmind-ir" },
     { name = "agenticmind-node-sdk" },
     { name = "agenticmind-nodes-agents" },
@@ -79,6 +81,7 @@ requires-dist = [
     { name = "agenticmind-compiler", editable = "packages/compiler" },
     { name = "agenticmind-deployment", editable = "packages/deployment" },
     { name = "agenticmind-evaluation", editable = "packages/evaluation" },
+    { name = "agenticmind-git", editable = "packages/git" },
     { name = "agenticmind-ir", editable = "packages/ir" },
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
     { name = "agenticmind-nodes-agents", editable = "nodes/agents" },
@@ -164,6 +167,21 @@ requires-dist = [
     { name = "agenticmind-registry", editable = "packages/node-registry" },
     { name = "agenticmind-runtime", editable = "packages/runtime" },
     { name = "pydantic", specifier = ">=2.7,<3" },
+]
+
+[[package]]
+name = "agenticmind-git"
+version = "0.1.0"
+source = { editable = "packages/git" }
+dependencies = [
+    { name = "agenticmind-ir" },
+    { name = "httpx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agenticmind-ir", editable = "packages/ir" },
+    { name = "httpx", specifier = ">=0.27" },
 ]
 
 [[package]]
@@ -529,6 +547,7 @@ dependencies = [
     { name = "agenticmind-compiler" },
     { name = "agenticmind-deployment" },
     { name = "agenticmind-evaluation" },
+    { name = "agenticmind-git" },
     { name = "agenticmind-ir" },
     { name = "agenticmind-node-sdk" },
     { name = "agenticmind-nodes-agents" },
@@ -560,6 +579,7 @@ requires-dist = [
     { name = "agenticmind-compiler", editable = "packages/compiler" },
     { name = "agenticmind-deployment", editable = "packages/deployment" },
     { name = "agenticmind-evaluation", editable = "packages/evaluation" },
+    { name = "agenticmind-git", editable = "packages/git" },
     { name = "agenticmind-ir", editable = "packages/ir" },
     { name = "agenticmind-node-sdk", editable = "packages/node-sdk" },
     { name = "agenticmind-nodes-agents", editable = "nodes/agents" },

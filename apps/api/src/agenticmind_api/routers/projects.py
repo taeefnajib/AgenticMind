@@ -113,6 +113,8 @@ def save_project(project_id: str, body: ProjectSave, svc: Services = Depends(ser
     except ConflictError as exc:
         raise HTTPException(409, str(exc)) from exc
     _refresh_triggers(svc)
+    if svc.git is not None:
+        svc.git.schedule_auto_push(project_id)  # GitHub auto-push, when the project's link enables it
     return _out(row, rev)
 
 

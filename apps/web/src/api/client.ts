@@ -221,6 +221,49 @@ export const observability = {
   exportRun: (runId: string) => request<{ ok: boolean; spans: number }>(`/runs/${runId}/export`, { method: "POST" }),
 };
 
+export interface GitLink {
+  repo: string;
+  branch: string;
+  folder: string;
+  token_secret: string;
+  auto_push: boolean;
+  include_app: boolean;
+  create_repo: boolean;
+  private: boolean;
+  api_base?: string;
+}
+
+export interface GitState {
+  link: GitLink | null;
+  state: { commit?: string; url?: string; revision?: number; synced_at?: string; error?: string | null };
+  file?: string;
+  repo_url?: string | null;
+  token_configured?: boolean;
+}
+
+export interface GitCommit {
+  sha: string;
+  message: string;
+  author: string | null;
+  date: string | null;
+  url: string | null;
+}
+
+/** GitHub version control for a project (ADR-0038). */
+export const git = {
+  get: (pid: string) => request<GitState>(`/projects/${pid}/git`),
+  link: (pid: string, body: GitLink) => request<GitState>(`/projects/${pid}/git`, { method: "PUT", ...json(body) }),
+  unlink: (pid: string) => request<GitState>(`/projects/${pid}/git`, { method: "DELETE" }),
+  check: (pid: string, body: GitLink) =>
+    request<{ ok: boolean; exists: boolean; can_push?: boolean; default_branch?: string }>(`/projects/${pid}/git/check`, { method: "POST", ...json(body) }),
+  push: (pid: string, body: { message?: string; force?: boolean }) =>
+    request<{ status: string; commit?: string; url?: string }>(`/projects/${pid}/git/push`, { method: "POST", ...json(body) }),
+  pull: (pid: string) => request<{ status: string; revision?: number }>(`/projects/${pid}/git/pull`, { method: "POST" }),
+  history: (pid: string) => request<GitCommit[]>(`/projects/${pid}/git/history`),
+  restore: (pid: string, sha: string) =>
+    request<{ status: string; revision?: number }>(`/projects/${pid}/git/restore`, { method: "POST", ...json({ sha }) }),
+};
+
 export const api = {
   nodes: () => request<NodeManifest[]>("/nodes"),
   assistantStatus: () => request<AssistantStatus>("/assistant"),

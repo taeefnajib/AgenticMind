@@ -758,6 +758,10 @@ export function App() {
             node={selectedNode}
             edge={selectedEdge}
             meta={meta}
+            dirty={dirty}
+            onReloadProject={() => {
+              if (project) void api.getProject(project.id).then(applyProject);
+            }}
             onMetaChange={(m) => {
               setMeta(m);
               markDirty();

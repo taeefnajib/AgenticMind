@@ -127,6 +127,12 @@ Honeycomb, Datadog, Langfuse or Arize Phoenix. Set the standard `OTEL_EXPORTER_O
 `OTEL_EXPORTER_OTLP_HEADERS`, or use Settings → Observability. Prometheus can scrape `/api/metrics`, and the
 Trace tab downloads a run as OTLP/JSON. See ADR-0037.
 
+To keep projects in Git: link a project to a GitHub repository in its panel (*GitHub*). **Push** writes one
+commit with the canonical, diff-friendly `project.agenticmind.json`, a README and optionally the exported app;
+**Pull**, **History** and **Restore** bring any commit back as a new revision, and auto-push can commit every
+save. Pushes never rewrite history and stop when someone changed the file on GitHub. Needs a token with
+*Contents: read and write* in the `GITHUB_TOKEN` secret. See ADR-0038.
+
 To start workflows from events: **Webhook Trigger** (token or HMAC protected; can wait and return the outputs),
 **Schedule Trigger** (cron with a time zone, or every N minutes), **Queue Trigger** (Redis Streams, Amazon SQS) and
 **Chat Trigger** (Slack, Telegram, WhatsApp, email), which replies with a run output. Tick *Enabled* and save:

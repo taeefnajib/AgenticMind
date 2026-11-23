@@ -9,6 +9,7 @@ import { ConfigForm } from "./ConfigForm";
 import { DiagnosticList } from "./DiagnosticList";
 import { ValueView } from "./DocumentViewer";
 import { FilesPanel } from "./Files";
+import { GitPanel } from "./GitPanel";
 import { TriggerPanel } from "./TriggerPanel";
 import { isTriggerType } from "../lib/triggers";
 import { mcpEndpoint, mcpToolName, type McpExposure } from "../lib/mcp";
@@ -24,6 +25,8 @@ interface Props {
   edge: AmFlowEdge | null;
   meta: ProjectMeta;
   onMetaChange: (meta: ProjectMeta) => void;
+  dirty?: boolean;
+  onReloadProject?: () => void;
   onNodeChange: (id: string, update: (ir: IRNode) => IRNode) => void;
   onDeleteNode: (id: string) => void;
   onDeleteEdge: (id: string) => void;
@@ -51,7 +54,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ProjectInspector({ meta, onMetaChange, diagnostics, onSelectDiagnostic }: Props) {
+function ProjectInspector({ meta, onMetaChange, diagnostics, onSelectDiagnostic, dirty, onReloadProject }: Props) {
+  const { files } = useWorkbench();
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   return (
     <>
@@ -69,6 +73,9 @@ function ProjectInspector({ meta, onMetaChange, diagnostics, onSelectDiagnostic 
           value={meta.description}
           onChange={(e) => onMetaChange({ ...meta, description: e.target.value })}
         />
+      </Section>
+      <Section title="GitHub">
+        <GitPanel projectId={files.projectId} dirty={Boolean(dirty)} onReload={() => onReloadProject?.()} />
       </Section>
       <Section title="MCP tool">
         <McpExposeControl meta={meta} onMetaChange={onMetaChange} />
