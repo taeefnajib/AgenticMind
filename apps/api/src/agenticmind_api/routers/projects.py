@@ -68,6 +68,11 @@ def list_projects(svc: Services = Depends(services)) -> list[ProjectSummary]:
     return [_summary(r) for r in svc.store.list_projects()]
 
 
+def _refresh_triggers(svc: Services) -> None:
+    if svc.triggers is not None:
+        svc.triggers.request_refresh()  # a saved revision may add, change or remove triggers
+
+
 @router.post("", response_model=ProjectOut, status_code=201)
 def create_project(body: ProjectCreate, svc: Services = Depends(services)) -> ProjectOut:
     project_id = f"prj_{uuid.uuid4().hex[:12]}"
@@ -89,6 +94,7 @@ def create_project(body: ProjectCreate, svc: Services = Depends(services)) -> Pr
     raw["project"] = project
     doc = _parse_or_422(raw, project_id, name=body.name)
     row, rev = svc.store.create_project(doc)
+    _refresh_triggers(svc)
     return _out(row, rev)
 
 
@@ -106,6 +112,7 @@ def save_project(project_id: str, body: ProjectSave, svc: Services = Depends(ser
         row, rev, _created = svc.store.save_revision(project_id, doc, body.expected_revision)
     except ConflictError as exc:
         raise HTTPException(409, str(exc)) from exc
+    _refresh_triggers(svc)
     return _out(row, rev)
 
 
@@ -128,6 +135,7 @@ def delete_project(
     from agenticmind_vectorstores import delete_local_collections
 
     delete_local_collections(svc.settings.data_dir, f"{project_id}__")
+    _refresh_triggers(svc)
     return Response(status_code=204)
 
 

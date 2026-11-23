@@ -1,0 +1,128 @@
+{
+  "ir_version": "1.0",
+  "project": {
+    "id": "template",
+    "name": "Chat bot (Telegram, Slack, WhatsApp, email)",
+    "description": "A Chat Trigger starts a run for every incoming message and replies with the 'answer' output. Pick the channel in the trigger, add its secrets (e.g. TELEGRAM_BOT_TOKEN and TELEGRAM_WEBHOOK_SECRET), tick Enabled and save; the trigger panel then shows the webhook URL and how to register it. Click Run to try it with the sample message. Uses OpenRouter (Gemini) via OPENROUTER_API_KEY."
+  },
+  "runtime": {
+    "engine": "agenticmind",
+    "profile": "development"
+  },
+  "nodes": [
+    {
+      "id": "incoming",
+      "type": "agenticmind.core.chat_trigger",
+      "version": "1.0.0",
+      "config": {
+        "enabled": false,
+        "channel": "telegram",
+        "reply_output": "answer",
+        "telegram_bot_token": {
+          "$secret": "TELEGRAM_BOT_TOKEN"
+        },
+        "telegram_secret_token": {
+          "$secret": "TELEGRAM_WEBHOOK_SECRET"
+        },
+        "sample_text": "Hi! What can you help me with?"
+      },
+      "ui": {
+        "position": {
+          "x": 0,
+          "y": 80
+        },
+        "label": "Chat Trigger"
+      }
+    },
+    {
+      "id": "bot",
+      "type": "agenticmind.models.llm",
+      "version": "1.2.0",
+      "config": {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "api_key": {
+          "$secret": "OPENROUTER_API_KEY"
+        },
+        "system_prompt": "You are a friendly, concise assistant chatting in a messaging app. Answer in at most 3 short sentences, in the user's language.",
+        "max_tokens": 1024
+      },
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 80
+        },
+        "label": "Assistant"
+      }
+    },
+    {
+      "id": "answer",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "answer"
+      },
+      "ui": {
+        "position": {
+          "x": 640,
+          "y": 40
+        },
+        "label": "Answer (sent as the reply)"
+      }
+    },
+    {
+      "id": "who",
+      "type": "agenticmind.core.output",
+      "version": "1.0.0",
+      "config": {
+        "key": "event"
+      },
+      "ui": {
+        "position": {
+          "x": 320,
+          "y": 260
+        },
+        "label": "Event"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "kind": "data",
+      "source": {
+        "node": "incoming",
+        "port": "text"
+      },
+      "target": {
+        "node": "bot",
+        "port": "prompt"
+      }
+    },
+    {
+      "id": "e2",
+      "kind": "data",
+      "source": {
+        "node": "bot",
+        "port": "text"
+      },
+      "target": {
+        "node": "answer",
+        "port": "value"
+      }
+    },
+    {
+      "id": "e3",
+      "kind": "data",
+      "source": {
+        "node": "incoming",
+        "port": "event"
+      },
+      "target": {
+        "node": "who",
+        "port": "value"
+      }
+    }
+  ],
+  "metadata": {}
+}

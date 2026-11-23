@@ -41,6 +41,7 @@ import type {
   ValidationResult,
   WaitOut,
 } from "./types";
+import type { TriggerStatus } from "../lib/triggers";
 
 export class ApiError extends Error {
   constructor(
@@ -234,6 +235,7 @@ export const api = {
   startRun: (id: string, inputs: Record<string, JsonValue>, targets?: string[]) =>
     request<RunOut>(`/projects/${id}/runs`, { method: "POST", ...json({ inputs, targets }) }),
   getRun: (runId: string) => request<RunOut>(`/runs/${runId}`),
+  triggers: (projectId: string) => request<TriggerStatus[]>(`/projects/${projectId}/triggers`),
   resumeRun: (runId: string, body: { responses?: Record<string, JsonValue>; force?: boolean }) =>
     request<RunOut>(`/runs/${runId}/resume`, { method: "POST", ...json(body) }),
   approvals: (projectId: string, status = "pending") =>

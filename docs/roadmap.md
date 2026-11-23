@@ -136,6 +136,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **Triggers** (ADR-0035): Webhook (token / HMAC, ack or wait), Schedule (cron + time zone / interval), Queue
+  (Redis Streams, SQS) and Chat (Slack, Telegram, WhatsApp, email) trigger nodes; a trigger service activating
+  the latest saved revision, verifying each platform's signature, deduplicating retries, starting recorded runs
+  and replying; Trigger panel in the IDE; *Chat bot* template.
 - **Sandboxed code execution** (ADR-0034): `agenticmind-sandbox` (Docker containers by default: no network,
   read-only, limits, unprivileged; opt-in local process mode with Node's permission model); Code node (Python /
   JavaScript, code editor) and Code Interpreter Tool for agents; *Analyse data with code* template.
@@ -175,6 +179,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
+
+- Triggers run inside the API process: several API processes on one database would double-fire schedules and
+  queue polls; missed schedules are not replayed; exported apps do not host triggers; chat platforms need a
+  public HTTPS URL.
 
 - Code execution: a fresh sandbox per call (no stateful sessions, no file inputs/outputs yet); standard library
   only unless the operator configures an image; process mode does not block network and is not isolation.
@@ -255,9 +263,9 @@ AI methods in ADR-0030):
 - Step 6: guardrails: input and output validation (schema, PII, prompt injection, policy), retry and repair.
 
 Open-source production plan (ADR-0032; one reviewed feature each):
-- Done: MCP client and server (ADR-0033); sandboxed code execution (ADR-0034).
-- Next: triggers (webhooks, schedules, queue messages, Slack / WhatsApp / Telegram /
-  email); native model providers; observability export; GitHub integration (push projects with version
+- Done: MCP client and server (ADR-0033); sandboxed code execution (ADR-0034); triggers
+  (ADR-0035).
+- Next: native model providers; observability export; GitHub integration (push projects with version
   control); durable execution; streaming.
 
 1. Version history panel and visual diff of revisions (requested in the blueprint, not yet built).

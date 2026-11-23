@@ -9,6 +9,8 @@ import { ConfigForm } from "./ConfigForm";
 import { DiagnosticList } from "./DiagnosticList";
 import { ValueView } from "./DocumentViewer";
 import { FilesPanel } from "./Files";
+import { TriggerPanel } from "./TriggerPanel";
+import { isTriggerType } from "../lib/triggers";
 import { mcpEndpoint, mcpToolName, type McpExposure } from "../lib/mcp";
 
 export interface ProjectMeta {
@@ -134,7 +136,7 @@ export function McpExposeControl({ meta, onMetaChange }: Pick<Props, "meta" | "o
 }
 
 function NodeInspector({ node, onNodeChange, onDeleteNode, diagnostics, run, events, onSelectDiagnostic }: Props & { node: AmFlowNode }) {
-  const { manifests, mode, nodeStatus } = useWorkbench();
+  const { manifests, mode, nodeStatus, files } = useWorkbench();
   const ir = node.data.ir;
   const manifest = manifests.get(manifestKey(ir.type, ir.version));
   const nodeDiags = diagnostics.filter((d) => d.node_id === ir.id);
@@ -180,6 +182,12 @@ function NodeInspector({ node, onNodeChange, onDeleteNode, diagnostics, run, eve
           </dl>
         )}
       </Section>
+
+      {isTriggerType(ir.type) && (
+        <Section title="Trigger">
+          <TriggerPanel projectId={files.projectId} nodeId={ir.id} />
+        </Section>
+      )}
 
       {nodeDiags.length > 0 && (
         <Section title="Problems">

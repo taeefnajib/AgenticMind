@@ -29,11 +29,13 @@ from .routers import files, nodes, plugins, projects, runs
 from .routers import memory as memory_routes
 from .routers import secrets as secret_routes
 from .routers import settings as settings_routes
+from .routers import triggers as trigger_routes
 from .run_manager import RunManager
 from .secrets_store import ChainedSecrets, SecretVault, load_key
 from .security import ApiGuard
 from .settings import Settings
 from .store import Store
+from .triggers.service import TriggerService
 
 log = logging.getLogger("agenticmind.api")
 
@@ -103,7 +105,11 @@ def create_app(
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         async with mcp_manager.run() if mcp_manager is not None else nullcontext():
             async with _core_lifespan(_app):
-                yield
+                await triggers.start()
+                try:
+                    yield
+                finally:
+                    await triggers.stop()
 
     @asynccontextmanager
     async def _core_lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -141,6 +147,8 @@ def create_app(
         plugins=plugins_manager,
         auth=auth,
     )
+    triggers = TriggerService(app.state.services)
+    app.state.services.triggers = triggers
     if settings.auth_mode not in ("required", "off"):
         raise ValueError(f"AGENTICMIND_AUTH must be 'required' or 'off', not {settings.auth_mode!r}")
     if settings.auth_mode == "off":
@@ -169,6 +177,7 @@ def create_app(
     app.include_router(auth_routes.router)
     app.include_router(settings_routes.router)
     app.include_router(secret_routes.router)
+    app.include_router(trigger_routes.router)
     if settings.mcp_server:
         from .mcp_endpoint import build_mcp_app
 

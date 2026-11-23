@@ -15,10 +15,15 @@ from .io import delay, image_input, manual_input, output
 from .models import llm, llm_v1, llm_v12, model_router
 from .text_ai import classifier, summarizer
 from .transform import collect, json_select, parse_json, text_template, text_transform, to_text
+from .triggers import chat_trigger, queue_trigger, schedule_trigger, webhook_trigger
 
 ALL_NODES: tuple[NodeDefinition[Any], ...] = (
     manual_input,
     image_input,
+    webhook_trigger,
+    schedule_trigger,
+    queue_trigger,
+    chat_trigger,
     output,
     delay,
     text_template,

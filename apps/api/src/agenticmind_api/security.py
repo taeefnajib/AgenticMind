@@ -23,6 +23,8 @@ from .db import UserRow
 from .settings import Settings
 
 PUBLIC_PATHS = frozenset({"/api/health", "/api/auth/status", "/api/auth/login", "/api/auth/setup", "/api/auth/logout"})
+#: Inbound trigger webhooks authenticate themselves (token / HMAC / platform signatures), ADR-0035.
+PUBLIC_PREFIXES = ("/api/triggers/",)
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 USER_KEY = "am_user"
 
@@ -87,7 +89,7 @@ class ApiGuard:
             user = await run_in_threadpool(
                 self.auth.resolve, request.cookies.get(session_cookie_name(request.headers.get("host")))
             )
-            if user is None and scope["path"] not in PUBLIC_PATHS:
+            if user is None and scope["path"] not in PUBLIC_PATHS and not scope["path"].startswith(PUBLIC_PREFIXES):
                 response = JSONResponse(
                     {"detail": {"code": "AUTH_REQUIRED", "message": "Sign in to continue."}}, status_code=401
                 )

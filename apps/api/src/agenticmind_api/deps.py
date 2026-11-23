@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from agenticmind_registry import NodeRegistry
 from agenticmind_runtime import LocalArtifactStore, SecretResolver
@@ -31,6 +32,7 @@ class Services:
     deployments: DeploymentManager
     plugins: PluginManager
     auth: AuthStore
+    triggers: Any = None  # TriggerService (ADR-0035), set by create_app
 
 
 def services(request: Request) -> Services:

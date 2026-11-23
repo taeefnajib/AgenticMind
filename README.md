@@ -115,6 +115,12 @@ Code runs in a **Docker** container by default (no network, read-only, memory/CP
 so start Docker; for trusted code on your own machine `AGENTICMIND_SANDBOX=process` runs a local interpreter
 instead (not a security boundary). Template *Analyse data with code*. See ADR-0034.
 
+To start workflows from events: **Webhook Trigger** (token or HMAC protected; can wait and return the outputs),
+**Schedule Trigger** (cron with a time zone, or every N minutes), **Queue Trigger** (Redis Streams, Amazon SQS) and
+**Chat Trigger** (Slack, Telegram, WhatsApp, email), which replies with a run output. Tick *Enabled* and save:
+the latest saved revision listens, and the node's Trigger panel shows its URL, status and setup steps. Chat
+platforms need a public HTTPS URL (a tunnel when running locally). Template *Chat bot*. See ADR-0035.
+
 To choose a vector database: the **Vector Store** node supports Qdrant (default, embedded), Chroma, FAISS and
 LanceDB on this machine, and Milvus/Zilliz, Weaviate, Elasticsearch, OpenSearch, MongoDB Atlas, Redis, pgvector
 and Pinecone as servers or cloud services. See ADR-0028.
