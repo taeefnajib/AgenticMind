@@ -104,7 +104,19 @@ export function ConsolePanel(props: Props) {
             <p className="text-xs text-emerald-700">No problems. The graph is valid.</p>
           ))}
         {tab === "inputs" && <RunInputs {...props} />}
-        {tab === "trace" && <TraceTable events={events} onSelectNode={props.onSelectNode} />}
+        {tab === "trace" && (
+          <>
+            {props.run && events.length > 0 && (
+              <div className="mb-1 flex justify-end gap-3 text-[11px]">
+                <a className="text-accent-700 underline" href={`/api/runs/${props.run.id}/otlp`} download={`${props.run.id}.otlp.json`}
+                  title="This run as an OpenTelemetry (OTLP/JSON) trace, without prompt/output content">
+                  Download OpenTelemetry trace
+                </a>
+              </div>
+            )}
+            <TraceTable events={events} onSelectNode={props.onSelectNode} />
+          </>
+        )}
         {tab === "output" && <RunOutput run={run} events={events} onResume={props.onResume} />}
         {tab === "approvals" && (
           <ApprovalsPanel

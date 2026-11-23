@@ -71,6 +71,8 @@ class Settings:
             if h.strip()
         )
     )
+    #: Optional bearer token Prometheus sends for /api/metrics (required for that path when set).
+    metrics_token: str | None = field(default_factory=lambda: os.environ.get("AGENTICMIND_METRICS_TOKEN") or None)
     #: How long an MCP tool call waits for its run before answering "still running".
     mcp_run_timeout: float = field(default_factory=lambda: float(os.environ.get("AGENTICMIND_MCP_RUN_TIMEOUT", "300")))
     session_days: int = field(default_factory=lambda: int(os.environ.get("AGENTICMIND_SESSION_DAYS", "14")))

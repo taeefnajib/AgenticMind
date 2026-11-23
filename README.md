@@ -121,6 +121,12 @@ own APIs (**OpenAI**, **Anthropic** (official SDK, prompt caching, thinking kept
 **xAI**), **Hugging Face**, local **Ollama** or any OpenAI-compatible server. Put the key in `.env` or Settings →
 Secrets under the provider's usual name (e.g. `ANTHROPIC_API_KEY`). See ADR-0036.
 
+To watch production: every finished run is exported as an **OpenTelemetry** trace (run, node, model and
+tool-call spans with GenAI attributes) to any OTLP endpoint, e.g. an OTel Collector, Jaeger, Grafana Tempo,
+Honeycomb, Datadog, Langfuse or Arize Phoenix. Set the standard `OTEL_EXPORTER_OTLP_ENDPOINT` /
+`OTEL_EXPORTER_OTLP_HEADERS`, or use Settings → Observability. Prometheus can scrape `/api/metrics`, and the
+Trace tab downloads a run as OTLP/JSON. See ADR-0037.
+
 To start workflows from events: **Webhook Trigger** (token or HMAC protected; can wait and return the outputs),
 **Schedule Trigger** (cron with a time zone, or every N minutes), **Queue Trigger** (Redis Streams, Amazon SQS) and
 **Chat Trigger** (Slack, Telegram, WhatsApp, email), which replies with a run output. Tick *Enabled* and save:

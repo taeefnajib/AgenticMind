@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +71,8 @@ class RunManager:
         self.data_dir = data_dir
         self.memory = memory
         self._active: dict[str, tuple[asyncio.Task[None], CancelToken]] = {}
+        #: Called with the run id after a run is recorded as finished (metrics, trace export).
+        self.finish_hooks: list[Callable[[str], Awaitable[None]]] = []
 
     def plan(self, doc: ProjectDocument, targets: Sequence[str] | None = None) -> ExecutionPlan:
         """Raises ``PlanError`` with diagnostics if the graph is not executable."""
@@ -119,6 +121,11 @@ class RunManager:
             )
             result = await engine.run(plan, run_id=run_id, inputs=inputs, cancel=token, resume=resume)
             self.store.finish_run(result)
+            for hook in self.finish_hooks:
+                try:
+                    await hook(run_id)
+                except Exception:  # noqa: BLE001 - observers must never fail a run
+                    log.exception("finish hook failed for run %s", run_id)
         except asyncio.CancelledError:
             self.store.fail_run(run_id, "RUN_ABORTED", "Run task was aborted (server shutdown)")
             raise

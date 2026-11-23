@@ -33,6 +33,7 @@ class Services:
     plugins: PluginManager
     auth: AuthStore
     triggers: Any = None  # TriggerService (ADR-0035), set by create_app
+    observability: Any = None  # ObservabilityService (ADR-0037), set by create_app
 
 
 def services(request: Request) -> Services:

@@ -194,6 +194,33 @@ export const settings = {
     request<{ models: ProviderModel[]; total?: number }>("/settings/assistant/models", { method: "POST", ...json(body) }),
 };
 
+export interface ObservabilityForm {
+  enabled: boolean;
+  endpoint: string;
+  protocol: "http/protobuf" | "http/json";
+  headers_secret: string | null;
+  service_name: string;
+  include_content: boolean;
+}
+
+export interface ObservabilityState {
+  source: "workspace" | "environment" | "off";
+  settings: ObservabilityForm | null;
+  effective: { url: string; protocol: string; service_name: string; include_content: boolean; header_names: string[] } | null;
+  status: { exported: number; failed: number; last_export_at: string | null; last_error: string | null; last_run_id: string | null };
+  can_edit: boolean;
+  updated_at: string | null;
+}
+
+/** Observability (ADR-0037): OTLP exporter settings. */
+export const observability = {
+  get: () => request<ObservabilityState>("/settings/observability"),
+  save: (body: ObservabilityForm) => request<ObservabilityState>("/settings/observability", { method: "PUT", ...json(body) }),
+  reset: () => request<ObservabilityState>("/settings/observability", { method: "DELETE" }),
+  test: () => request<{ ok: boolean; url: string }>("/settings/observability/test", { method: "POST" }),
+  exportRun: (runId: string) => request<{ ok: boolean; spans: number }>(`/runs/${runId}/export`, { method: "POST" }),
+};
+
 export const api = {
   nodes: () => request<NodeManifest[]>("/nodes"),
   assistantStatus: () => request<AssistantStatus>("/assistant"),

@@ -12,6 +12,7 @@ dependencies = [
     "agenticmind-vectorstores[chroma,faiss,lancedb,pgvector,pinecone,milvus,weaviate,mongodb,redis,search]",
     "agenticmind-runtime[mcp]",
     "agenticmind-sandbox",
+    "agenticmind-observability",
     "agenticmind-nodes-core",
     "agenticmind-nodes-data",
     "agenticmind-nodes-rag",
@@ -47,6 +48,7 @@ agenticmind-registry = { workspace = true }
 agenticmind-providers = { workspace = true }
 agenticmind-vectorstores = { workspace = true }
 agenticmind-sandbox = { workspace = true }
+agenticmind-observability = { workspace = true }
 agenticmind-runtime = { workspace = true }
 agenticmind-nodes-core = { workspace = true }
 agenticmind-nodes-data = { workspace = true }

@@ -58,13 +58,21 @@ class ApiGuard:
             await self.app(scope, receive, send)
             return
         request = Request(scope)
-        if self.settings.mcp_token and _is_mcp(scope["path"]):
+        token = self.settings.mcp_token if _is_mcp(scope["path"]) else None
+        if scope["path"] == "/api/metrics":
+            token = self.settings.metrics_token
+        if token:
             # MCP clients authenticate with the bearer token (ADR-0033); browsers' cross-site writes stay refused
             supplied = request.headers.get("authorization", "")
-            expected = f"Bearer {self.settings.mcp_token}"
+            expected = f"Bearer {token}"
             if not hmac.compare_digest(supplied.encode(), expected.encode()):
                 response = JSONResponse(
-                    {"detail": {"code": "MCP_TOKEN_REQUIRED", "message": "Send Authorization: Bearer <token>."}},
+                    {
+                        "detail": {
+                            "code": "MCP_TOKEN_REQUIRED" if _is_mcp(scope["path"]) else "METRICS_TOKEN_REQUIRED",
+                            "message": "Send Authorization: Bearer <token>.",
+                        }
+                    },
                     status_code=401,
                 )
                 await response(scope, receive, send)

@@ -20,6 +20,7 @@ from .deps import Services
 from .eval_manager import EvaluationManager
 from .eval_store import EvalStore
 from .memory_store import SqlMemoryStore
+from .observability import ObservabilityService
 from .plugin_manager import PluginManager
 from .routers import assistant as assistant_routes
 from .routers import auth as auth_routes
@@ -27,6 +28,7 @@ from .routers import deployments as deployment_routes
 from .routers import evaluations as evaluation_routes
 from .routers import files, nodes, plugins, projects, runs
 from .routers import memory as memory_routes
+from .routers import observability as observability_routes
 from .routers import secrets as secret_routes
 from .routers import settings as settings_routes
 from .routers import triggers as trigger_routes
@@ -110,6 +112,7 @@ def create_app(
                     yield
                 finally:
                     await triggers.stop()
+                    await observability.drain()
 
     @asynccontextmanager
     async def _core_lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -149,6 +152,9 @@ def create_app(
     )
     triggers = TriggerService(app.state.services)
     app.state.services.triggers = triggers
+    observability = ObservabilityService(app.state.services)
+    app.state.services.observability = observability
+    run_manager.finish_hooks.append(observability.on_run_finished)
     if settings.auth_mode not in ("required", "off"):
         raise ValueError(f"AGENTICMIND_AUTH must be 'required' or 'off', not {settings.auth_mode!r}")
     if settings.auth_mode == "off":
@@ -178,6 +184,7 @@ def create_app(
     app.include_router(settings_routes.router)
     app.include_router(secret_routes.router)
     app.include_router(trigger_routes.router)
+    app.include_router(observability_routes.router)
     if settings.mcp_server:
         from .mcp_endpoint import build_mcp_app
 

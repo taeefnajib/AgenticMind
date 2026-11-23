@@ -13,6 +13,7 @@ dependencies = [
     "agenticmind-registry",
     "agenticmind-runtime[mcp]",
     "httpx>=0.27",
+    "agenticmind-observability",
     "agenticmind-compiler",
     "agenticmind-deployment",
     "agenticmind-plugins",
