@@ -102,12 +102,16 @@ class TriggerService:
         self.redis_factory: Any = None
         self.sqs_factory: Any = None
         self.clock = _now
+        #: Only the process holding the "triggers" lease runs schedules and pollers (ADR-0039); webhooks
+        #: are accepted by every process (they only queue runs).
+        self.leader = False
 
     # ---- lifecycle --------------------------------------------------------------------------
     async def start(self) -> None:
         self._loop = asyncio.get_running_loop()
         self._wake = asyncio.Event()
         await asyncio.to_thread(self._scan)
+        await self._elect()
         self._apply_tasks()
         self._main = asyncio.create_task(self._run(), name="triggers")
 
@@ -118,6 +122,9 @@ class TriggerService:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self.active.clear()
+        if self.leader:
+            await asyncio.to_thread(self.svc.store.release_lease, "triggers", self.svc.runs.worker_id)
+            self.leader = False
 
     def request_refresh(self) -> None:
         """Thread-safe: ask the service to rescan (called after a project is saved or deleted)."""
@@ -126,7 +133,27 @@ class TriggerService:
 
     async def refresh(self) -> None:
         await asyncio.to_thread(self._scan)
+        await self._elect()
         self._apply_tasks()
+
+    async def _elect(self) -> None:
+        runs = self.svc.runs
+        owner = runs.worker_id
+        lease = max(runs.lease_seconds, TICK_SECONDS * 3)
+        try:
+            leader = await asyncio.to_thread(self.svc.store.acquire_lease, "triggers", owner, lease)
+        except Exception:  # noqa: BLE001 - keep the previous role on a database hiccup
+            log.exception("trigger leader election failed")
+            return
+        if leader != self.leader:
+            log.info("trigger scheduler %s on %s", "started" if leader else "handed over", owner)
+        self.leader = leader
+        if not leader:  # another process schedules and polls: stop ours
+            for trig in self.active.values():
+                if trig.task is not None:
+                    trig.task.cancel()
+                    trig.task = None
+                trig.next_run_at = None
 
     async def _run(self) -> None:
         last_scan = self.clock()
@@ -140,7 +167,11 @@ class TriggerService:
                     self._wake.clear()
                     await self.refresh()
                     last_scan = self.clock()
-                await self.tick()
+                else:
+                    await self._elect()
+                    self._apply_tasks()
+                if self.leader:
+                    await self.tick()
             except asyncio.CancelledError:
                 raise
             except Exception:  # noqa: BLE001 - the loop must survive one bad project
@@ -224,6 +255,8 @@ class TriggerService:
         return f"needs {', '.join(missing)}" if missing else None
 
     def _apply_tasks(self) -> None:
+        if not self.leader:
+            return
         for trig in self.active.values():
             if trig.problem is not None:
                 continue

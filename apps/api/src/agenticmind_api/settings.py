@@ -75,6 +75,17 @@ class Settings:
     metrics_token: str | None = field(default_factory=lambda: os.environ.get("AGENTICMIND_METRICS_TOKEN") or None)
     #: How long an MCP tool call waits for its run before answering "still running".
     mcp_run_timeout: float = field(default_factory=lambda: float(os.environ.get("AGENTICMIND_MCP_RUN_TIMEOUT", "300")))
+    #: Durable execution (ADR-0039): run a worker inside the API process (turn off when separate
+    #: ``agenticmind-worker`` processes execute runs).
+    embedded_worker: bool = field(
+        default_factory=lambda: os.environ.get("AGENTICMIND_EMBEDDED_WORKER", "1").lower() in ("1", "true", "yes", "on")
+    )
+    #: Identifies this process in job and lease ownership (default: host-pid).
+    worker_id: str | None = field(default_factory=lambda: os.environ.get("AGENTICMIND_WORKER_ID") or None)
+    #: Seconds a worker's claim on a run lasts without renewal; a dead worker's runs resume after this.
+    lease_seconds: float = field(default_factory=lambda: float(os.environ.get("AGENTICMIND_LEASE_SECONDS", "30")))
+    #: Claims per run (the first run plus recoveries after lost workers) before it is failed.
+    max_run_attempts: int = field(default_factory=lambda: int(os.environ.get("AGENTICMIND_MAX_RUN_ATTEMPTS", "3")))
     session_days: int = field(default_factory=lambda: int(os.environ.get("AGENTICMIND_SESSION_DAYS", "14")))
     #: Mark the session cookie ``Secure`` (set when the app is served over HTTPS).
     cookie_secure: bool = field(

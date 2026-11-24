@@ -136,6 +136,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **Durable execution** (ADR-0039): database job queue with leased, heartbeated claims; automatic resume from
+  checkpoints after a worker or server stops (side-effecting in-flight nodes need a forced resume; capped
+  recoveries); embedded and separate `agenticmind-worker` processes; cross-process cancel and wait; a single
+  elected trigger leader; graceful hand-over on shutdown.
 - **GitHub version control** (ADR-0038): link a project to a repository; atomic commits of the canonical IR,
   a README and optionally the exported app (Git Data API, fast-forward only); remote-change detection, pull,
   history, restore as new revisions, auto-push on save, repository creation, GitHub Enterprise.
@@ -200,9 +204,11 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - Native providers report tokens but not cost (no price tables yet); no native embeddings for them, no OpenAI
   Responses API, no Vertex AI provider; the native adapters were verified with mock transports, not live keys.
 
-- Triggers run inside the API process: several API processes on one database would double-fire schedules and
-  queue polls; missed schedules are not replayed; exported apps do not host triggers; chat platforms need a
-  public HTTPS URL.
+- Triggers: missed schedules are not replayed; exported apps do not host triggers; chat platforms need a public
+  HTTPS URL. (Several API processes are safe: one elected leader schedules and polls, ADR-0039.)
+- Durable execution: recovery granularity is a finished node (a node interrupted mid-way runs again, or waits
+  for a forced resume when it has side effects); several processes need a shared database (PostgreSQL) and a
+  shared data directory; no priority queues or per-project concurrency limits yet.
 
 - Code execution: a fresh sandbox per call (no stateful sessions, no file inputs/outputs yet); standard library
   only unless the operator configures an image; process mode does not block network and is not isolation.
@@ -214,7 +220,7 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   common credential formats); names and addresses need a model (not built). Injection heuristics are a first
   filter; the LLM judge is the stronger check. No toxicity classifier model; use Output Guard policies.
 
-- Runs execute in the API process (ADR-0005). Waiting runs are durable and interrupted runs can be resumed
+- Runs are durable (ADR-0039): queued jobs, leased workers, automatic resume from checkpoints. Waiting runs are durable and interrupted runs can be resumed
   from checkpoints (ADR-0013), but there is no queue-backed worker, approval expiry or assignee yet; loop
   iterations are not checkpointed and the Agent cannot pause before individual tool calls.
 - No process/container isolation: non-core nodes are refused (ADR-0004). Declared permissions other
@@ -284,9 +290,8 @@ AI methods in ADR-0030):
 
 Open-source production plan (ADR-0032; one reviewed feature each):
 - Done: MCP client and server (ADR-0033); sandboxed code execution (ADR-0034); triggers
-  (ADR-0035); native model providers (ADR-0036); observability export (ADR-0037); GitHub version control (ADR-0038).
-- Next: durable execution; streaming.
+  (ADR-0035); native model providers (ADR-0036); observability export (ADR-0037); GitHub version control (ADR-0038); durable execution (ADR-0039).
+- Next: streaming.
 
 1. Version history panel and visual diff of revisions (requested in the blueprint, not yet built).
-2. Durable run backend: queue-backed workers on top of the checkpoint/resume contract (ADR-0013).
 3. Workspaces and per-project permissions, OIDC/SSO, API tokens, audit log; Alembic migrations.

@@ -35,6 +35,9 @@ dependencies = [
 [project.optional-dependencies]
 postgres = ["psycopg[binary]>=3.1"]
 
+[project.scripts]
+agenticmind-worker = "agenticmind_api.worker:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

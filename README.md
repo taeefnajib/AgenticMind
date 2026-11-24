@@ -133,6 +133,12 @@ commit with the canonical, diff-friendly `project.agenticmind.json`, a README an
 save. Pushes never rewrite history and stop when someone changed the file on GitHub. Needs a token with
 *Contents: read and write* in the `GITHUB_TOKEN` secret. See ADR-0038.
 
+Runs are durable: they go through a database job queue and are executed by workers holding renewable leases.
+If the server or a worker stops mid-run, another worker (or the restarted server) **resumes the run from its
+checkpoints** without repeating finished nodes; a side-effecting node that was mid-flight waits for a manual
+resume instead. Scale out with `agenticmind-worker` processes on a shared PostgreSQL database
+(`docker compose --profile postgres --profile workers up --scale worker=3`). See ADR-0039.
+
 To start workflows from events: **Webhook Trigger** (token or HMAC protected; can wait and return the outputs),
 **Schedule Trigger** (cron with a time zone, or every N minutes), **Queue Trigger** (Redis Streams, Amazon SQS) and
 **Chat Trigger** (Slack, Telegram, WhatsApp, email), which replies with a run output. Tick *Enabled* and save:

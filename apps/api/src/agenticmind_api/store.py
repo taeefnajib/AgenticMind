@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from datetime import datetime
+from collections.abc import Mapping, Sequence
+from datetime import datetime, timedelta
 from typing import Any
 
 from agenticmind_ir import ProjectDocument, content_hash, to_canonical_dict
 from agenticmind_runtime import NodeCheckpoint, RunResult, RunStatus, TraceEvent
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from .db import (
+    LeaseRow,
     NodeOutputRow,
     ProjectRevisionRow,
     ProjectRow,
     RunCheckpointRow,
     RunEventRow,
+    RunJobRow,
     RunRow,
     RunWaitRow,
     utcnow,
@@ -120,8 +123,16 @@ class Store:
 
     # -- runs ------------------------------------------------------------------------------
     def create_run(
-        self, run_id: str, project_id: str, revision: ProjectRevisionRow, inputs: Mapping[str, Any]
+        self,
+        run_id: str,
+        project_id: str,
+        revision: ProjectRevisionRow,
+        inputs: Mapping[str, Any],
+        *,
+        targets: Sequence[str] | None = None,
+        enqueue: bool = True,
     ) -> RunRow:
+        """Create a queued run and (atomically) its execution job."""
         with self._sf.begin() as s:
             row = RunRow(
                 id=run_id,
@@ -133,7 +144,156 @@ class Store:
                 content_hash=revision.content_hash,
             )
             s.add(row)
+            if enqueue:
+                s.flush()
+                s.add(RunJobRow(run_id=run_id, kind="start", status="queued", targets=list(targets or [])))
         return row
+
+    # -- durable execution queue (ADR-0039) --------------------------------------------------
+    def enqueue_resume(
+        self, run_id: str, *, responses: Mapping[str, Any], targets: Sequence[str] | None, force: bool
+    ) -> None:
+        with self._sf.begin() as s:
+            job = s.get(RunJobRow, run_id)
+            if job is None:
+                job = RunJobRow(run_id=run_id)
+                s.add(job)
+            job.kind, job.status, job.owner, job.lease_expires_at = "resume", "queued", None, None
+            job.attempts, job.responses, job.force, job.cancel_requested = 0, dict(responses), force, False
+            job.targets = list(targets or [])
+            job.updated_at = utcnow()
+
+    def get_job(self, run_id: str) -> RunJobRow | None:
+        with self._sf() as s:
+            return s.get(RunJobRow, run_id)
+
+    def claim_jobs(self, owner: str, lease_seconds: float, limit: int) -> list[RunJobRow]:
+        """Claim up to ``limit`` queued jobs, or leased jobs whose worker stopped renewing (expired lease).
+
+        Each claim is one conditional UPDATE, so two workers can never hold the same job.
+        """
+        if limit <= 0:
+            return []
+        now = utcnow()
+        claimable = (RunJobRow.status == "queued") | (
+            (RunJobRow.status == "leased") & (RunJobRow.lease_expires_at < now)
+        )
+        with self._sf() as s:
+            candidates = list(
+                s.scalars(select(RunJobRow.run_id).where(claimable).order_by(RunJobRow.created_at).limit(limit * 3))
+            )
+        claimed: list[RunJobRow] = []
+        for run_id in candidates:
+            if len(claimed) >= limit:
+                break
+            with self._sf.begin() as s:
+                result = s.execute(
+                    update(RunJobRow)
+                    .where(RunJobRow.run_id == run_id, claimable)
+                    .values(
+                        status="leased",
+                        owner=owner,
+                        attempts=RunJobRow.attempts + 1,
+                        updated_at=now,
+                        lease_expires_at=now + timedelta(seconds=lease_seconds),
+                    )
+                )
+                if result.rowcount == 1:
+                    claimed.append(s.get(RunJobRow, run_id))
+        return claimed
+
+    def renew_lease(self, run_id: str, owner: str, lease_seconds: float) -> tuple[bool, bool]:
+        """(still the owner, cancel requested)."""
+        now = utcnow()
+        with self._sf.begin() as s:
+            result = s.execute(
+                update(RunJobRow)
+                .where(RunJobRow.run_id == run_id, RunJobRow.owner == owner, RunJobRow.status == "leased")
+                .values(lease_expires_at=now + timedelta(seconds=lease_seconds), updated_at=now)
+            )
+            job = s.get(RunJobRow, run_id)
+            return result.rowcount == 1, bool(job and job.cancel_requested)
+
+    def finish_job(self, run_id: str, owner: str) -> None:
+        with self._sf.begin() as s:
+            s.execute(
+                update(RunJobRow)
+                .where(RunJobRow.run_id == run_id, RunJobRow.owner == owner)
+                .values(status="done", lease_expires_at=None, updated_at=utcnow())
+            )
+
+    def release_job(self, run_id: str, owner: str) -> None:
+        """Hand a job back (graceful shutdown): another worker picks it up and resumes from checkpoints."""
+        with self._sf.begin() as s:
+            s.execute(
+                update(RunJobRow)
+                .where(RunJobRow.run_id == run_id, RunJobRow.owner == owner, RunJobRow.status == "leased")
+                .values(status="queued", owner=None, lease_expires_at=None, updated_at=utcnow())
+            )
+
+    def request_cancel(self, run_id: str) -> str:
+        """Cancel a queued run now ("cancelled"), flag a running one for its worker ("requested"), else ""."""
+        with self._sf.begin() as s:
+            job = s.get(RunJobRow, run_id, with_for_update=True)
+            run = s.get(RunRow, run_id)
+            if job is None or job.status == "done" or run is None:
+                return ""
+            if job.status == "queued":
+                job.status = "done"
+                if not RunStatus(run.status).terminal:
+                    run.status = RunStatus.CANCELLED.value
+                    run.finished_at = utcnow()
+                return "cancelled"
+            job.cancel_requested = True
+            return "requested"
+
+    def acquire_lease(self, name: str, owner: str, lease_seconds: float) -> bool:
+        """Take or renew a named lease; True while this owner holds it."""
+        now = utcnow()
+        expires = now + timedelta(seconds=lease_seconds)
+        with self._sf.begin() as s:
+            result = s.execute(
+                update(LeaseRow)
+                .where(LeaseRow.name == name, (LeaseRow.owner == owner) | (LeaseRow.expires_at < now))
+                .values(owner=owner, expires_at=expires)
+            )
+            if result.rowcount == 1:
+                return True
+            if s.get(LeaseRow, name) is not None:
+                return False
+            try:
+                with s.begin_nested():
+                    s.add(LeaseRow(name=name, owner=owner, expires_at=expires))
+            except IntegrityError:
+                return False
+            return True
+
+    def release_lease(self, name: str, owner: str) -> None:
+        with self._sf.begin() as s:
+            s.execute(
+                update(LeaseRow).where(LeaseRow.name == name, LeaseRow.owner == owner).values(expires_at=utcnow())
+            )
+
+    def fail_unqueued_orphans(self) -> int:
+        """Runs left active without a job (created before the queue existed): interrupted, resumable."""
+        with self._sf.begin() as s:
+            jobs = select(RunJobRow.run_id)
+            rows = s.scalars(
+                select(RunRow).where(
+                    RunRow.status.in_([RunStatus.QUEUED.value, RunStatus.RUNNING.value]), RunRow.id.not_in(jobs)
+                )
+            ).all()
+            for row in rows:
+                row.status = RunStatus.FAILED.value
+                row.error = {
+                    "code": "RUN_INTERRUPTED",
+                    "message": "The server restarted while this run was active. "
+                    "Resume it to continue from its last checkpoint.",
+                    "node_id": None,
+                    "retryable": False,
+                }
+                row.finished_at = utcnow()
+            return len(rows)
 
     def mark_run_started(self, run_id: str) -> None:
         with self._sf.begin() as s:

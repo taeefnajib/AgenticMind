@@ -70,6 +70,9 @@ def create_app(
         artifacts=artifacts,
         data_dir=settings.data_dir,
         memory=memory,
+        worker_id=settings.worker_id,
+        lease_seconds=settings.lease_seconds,
+        max_run_attempts=settings.max_run_attempts,
     )
 
     eval_runs = EvaluationManager(
@@ -119,9 +122,12 @@ def create_app(
 
     @asynccontextmanager
     async def _core_lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        orphaned = store.fail_orphaned_runs()
+        # runs with a job are recovered by workers (expired leases); older runs without one are interrupted
+        orphaned = store.fail_unqueued_orphans()
         if orphaned:
             log.warning("marked %d interrupted run(s) as failed", orphaned)
+        if settings.embedded_worker:
+            await run_manager.start_worker()
         interrupted = evals.fail_interrupted()
         if interrupted:
             log.warning("marked %d interrupted evaluation(s) as failed", interrupted)

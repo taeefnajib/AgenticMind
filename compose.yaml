@@ -24,6 +24,23 @@ services:
       timeout: 5s
       retries: 5
 
+  # Extra run workers (ADR-0039): docker compose --profile postgres --profile workers up --scale worker=3
+  # Use PostgreSQL for several processes; workers resume runs from any worker that stops or crashes.
+  worker:
+    profiles: ["workers"]
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+    command: ["agenticmind-worker"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      AGENTICMIND_DATABASE_URL: ${AGENTICMIND_DATABASE_URL:-sqlite:////data/agenticmind.db}
+      AGENTICMIND_IN_PROCESS_TRUST: ${AGENTICMIND_IN_PROCESS_TRUST:-core}
+    volumes:
+      - agenticmind-data:/data
+
   postgres:
     profiles: ["postgres"]
     image: postgres:16-alpine

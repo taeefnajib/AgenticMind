@@ -60,6 +60,36 @@ class RunRow(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class RunJobRow(Base):
+    """Durable execution queue (ADR-0039): one job per run, claimed by a worker under a renewable lease."""
+
+    __tablename__ = "run_jobs"
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True)
+    #: "start" (first execution) or "resume" (continue from checkpoints with responses).
+    kind: Mapped[str] = mapped_column(String(10))
+    #: "queued" | "leased" | "done"
+    status: Mapped[str] = mapped_column(String(10), index=True)
+    owner: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Claims so far (a claim after the first is a recovery from a lost worker).
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    targets: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    responses: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    force: Mapped[bool] = mapped_column(default=False)
+    cancel_requested: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class LeaseRow(Base):
+    """Named leases for single-leader duties across processes (e.g. the trigger scheduler), ADR-0039."""
+
+    __tablename__ = "leases"
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner: Mapped[str] = mapped_column(String(128))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class RunEventRow(Base):
     __tablename__ = "run_events"
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True)

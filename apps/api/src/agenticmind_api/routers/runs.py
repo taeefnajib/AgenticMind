@@ -133,25 +133,6 @@ def _run_targets(svc: Services, run_id: str) -> list[str]:
     return list(data.get("targets") or [])
 
 
-def _unfinished_side_effects(svc: Services, run_id: str, plan: Any) -> list[str]:
-    """Non-idempotent nodes that started but never finished before an interruption."""
-    started: set[str] = set()
-    finished: set[str] = set()
-    for e in svc.store.list_events(run_id, after=0, limit=100_000):
-        if not e.node_id:
-            continue
-        if e.event_type == "node_started":
-            started.add(e.node_id)
-        elif e.event_type in ("node_succeeded", "node_failed", "node_skipped", "node_cancelled", "node_waiting"):
-            finished.add(e.node_id)
-    restored = {c.node_id for c in svc.store.list_checkpoints(run_id) if c.restorable}
-    return sorted(
-        n
-        for n in started - finished - restored
-        if n in plan.nodes and not plan.nodes[n].entry.definition.manifest.execution.idempotent
-    )
-
-
 @router.post("/runs/{run_id}/resume", response_model=RunOut, status_code=202)
 async def resume_run(run_id: str, body: RunResume, svc: Services = Depends(services)) -> RunOut:
     """Continue a waiting run with responses, or an interrupted run from its last checkpoints (ADR-0013)."""
@@ -181,7 +162,7 @@ async def resume_run(run_id: str, body: RunResume, svc: Services = Depends(servi
     except PlanError as exc:
         raise HTTPException(422, {"message": str(exc), **exc.report.to_public()}) from exc
     if interrupted and not body.force:
-        unsafe = _unfinished_side_effects(svc, run_id, plan)
+        unsafe = svc.runs.unfinished_side_effects(run_id, plan)
         if unsafe:
             raise HTTPException(
                 409,
@@ -198,7 +179,7 @@ async def resume_run(run_id: str, body: RunResume, svc: Services = Depends(servi
         responses=body.responses,
         last_seq=svc.store.last_seq(run_id),
     )
-    svc.runs.resume(run_id, plan, row.inputs, state)
+    svc.runs.resume(run_id, plan, row.inputs, state, force=body.force)
     return _run_out(_require_run(svc, run_id))
 
 
