@@ -250,6 +250,17 @@ class MockProvider:
             model=request.model,
         )
 
+    async def stream(
+        self, request: ChatRequest, *, api_key: str | None = None, base_url: str | None = None, on_text: Any = None
+    ) -> ChatResponse:
+        """Deterministic streaming: the mock answer delivered word by word."""
+        response = await self.chat(request, api_key=api_key, base_url=base_url)
+        if on_text is not None and response.text:
+            words = response.text.split(" ")
+            for i, word in enumerate(words):
+                await on_text(word if i == len(words) - 1 else word + " ")
+        return response
+
     def _tool_step(self, request: ChatRequest, last_user: str) -> ChatResponse | None:
         """Deterministic tool use: call the tool named in the task (or the first), then answer from its result."""
         if not request.tools or request.tool_choice == "none":
@@ -300,6 +311,7 @@ from .anthropic_chat import AnthropicChat  # noqa: E402  (needs the types above)
 from .bedrock_chat import BedrockChat  # noqa: E402
 from .chat import OpenAICompatibleChat, list_openai_models  # noqa: E402
 from .gemini_chat import GeminiChat  # noqa: E402
+from .streaming import chat_stream  # noqa: E402
 
 for _name in ("openrouter", "openai_compatible", "huggingface", "ollama", "openai", "azure_openai", "mistral", "groq",
               "deepseek", "together", "xai"):  # fmt: skip
@@ -330,6 +342,7 @@ __all__ = [
     "PROVIDERS",
     "ProviderInfo",
     "list_models",
+    "chat_stream",
     "ChatMessage",
     "ChatProviderName",
     "ImagePart",

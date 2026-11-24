@@ -90,6 +90,18 @@ class LeaseRow(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class RunStreamChunkRow(Base):
+    """Streamed text deltas of a run (ADR-0040), batched; a live preview, node outputs stay authoritative."""
+
+    __tablename__ = "run_stream_chunks"
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True)
+    node_id: Mapped[str] = mapped_column(String(64))
+    invocation_id: Mapped[str] = mapped_column(String(64))
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class RunEventRow(Base):
     __tablename__ = "run_events"
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"), primary_key=True)

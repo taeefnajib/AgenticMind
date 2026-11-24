@@ -64,6 +64,8 @@ interface Props {
   outputs: ChatOutputOption[];
   disabled: boolean;
   onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
+  /** Live text of the running model, shown while the answer is being written (ADR-0040). */
+  streamingText?: string;
 }
 
 type AnswerObject = {
@@ -180,7 +182,7 @@ export function chatInputs(
   return inputs;
 }
 
-export function ChatPanel({ inputNodes, imageInputs = [], runInputs = {}, outputs, disabled, onAsk }: Props) {
+export function ChatPanel({ inputNodes, imageInputs = [], runInputs = {}, outputs, disabled, onAsk, streamingText }: Props) {
   const { files } = useWorkbench();
   const imageKey = imageInputs[0] ? String(imageInputs[0].config.key ?? "image") : undefined;
   const [attached, setAttached] = useState<{ id: string; name: string } | null>(null);
@@ -365,7 +367,17 @@ export function ChatPanel({ inputNodes, imageInputs = [], runInputs = {}, output
             </div>
           ),
         )}
-        {busy && <div className="text-xs text-slate-400">Thinking…</div>}
+        {busy &&
+          (streamingText ? (
+            <div className="max-w-[90%] rounded-lg border border-slate-200 bg-surface px-3 py-2" aria-live="polite">
+              <div className="whitespace-pre-wrap text-sm text-slate-800">
+                {streamingText}
+                <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-slate-400 align-middle" />
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400">Thinking…</div>
+          ))}
       </div>
 
       {attached && (

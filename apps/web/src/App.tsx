@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readExposure } from "./lib/mcp";
+import { applyToken, EMPTY_LIVE, latestText, type LiveText } from "./lib/streamText";
 import type { ProjectMeta } from "./components/Inspector";
 
 import { api, ApiError, apiAlive, isConnectionError, subscribeRunEvents } from "./api/client";
@@ -111,6 +112,7 @@ export function App() {
   const [valid, setValid] = useState<boolean | null>(null);
   const [run, setRun] = useState<RunOut | null>(null);
   const [events, setEvents] = useState<TraceEvent[]>([]);
+  const [live, setLive] = useState<LiveText>(EMPTY_LIVE);
   const [nodeStatus, setNodeStatus] = useState<Record<string, NodeRunStatus>>({});
   const [iterations, setIterations] = useState<Record<string, number>>({});
   const [approvalsKey, setApprovalsKey] = useState(0);
@@ -155,6 +157,7 @@ export function App() {
     unsubscribe.current?.();
     setRun(null);
     setEvents([]);
+    setLive(EMPTY_LIVE);
     setNodeStatus({});
     setIterations({});
   };
@@ -371,6 +374,7 @@ export function App() {
             }
             resolve({ run: final, events: collected });
           },
+          (token) => setLive((prev) => applyToken(prev, token)),
         );
       });
     },
@@ -752,6 +756,7 @@ export function App() {
               chatOutputs={runTargets.map((t) => ({ ...t, key: String(nodes.find((n) => n.id === t.id)?.data.ir.config.key ?? t.id) }))}
               chatDisabled={!project || Boolean(apiDown)}
               onAsk={askChat}
+              streamingText={latestText(live)}
             />
           </main>
           <Inspector

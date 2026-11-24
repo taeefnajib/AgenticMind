@@ -57,6 +57,8 @@ class NodeContext:
     allowed_secrets: frozenset[str] = frozenset()
     _secret_lookup: SecretLookup | None = None
     _emitter: EventEmitter | None = None
+    #: Receives streamed text deltas (ADR-0040); None when nobody listens.
+    _streamer: Callable[[str], Awaitable[None]] | None = None
     _artifacts: ArtifactReader | None = None
     _storage_root: Path | None = None
     _memory: MemoryAccess | None = None
@@ -125,6 +127,19 @@ class NodeContext:
                 "or the runtime has no memory store",
             )
         return self._memory
+
+    @property
+    def streaming(self) -> bool:
+        """True when someone receives ``stream_text`` deltas (nodes may skip streaming otherwise)."""
+        return self._streamer is not None
+
+    async def stream_text(self, delta: str) -> None:
+        """Stream a piece of this node's text output as it is produced (e.g. model tokens), ADR-0040.
+
+        Deltas are a live preview: the node's outputs remain the source of truth.
+        """
+        if self._streamer is not None and delta:
+            await self._streamer(delta)
 
     async def emit(self, event_type: str, data: Mapping[str, Any]) -> None:
         """Emit a custom trace event (e.g. ``tool_call``). Data is redacted by the runtime."""

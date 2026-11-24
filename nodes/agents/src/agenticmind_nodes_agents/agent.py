@@ -45,6 +45,7 @@ from agenticmind_providers import (
     ChatRequest,
     ProviderError,
     ToolSpec,
+    chat_stream,
     check_chat_provider,
     get_provider,
 )
@@ -277,7 +278,8 @@ async def run_agent_loop(
             check_budgets()
             turns += 1
             try:
-                resp = await provider.chat(
+                resp = await chat_stream(
+                    provider,
                     ChatRequest(
                         model=config.model,
                         system=system,
@@ -289,6 +291,7 @@ async def run_agent_loop(
                     ),
                     api_key=api_key,
                     base_url=config.base_url,
+                    on_text=ctx.stream_text if ctx.streaming else None,
                 )
             except ProviderError as exc:
                 if exc.retryable:
@@ -364,7 +367,8 @@ async def run_agent_loop(
         if limit.reason in ("max_turns", "max_tool_calls"):
             # wrap-up turn: one last call without tools so the work done so far is not lost
             try:
-                resp = await provider.chat(
+                resp = await chat_stream(
+                    provider,
                     ChatRequest(
                         model=config.model,
                         system=system,
@@ -383,6 +387,7 @@ async def run_agent_loop(
                     ),
                     api_key=api_key,
                     base_url=config.base_url,
+                    on_text=ctx.stream_text if ctx.streaming else None,
                 )
                 tokens_in += resp.usage.input_tokens
                 tokens_out += resp.usage.output_tokens

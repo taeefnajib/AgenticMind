@@ -33,6 +33,7 @@ from agenticmind_providers import (
     ChatRequest,
     ImagePart,
     ProviderError,
+    chat_stream,
     check_chat_provider,
     get_provider,
 )
@@ -62,7 +63,8 @@ async def _chat(
         if images:
             detail["images"] = len(images)
         await ctx.emit("model_request", detail)
-        return await provider.chat(
+        return await chat_stream(  # tokens stream live when someone listens (ADR-0040)
+            provider,
             ChatRequest(
                 model=model,
                 system=system or None,
@@ -72,6 +74,7 @@ async def _chat(
             ),
             api_key=api_key,
             base_url=base_url,
+            on_text=ctx.stream_text if ctx.streaming else None,
         )
     except ProviderError as exc:
         if exc.retryable:

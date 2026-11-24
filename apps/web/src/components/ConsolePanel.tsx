@@ -37,6 +37,8 @@ interface Props {
   chatOutputs: ChatOutputOption[];
   chatDisabled: boolean;
   onAsk: (inputs: Record<string, JsonValue>, target: string) => Promise<ChatResult | null>;
+  /** Text the running model has written so far (ADR-0040). */
+  streamingText?: string;
 }
 
 export function isManualInput(n: IRNode) {
@@ -94,6 +96,7 @@ export function ConsolePanel(props: Props) {
           outputs={props.chatOutputs}
           disabled={props.chatDisabled}
           onAsk={props.onAsk}
+          streamingText={props.streamingText}
         />
       </div>
       <div className={tab === "chat" ? "hidden" : "flex-1 overflow-auto p-3"}>

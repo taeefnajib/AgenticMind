@@ -136,6 +136,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **Streaming** (ADR-0040): providers stream tokens (OpenAI-compatible with tool-call reassembly, Anthropic SDK,
+  Gemini; one-chunk fallback), LLM and Agent nodes stream when someone listens, batched chunks served across
+  processes as `token` SSE events, one-call `runs/stream` endpoint, live typing in Chat.
 - **Durable execution** (ADR-0039): database job queue with leased, heartbeated claims; automatic resume from
   checkpoints after a worker or server stops (side-effecting in-flight nodes need a forced resume; capped
   recoveries); embedded and separate `agenticmind-worker` processes; cross-process cancel and wait; a single
@@ -194,6 +197,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
+
+- Streaming: batched (~100 ms) and polled (~200 ms) delivery; Bedrock, reasoning/guardrail nodes, MCP results and
+  exported apps do not stream yet.
 
 - Version control: GitHub only (no GitLab / Bitbucket yet); pulls replace the project as a new revision (no
   three-way merge); no GitHub-to-AgenticMind webhook pulls.
@@ -290,8 +296,8 @@ AI methods in ADR-0030):
 
 Open-source production plan (ADR-0032; one reviewed feature each):
 - Done: MCP client and server (ADR-0033); sandboxed code execution (ADR-0034); triggers
-  (ADR-0035); native model providers (ADR-0036); observability export (ADR-0037); GitHub version control (ADR-0038); durable execution (ADR-0039).
-- Next: streaming.
+  (ADR-0035); native model providers (ADR-0036); observability export (ADR-0037); GitHub version control (ADR-0038); durable execution (ADR-0039);
+  streaming (ADR-0040). All eight features of the plan are done.
 
 1. Version history panel and visual diff of revisions (requested in the blueprint, not yet built).
 3. Workspaces and per-project permissions, OIDC/SSO, API tokens, audit log; Alembic migrations.

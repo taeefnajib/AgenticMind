@@ -1,0 +1,113 @@
+"""Token streaming (ADR-0040).
+
+``chat_stream`` returns the same ``ChatResponse`` as ``chat`` while calling ``on_text`` with text deltas as the
+model produces them. Providers that can stream implement ``stream(request, *, api_key, base_url, on_text)``;
+for the others (Bedrock's binary event stream, test fakes) the full text is delivered as one delta.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
+
+from . import ChatRequest, ChatResponse, ProviderError
+
+OnText = Callable[[str], Awaitable[None]]
+
+
+async def chat_stream(
+    provider: Any,
+    request: ChatRequest,
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    on_text: OnText | None = None,
+) -> ChatResponse:
+    stream = getattr(provider, "stream", None)
+    if on_text is None or stream is None:
+        response = await provider.chat(request, api_key=api_key, base_url=base_url)
+        if on_text is not None and response.text:
+            await on_text(response.text)
+        return response
+    return await stream(request, api_key=api_key, base_url=base_url, on_text=on_text)
+
+
+async def sse_data(lines: AsyncIterator[str]) -> AsyncIterator[str]:
+    """``data:`` payloads of a server-sent event stream (comments and other fields skipped)."""
+    buffer: list[str] = []
+    async for raw in lines:
+        line = raw.rstrip("\r")
+        if not line:
+            if buffer:
+                yield "\n".join(buffer)
+                buffer = []
+            continue
+        if line.startswith(":"):
+            continue  # keep-alive comment (e.g. OpenRouter's ": OPENROUTER PROCESSING")
+        if line.startswith("data:"):
+            buffer.append(line[5:].lstrip())
+    if buffer:
+        yield "\n".join(buffer)
+
+
+class OpenAIStreamAccumulator:
+    """Rebuilds a chat completion from ``chat.completion.chunk`` deltas (content and tool-call fragments)."""
+
+    def __init__(self) -> None:
+        self.text: list[str] = []
+        self.calls: dict[int, dict[str, Any]] = {}
+        self.finish_reason: str | None = None
+        self.usage: dict[str, Any] = {}
+        self.model: str | None = None
+
+    def add(self, chunk: dict[str, Any]) -> str:
+        """Fold one chunk in; returns its text delta."""
+        if isinstance(chunk.get("error"), dict):
+            raise ProviderError("PROVIDER_ERROR", f"Provider error: {chunk['error'].get('message', chunk['error'])}")
+        self.model = chunk.get("model") or self.model
+        if chunk.get("usage"):
+            self.usage = chunk["usage"]
+        delta_text = ""
+        for choice in chunk.get("choices") or []:
+            delta = choice.get("delta") or {}
+            if isinstance(delta.get("content"), str):
+                delta_text += delta["content"]
+            for tc in delta.get("tool_calls") or []:
+                slot = self.calls.setdefault(int(tc.get("index", 0)), {"id": None, "name": "", "arguments": ""})
+                slot["id"] = tc.get("id") or slot["id"]
+                fn = tc.get("function") or {}
+                slot["name"] += fn.get("name") or ""
+                slot["arguments"] += fn.get("arguments") or ""
+            if choice.get("finish_reason"):
+                self.finish_reason = choice["finish_reason"]
+        if delta_text:
+            self.text.append(delta_text)
+        return delta_text
+
+    def payload(self) -> dict[str, Any]:
+        """The equivalent non-streaming response body (parsed by the same ``parse_response``)."""
+        calls = [
+            {
+                "id": c["id"] or f"call_{i}",
+                "type": "function",
+                "function": {"name": c["name"], "arguments": c["arguments"] or "{}"},
+            }
+            for i, c in sorted(self.calls.items())
+        ]
+        message: dict[str, Any] = {"role": "assistant", "content": "".join(self.text)}
+        if calls:
+            message["tool_calls"] = calls
+        return {
+            "model": self.model,
+            "usage": self.usage,
+            "choices": [{"index": 0, "finish_reason": self.finish_reason, "message": message}],
+        }
+
+
+def loads(data: str) -> dict[str, Any] | None:
+    try:
+        value = json.loads(data)
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None

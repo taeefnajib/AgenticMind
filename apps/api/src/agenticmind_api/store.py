@@ -21,6 +21,7 @@ from .db import (
     RunEventRow,
     RunJobRow,
     RunRow,
+    RunStreamChunkRow,
     RunWaitRow,
     utcnow,
 )
@@ -438,6 +439,24 @@ class Store:
     def last_seq(self, run_id: str) -> int:
         with self._sf() as s:
             return s.scalar(select(func.max(RunEventRow.seq)).where(RunEventRow.run_id == run_id)) or 0
+
+    # -- streamed text (ADR-0040) ------------------------------------------------------------
+    def add_stream_chunk(self, run_id: str, node_id: str, invocation_id: str, text: str) -> int:
+        with self._sf.begin() as s:
+            seq = (s.scalar(select(func.max(RunStreamChunkRow.seq)).where(RunStreamChunkRow.run_id == run_id)) or 0) + 1
+            s.add(RunStreamChunkRow(run_id=run_id, seq=seq, node_id=node_id, invocation_id=invocation_id, text=text))
+            return seq
+
+    def list_stream_chunks(self, run_id: str, after: int = 0, limit: int = 2000) -> list[RunStreamChunkRow]:
+        with self._sf() as s:
+            return list(
+                s.scalars(
+                    select(RunStreamChunkRow)
+                    .where(RunStreamChunkRow.run_id == run_id, RunStreamChunkRow.seq > after)
+                    .order_by(RunStreamChunkRow.seq)
+                    .limit(limit)
+                )
+            )
 
     # -- events & outputs ------------------------------------------------------------------
     def add_event(self, event: TraceEvent) -> None:

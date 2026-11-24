@@ -21,6 +21,7 @@ import contextlib
 import logging
 import os
 import socket
+import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -55,10 +56,33 @@ def default_worker_id() -> str:
 
 
 class DbObserver:
+    """Persists trace events, checkpoints and outputs; batches streamed text (ADR-0040)."""
+
+    FLUSH_SECONDS = 0.1
+    FLUSH_CHARS = 256
+
     def __init__(self, store: Store) -> None:
         self.store = store
+        self._buffers: dict[tuple[str, str, str], list[str]] = {}
+        self._last_flush = time.monotonic()
+
+    async def on_stream(self, run_id: str, node_id: str, invocation_id: str, delta: str) -> None:
+        key = (run_id, node_id, invocation_id)
+        self._buffers.setdefault(key, []).append(delta)
+        pending = sum(len(d) for d in self._buffers[key])
+        if pending >= self.FLUSH_CHARS or time.monotonic() - self._last_flush >= self.FLUSH_SECONDS:
+            self.flush_stream()
+
+    def flush_stream(self) -> None:
+        for (run_id, node_id, invocation_id), parts in list(self._buffers.items()):
+            if parts:
+                self.store.add_stream_chunk(run_id, node_id, invocation_id, "".join(parts))
+        self._buffers.clear()
+        self._last_flush = time.monotonic()
 
     async def on_event(self, event: TraceEvent) -> None:
+        if self._buffers:
+            self.flush_stream()  # deltas land before the event that ends their node
         self.store.add_event(event)
 
     async def on_checkpoint(self, run_id: str, checkpoint: NodeCheckpoint) -> None:

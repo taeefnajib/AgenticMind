@@ -61,6 +61,27 @@ async def start_run(project_id: str, body: RunCreate, svc: Services = Depends(se
     return _run_out(_require_run(svc, run_id))
 
 
+@router.post("/projects/{project_id}/runs/stream", response_model=None)
+async def start_run_streaming(
+    project_id: str, body: RunCreate, request: Request, svc: Services = Depends(services)
+) -> StreamingResponse:
+    """Start a run and stream it in one call (ADR-0040): ``event: run`` (id), ``token`` deltas as models write,
+    ``trace`` events, then ``result`` (status, outputs, error) and ``end``. Add ``?trace=false`` to skip traces."""
+    created = await start_run(project_id, body, svc)
+    trace = request.query_params.get("trace", "true").lower() != "false"
+
+    async def body_stream() -> AsyncIterator[str]:
+        yield f"event: run\ndata: {json.dumps({'run_id': created.id})}\n\n"
+        async for message in sse_stream(svc, created.id, request, 0, tokens=True, result=True):
+            if not trace and message.startswith("id: "):
+                continue
+            yield message
+
+    return StreamingResponse(
+        body_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
 @router.get("/projects/{project_id}/runs", response_model=list[RunOut])
 def list_runs(project_id: str, limit: int = 50, svc: Services = Depends(services)) -> list[RunOut]:
     return [_run_out(r) for r in svc.store.list_runs(project_id, limit=min(limit, 200))]
@@ -199,6 +220,7 @@ async def run_events(
     after: int = 0,
     accept: str | None = Header(default=None),
     last_event_id: str | None = Header(default=None),
+    tokens: bool = True,
     svc: Services = Depends(services),
 ):
     """Trace events in ``seq`` order.
@@ -216,37 +238,50 @@ async def run_events(
     if last_event_id and last_event_id.isdigit():
         start_after = max(start_after, int(last_event_id))
 
-    async def stream() -> AsyncIterator[str]:
-        last = start_after
-        idle = 0.0
-        yield "retry: 1000\n\n"
-        while True:
-            if await request.is_disconnected():
-                return
-            run = svc.store.get_run(run_id)
-            # a waiting run has no more events until it is resumed (clients reconnect after resuming)
-            terminal = run is not None and (
-                RunStatus(run.status).terminal
-                or (run.status == RunStatus.WAITING.value and not svc.runs.is_active(run_id))
-            )
-            events = svc.store.list_events(run_id, after=last)
-            for e in events:
-                last = e.seq
-                yield f"id: {e.seq}\nevent: trace\ndata: {json.dumps(e.payload)}\n\n"
-            if terminal and not events:
-                yield f"event: end\ndata: {json.dumps({'status': run.status if run else None})}\n\n"
-                return
-            if events:
-                idle = 0.0
-            else:
-                idle += SSE_POLL_SECONDS
-                if idle >= SSE_KEEPALIVE_SECONDS:
-                    idle = 0.0
-                    yield ": keepalive\n\n"
-            await asyncio.sleep(SSE_POLL_SECONDS)
-
     return StreamingResponse(
-        stream(),
+        sse_stream(svc, run_id, request, start_after, tokens=tokens),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+async def sse_stream(
+    svc: Services, run_id: str, request: Request, start_after: int = 0, *, tokens: bool = True, result: bool = False
+) -> AsyncIterator[str]:
+    """Trace events (``event: trace``, ``id`` = seq), streamed text (``event: token``, with its chunk ``seq``)
+    and, with ``result``, a final ``event: result`` carrying status, outputs and error (ADR-0040)."""
+    last = start_after
+    last_chunk = 0
+    idle = 0.0
+    yield "retry: 1000\n\n"
+    while True:
+        if await request.is_disconnected():
+            return
+        run = svc.store.get_run(run_id)
+        # a waiting run has no more events until it is resumed (clients reconnect after resuming)
+        terminal = run is not None and (
+            RunStatus(run.status).terminal or (run.status == RunStatus.WAITING.value and not svc.runs.is_active(run_id))
+        )
+        chunks = svc.store.list_stream_chunks(run_id, after=last_chunk) if tokens else []
+        for c in chunks:
+            last_chunk = c.seq
+            data = {"seq": c.seq, "node_id": c.node_id, "invocation_id": c.invocation_id, "text": c.text}
+            yield f"event: token\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+        events = svc.store.list_events(run_id, after=last)
+        for e in events:
+            last = e.seq
+            yield f"id: {e.seq}\nevent: trace\ndata: {json.dumps(e.payload)}\n\n"
+        if terminal and not events and not chunks:
+            if result and run is not None:
+                final = {"run_id": run_id, "status": run.status, "outputs": run.outputs, "error": run.error}
+                yield f"event: result\ndata: {json.dumps(final, ensure_ascii=False, default=str)}\n\n"
+            yield f"event: end\ndata: {json.dumps({'status': run.status if run else None})}\n\n"
+            return
+        if events or chunks:
+            idle = 0.0
+        else:
+            idle += SSE_POLL_SECONDS
+            if idle >= SSE_KEEPALIVE_SECONDS:
+                idle = 0.0
+                yield ": keepalive\n\n"
+        await asyncio.sleep(SSE_POLL_SECONDS)

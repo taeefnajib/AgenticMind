@@ -482,6 +482,18 @@ class _RunExecution:
             raise NodeError("NODE_INVALID_BRANCH", f"Unknown branches: {', '.join(sorted(unknown))}")
         return branches
 
+    def _streamer(self, node_id: str, invocation_id: str) -> Any:
+        """A delta sink for one node invocation, or None when the observer does not take streams (ADR-0040)."""
+        observer = self.engine.observer
+        on_stream = getattr(observer, "on_stream", None) if observer is not None else None
+        if on_stream is None:
+            return None
+
+        async def sink(delta: str) -> None:
+            await on_stream(self.run_id, node_id, invocation_id, delta)
+
+        return sink
+
     async def _invoke(self, pn: PlannedNode, inputs: dict[str, Any], scope: _Scope) -> _Outcome:
         manifest = pn.entry.definition.manifest
         invocation_id = new_id("inv")
@@ -526,6 +538,7 @@ class _RunExecution:
                 allowed_secrets=pn.allowed_secrets,
                 _secret_lookup=self.engine.secrets.get if self.engine.secrets else None,
                 _emitter=emit_custom,
+                _streamer=self._streamer(pn.id, invocation_id),
                 _artifacts=artifacts,
                 _storage_root=self.engine.data_dir if manifest.permissions.filesystem else None,
                 _memory=memory,

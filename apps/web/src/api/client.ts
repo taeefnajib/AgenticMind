@@ -42,6 +42,7 @@ import type {
   WaitOut,
 } from "./types";
 import type { TriggerStatus } from "../lib/triggers";
+import type { TokenEvent } from "../lib/streamText";
 
 export class ApiError extends Error {
   constructor(
@@ -448,9 +449,11 @@ export function subscribeRunEvents(
   runId: string,
   onEvent: (event: TraceEvent) => void,
   onEnd: () => void,
+  onToken?: (token: TokenEvent) => void,
 ): () => void {
   const source = new EventSource(`/api/runs/${runId}/events`);
   source.addEventListener("trace", (msg) => onEvent(JSON.parse((msg as MessageEvent).data) as TraceEvent));
+  if (onToken) source.addEventListener("token", (msg) => onToken(JSON.parse((msg as MessageEvent).data) as TokenEvent));
   source.addEventListener("end", () => {
     source.close();
     onEnd();

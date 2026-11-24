@@ -125,19 +125,38 @@ class AnthropicChat:
     async def chat(
         self, request: ChatRequest, *, api_key: str | None = None, base_url: str | None = None
     ) -> ChatResponse:
+        return await self._call(request, api_key, base_url, None)
+
+    async def stream(
+        self, request: ChatRequest, *, api_key: str | None = None, base_url: str | None = None, on_text: Any = None
+    ) -> ChatResponse:
+        """``messages.stream``: text deltas to ``on_text``, then the final message (ADR-0040)."""
+        return await self._call(request, api_key, base_url, on_text)
+
+    async def _call(
+        self, request: ChatRequest, api_key: str | None, base_url: str | None, on_text: Any
+    ) -> ChatResponse:
         import anthropic
 
         if not api_key:  # never fall back to the server's own credentials
             raise ProviderError("PROVIDER_AUTH_MISSING", "Anthropic needs an API key (ANTHROPIC_API_KEY)")
         client = anthropic.AsyncAnthropic(api_key=api_key, base_url=base_url or None, max_retries=2, timeout=600)
         params = build_params(request)
-        use_fallbacks = (os.environ.get("AGENTICMIND_ANTHROPIC_FALLBACKS", "1") != "0"
-                         and _FALLBACK_MODELS.search(request.model) is not None and not base_url)  # fmt: skip
+        use_fallbacks = (
+            os.environ.get("AGENTICMIND_ANTHROPIC_FALLBACKS", "1") != "0"
+            and _FALLBACK_MODELS.search(request.model) is not None
+            and not base_url
+        )
+        extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"} if use_fallbacks else {}
+        api = client.beta.messages if use_fallbacks else client.messages
         try:
-            if use_fallbacks:
-                msg = await client.beta.messages.create(**params, betas=[FALLBACK_BETA], fallbacks="default")
+            if on_text is None:
+                msg = await api.create(**params, **extra)
             else:
-                msg = await client.messages.create(**params)
+                async with api.stream(**params, **extra) as stream:
+                    async for text in stream.text_stream:
+                        await on_text(text)
+                    msg = await stream.get_final_message()
         except anthropic.AuthenticationError as exc:
             raise ProviderError("PROVIDER_AUTH_FAILED", "Anthropic rejected the API key") from exc
         except anthropic.PermissionDeniedError as exc:

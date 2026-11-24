@@ -139,6 +139,10 @@ checkpoints** without repeating finished nodes; a side-effecting node that was m
 resume instead. Scale out with `agenticmind-worker` processes on a shared PostgreSQL database
 (`docker compose --profile postgres --profile workers up --scale worker=3`). See ADR-0039.
 
+Model output streams: LLM and Agent nodes send text as it is written (OpenAI-compatible providers, Anthropic,
+Gemini; others in one piece), the Chat panel types answers out live, run event streams carry `token` events, and
+`POST /api/projects/{id}/runs/stream` starts a run and streams tokens, then the result, in one call. See ADR-0040.
+
 To start workflows from events: **Webhook Trigger** (token or HMAC protected; can wait and return the outputs),
 **Schedule Trigger** (cron with a time zone, or every N minutes), **Queue Trigger** (Redis Streams, Amazon SQS) and
 **Chat Trigger** (Slack, Telegram, WhatsApp, email), which replies with a run output. Tick *Enabled* and save:

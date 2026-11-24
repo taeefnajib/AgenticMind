@@ -154,6 +154,69 @@ class OpenAICompatibleChat:
     def __init__(self, name: str) -> None:
         self.name = name
 
+    def _prepare(self, request: ChatRequest, api_key: str | None, base_url: str | None) -> tuple[str, dict, dict]:
+        from . import KEYED_CHAT_PROVIDERS
+
+        base_url = chat_base_url(self.name, base_url)
+        if self.name in KEYED_CHAT_PROVIDERS and not api_key:
+            raise ProviderError(
+                "PROVIDER_AUTH_MISSING", f"{self.name} needs an API key ({KEYED_CHAT_PROVIDERS[self.name]})"
+            )
+        if not base_url:
+            raise ProviderError("PROVIDER_CONFIG_INVALID", f"{self.name} needs a base_url")
+        headers = {"Content-Type": "application/json", "X-Title": APP_TITLE}
+        if api_key:
+            headers.update(auth_headers(self.name, api_key))
+        body = build_body(request, max_tokens_field=_MAX_TOKENS_FIELD.get(self.name, "max_completion_tokens"))
+        return base_url.rstrip("/") + "/chat/completions", headers, body
+
+    def _status_error(self, status: int, text: str) -> ProviderError | None:
+        if status in (401, 403):
+            return ProviderError("PROVIDER_AUTH_FAILED", f"The provider rejected the API key ({status})")
+        if status == 402:
+            return ProviderError("PROVIDER_INSUFFICIENT_CREDITS", "The provider account has insufficient credits")
+        if status == 429 or status >= 500:
+            return ProviderError("PROVIDER_UNAVAILABLE", f"The provider returned {status}", retryable=True)
+        if status >= 400:
+            return ProviderError("PROVIDER_BAD_REQUEST", f"The provider returned {status}: {text[:300]}")
+        return None
+
+    async def stream(
+        self, request: ChatRequest, *, api_key: str | None = None, base_url: str | None = None, on_text: Any = None
+    ) -> ChatResponse:
+        """``stream: true`` with usage in the last chunk; text deltas go to ``on_text`` (ADR-0040)."""
+        import httpx
+
+        from .streaming import OpenAIStreamAccumulator, loads, sse_data
+
+        url, headers, body = self._prepare(request, api_key, base_url)
+        body = {**body, "stream": True, "stream_options": {"include_usage": True}}
+        acc = OpenAIStreamAccumulator()
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15)) as client:
+                async with client.stream("POST", url, json=body, headers=headers) as resp:
+                    if resp.status_code >= 400:
+                        err = self._status_error(resp.status_code, (await resp.aread()).decode(errors="replace"))
+                        if err is not None:
+                            raise err
+                    async for data in sse_data(resp.aiter_lines()):
+                        if data == "[DONE]":
+                            break
+                        chunk = loads(data)
+                        if chunk is None:
+                            continue
+                        delta = acc.add(chunk)
+                        if delta and on_text is not None:
+                            await on_text(delta)
+        except httpx.ConnectError as exc:
+            hint = " Is Ollama running (ollama serve) and reachable at this base URL?" if self.name == "ollama" else ""
+            raise ProviderError(
+                "PROVIDER_UNAVAILABLE", f"Could not connect to the provider.{hint}", retryable=True
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise ProviderError("PROVIDER_UNAVAILABLE", f"Chat stream failed: {exc}", retryable=True) from exc
+        return parse_response(acc.payload(), self.name, request.model)
+
     async def chat(
         self, request: ChatRequest, *, api_key: str | None = None, base_url: str | None = None
     ) -> ChatResponse:
