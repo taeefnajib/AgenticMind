@@ -18,7 +18,8 @@ import re
 from typing import Any
 
 from agenticmind_node_sdk import NodeContext, NodeError, ToolHandle, TransientNodeError
-from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, get_provider
+from agenticmind_nodes_core.models import effort
+from agenticmind_providers import ChatMessage, ChatRequest, ProviderError, chat_stream, get_provider
 
 from .agent import (
     MAX_TOOL_RESULT_CHARS,
@@ -130,13 +131,15 @@ async def _chat(ctx: NodeContext, config: AgentConfig, meter: _Meter, *, system:
                 max_tokens: int | None = None) -> str:  # fmt: skip
     try:
         provider = get_provider(config.provider)
-        resp = await provider.chat(
+        resp = await chat_stream(  # retries transient failures (ADR-0041)
+            provider,
             ChatRequest(
                 model=config.model,
                 system=system,
                 messages=messages,
                 temperature=config.temperature,
                 max_tokens=max_tokens or config.max_tokens,
+                reasoning_effort=effort(config.reasoning_effort),
             ),  # fmt: skip
             api_key=ctx.secret(config.api_key) if config.api_key else None,
             base_url=config.base_url,

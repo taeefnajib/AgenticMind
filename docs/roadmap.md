@@ -136,6 +136,10 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
   plan-and-execute); Reasoning node with chain of thought / self-consistency, task decomposition, tree of thoughts,
   graph of thoughts, Monte Carlo tree search and backtracking (budgeted, explored tree traced); Tool Router; Tool
   Chain; *Think it through* template.
+- **Faster agent runs** (ADR-0041): permanent tool failures answered instantly across a supervisor and its
+  sub-agents (no re-delegation loops), `reasoning_effort` on LLM/Agent/Sub-agent/Reasoning nodes (OpenRouter,
+  OpenAI, Azure, Anthropic, Gemini 3+), transient provider errors retried before any text is shown, token counts
+  visible in traces.
 - **Streaming** (ADR-0040): providers stream tokens (OpenAI-compatible with tool-call reassembly, Anthropic SDK,
   Gemini; one-chunk fallback), LLM and Agent nodes stream when someone listens, batched chunks served across
   processes as `token` SSE events, one-call `runs/stream` endpoint, live typing in Chat.
@@ -197,6 +201,9 @@ Status of blueprint milestones. Update this file whenever behaviour changes.
 - **Ops**: Dockerfile (API + built IDE), compose with optional Postgres profile.
 
 ## Known limitations
+
+- Agent latency is dominated by model turns (each delegation costs 2+ sub-agent turns); low reasoning effort is
+  faster but can skip tools (e.g. the clock) and answer from stale knowledge.
 
 - Streaming: batched (~100 ms) and polled (~200 ms) delivery; Bedrock, reasoning/guardrail nodes, MCP results and
   exported apps do not stream yet.

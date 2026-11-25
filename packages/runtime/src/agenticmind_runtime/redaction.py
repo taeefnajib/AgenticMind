@@ -11,6 +11,16 @@ from typing import Any
 
 REDACTED = "***"
 _SENSITIVE_KEY = re.compile(r"(api[_-]?key|secret|password|passwd|token|authorization|credential)", re.I)
+#: Token *counts* (input_tokens, max_tokens, token_budget, …) are usage numbers, not credentials.
+_TOKEN_COUNT_KEY = re.compile(
+    r"^((input|output|total|max|prompt|completion|cached|cache_read|reasoning|thinking|thoughts)_tokens"
+    r"|tokens_(in|out|used)|token_budget|token_count)$",
+    re.I,
+)
+
+
+def _sensitive(key: str) -> bool:
+    return bool(_SENSITIVE_KEY.search(key)) and not _TOKEN_COUNT_KEY.search(key)
 
 
 def summarize(
@@ -42,7 +52,7 @@ def summarize(
                 if i >= max_items:
                     out["…"] = f"+{len(v) - max_items} keys"
                     break
-                out[str(k)] = REDACTED if _SENSITIVE_KEY.search(str(k)) else walk(item, depth + 1)
+                out[str(k)] = REDACTED if _sensitive(str(k)) else walk(item, depth + 1)
             return out
         if isinstance(v, (list, tuple)):
             items = [walk(x, depth + 1) for x in list(v)[:max_items]]

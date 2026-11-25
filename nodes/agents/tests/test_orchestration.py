@@ -372,3 +372,71 @@ async def test_wrap_up_turn_answers_after_a_limit(monkeypatch):
     assert r.outputs["answer"] == "Best answer so far: 2."
     assert r.outputs["result"]["report"]["stop_reason"] == "max_tool_calls"
     assert seen[-1] == "none" and r.outputs["result"]["report"]["input_tokens"] == 3 * len(seen)
+
+
+async def test_permanent_tool_failures_are_not_retried_across_agents(monkeypatch):
+    """The run from the field: a supervisor re-delegated to a researcher whose only source refused bots, 4x."""
+    from agenticmind_node_sdk import ToolHandle
+    from agenticmind_node_sdk.handles import handle_value
+
+    fetches = []
+
+    @tools_mod.implementation("test_bot_blocked")
+    async def _blocked(ctx, tool, args):
+        fetches.append(args)
+        raise tools_mod.ToolError("en.wikipedia.org refused the request under its bot policy.", permanent=True)
+
+    fetch = handle_value(
+        ToolHandle(
+            tool_type="test_bot_blocked",
+            name="fetch_web_page",
+            description="Read a page",
+            parameters={"type": "object", "properties": {"url": {"type": "string"}}},
+        )
+    )
+    researcher = await _subagent("researcher", tools=[fetch])
+
+    class Models:
+        def __init__(self):
+            self.supervisor_turns = 0
+            self.supervisor_seen: list[str] = []
+
+        async def chat(self, request, *, api_key=None, base_url=None):
+            names = {t.name for t in request.tools}
+            last = request.messages[-1]
+            usage = ModelUsage(provider="x", model="m", input_tokens=3, output_tokens=2)
+            if "researcher" in names:  # the supervisor keeps rephrasing the same question
+                if last.role == "tool":
+                    self.supervisor_seen.append(last.content)
+                self.supervisor_turns += 1
+                if self.supervisor_turns <= 4:
+                    task = f"independence date of Bangladesh, wording {self.supervisor_turns}"
+                    call = ToolCall(id=f"s{self.supervisor_turns}", name="researcher", arguments={"task": task})
+                    return ChatResponse(text="", tool_calls=[call], usage=usage)
+                return ChatResponse(text="26 March 1971 (from memory; Wikipedia was unavailable).", usage=usage)
+            if last.role == "tool":  # the researcher reports the failure
+                return ChatResponse(text="The page could not be read (HTTP 403).", usage=usage)
+            call = ToolCall(id="r1", name="fetch_web_page", arguments={"url": "https://en.wikipedia.org/wiki/X"})
+            return ChatResponse(text="", tool_calls=[call], usage=usage)
+
+    models = Models()
+    monkeypatch.setattr(agent_mod, "get_provider", lambda name: models)
+    r = await invoke_node(
+        agent_mod.agent,
+        inputs={"task": "When did Bangladesh become independent?", "tools": [researcher]},
+        config={**MOCK, "max_turns": 8},
+    )
+    steps = r.outputs["result"]["steps"]
+    assert len(fetches) == 1  # the refused source was tried once in the whole run
+    assert steps[0]["ok"] is True and steps[0]["substeps"][0]["permanent"] is True
+    assert "Do not delegate to researcher again" in models.supervisor_seen[0]  # the real cause reaches the boss
+    assert all(s["ok"] is False and "cannot help in this run" in s["error"] for s in steps[1:])
+    assert steps[1].get("permanent") is True and steps[2].get("skipped") is True  # answered instantly
+    assert all(s["duration_ms"] < 50 for s in steps[1:])
+    assert "26 March 1971" in r.outputs["answer"]
+
+    # a new run starts clean: the registry belongs to one agent run
+    fetches.clear()
+    models.supervisor_turns = 0
+    await invoke_node(agent_mod.agent, inputs={"task": "again", "tools": [researcher]}, config={**MOCK, "max_turns": 8})
+    assert len(fetches) == 1

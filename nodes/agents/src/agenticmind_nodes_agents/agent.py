@@ -39,6 +39,7 @@ from agenticmind_node_sdk import (
     secret_field,
     ui,
 )
+from agenticmind_nodes_core.models import EffortSetting, effort, reasoning_effort_field
 from agenticmind_providers import (
     ChatMessage,
     ChatProviderName,
@@ -52,7 +53,7 @@ from agenticmind_providers import (
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import Field, model_validator
 
-from .tools import PACKAGE, ToolError, resolve_implementation
+from .tools import PACKAGE, ToolError, resolve_implementation, tool_key
 
 DEFAULT_INSTRUCTIONS = (
     "You are a careful assistant. Use the available tools whenever they help answer accurately, and never "
@@ -72,6 +73,11 @@ GRANTED_TOOL_PERMISSIONS: contextvars.ContextVar[frozenset[str] | None] = contex
 )
 #: Chain of agents currently running (node > subagent > ...), used to label trace events.
 CURRENT_AGENT: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar("agenticmind_agent", default=())
+#: Tools that failed permanently in this agent run (shared by the supervisor and all its subagents):
+#: tool key -> reason. Calls to them are answered instantly instead of retried (ADR-0041).
+UNAVAILABLE: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
+    "agenticmind_unavailable_tools", default=None
+)
 
 
 class AgentConfig(NodeConfig):
@@ -115,6 +121,7 @@ class AgentConfig(NodeConfig):
     tool_timeout_seconds: float = Field(default=30, gt=0, le=300, json_schema_extra=ui(advanced=True))
     temperature: float = Field(default=0.2, ge=0, le=2, json_schema_extra=ui(advanced=True))
     max_tokens: int = Field(default=1500, ge=16, le=100_000, json_schema_extra=ui(advanced=True))
+    reasoning_effort: EffortSetting = reasoning_effort_field()
     base_url: str | None = Field(default=None, json_schema_extra=ui(advanced=True))
 
     @model_validator(mode="after")
@@ -244,6 +251,12 @@ async def run_agent_loop(
     context: str | None = None,
 ) -> AgentOutcome:
     """The bounded model ↔ tool loop. Raises ``NodeError('AGENT_LIMIT_REACHED')`` when on_limit=fail."""
+    if UNAVAILABLE.get() is None:  # the outermost agent owns the run's registry; subagents share it
+        token = UNAVAILABLE.set({})
+        try:
+            return await run_agent_loop(ctx, config, task=task, tools=tools, history=history, context=context)
+        finally:
+            UNAVAILABLE.reset(token)
     by_name = check_tools(tools)
     specs = [ToolSpec(name=t.name, description=t.description, parameters=t.parameters) for t in tools]
     system = config.instructions
@@ -286,6 +299,7 @@ async def run_agent_loop(
                         messages=messages,
                         temperature=config.temperature,
                         max_tokens=config.max_tokens,
+                        reasoning_effort=effort(config.reasoning_effort),
                         tools=specs,
                         tool_choice="auto" if specs else None,
                     ),
@@ -382,6 +396,7 @@ async def run_agent_loop(
                         ],
                         temperature=config.temperature,
                         max_tokens=config.max_tokens,
+                        reasoning_effort=effort(config.reasoning_effort),
                         tools=specs,
                         tool_choice="none" if specs else None,
                     ),
@@ -477,7 +492,12 @@ async def _run_tool(
             # a tool may declare its own timeout (a subagent needs longer than a calculator)
             limit = float(tool.binding.get("tool_timeout_seconds", timeout))
             impl = resolve_implementation(tool.tool_type)
+            unavailable = UNAVAILABLE.get()
+            reason = unavailable.get(tool_key(tool)) if unavailable is not None else None
             try:
+                if reason:  # failed permanently earlier in this run: answer at once, do not run it again
+                    step["skipped"] = True
+                    raise ToolError(f"'{name}' is unavailable for the rest of this run: {reason} Do not call it again.")
                 if impl is None:
                     raise ToolError(f"No implementation for tool type '{tool.tool_type}'")
                 result = await asyncio.wait_for(impl(ctx, tool, arguments), limit)
@@ -486,6 +506,9 @@ async def _run_tool(
                 result = {"error": f"Tool timed out after {limit:g}s"}
             except ToolError as exc:
                 result = {"error": str(exc)}
+                if exc.permanent and unavailable is not None:
+                    unavailable[tool_key(tool)] = str(exc)
+                    step["permanent"] = True
             except NodeError as exc:
                 result = {"error": f"{exc.code}: {exc.message}"}
     if isinstance(result, dict):  # private fields from a subagent: nested steps, report and usage

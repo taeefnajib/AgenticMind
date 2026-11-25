@@ -7,7 +7,9 @@ for the others (Bedrock's binary event stream, test fakes) the full text is deli
 
 from __future__ import annotations
 
+import asyncio
 import json
+import random
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
@@ -23,14 +25,41 @@ async def chat_stream(
     api_key: str | None = None,
     base_url: str | None = None,
     on_text: OnText | None = None,
+    retries: int | None = None,
 ) -> ChatResponse:
+    """One model call, streamed to ``on_text`` when given, with retries for transient failures (ADR-0041).
+
+    Rate limits, 5xx responses and dropped connections are retried up to ``retries`` times (default 2, or 0
+    for providers whose SDK already retries) with jittered backoff, like the official Python SDKs do, but only
+    before any text reached ``on_text``, so a live preview never shows text twice.
+    """
+    if retries is None:
+        retries = 0 if getattr(provider, "retries_internally", False) else DEFAULT_RETRIES
+    streamed = False
+
+    async def relay(delta: str) -> None:
+        nonlocal streamed
+        streamed = True
+        await on_text(delta)  # type: ignore[misc]
+
     stream = getattr(provider, "stream", None)
-    if on_text is None or stream is None:
-        response = await provider.chat(request, api_key=api_key, base_url=base_url)
-        if on_text is not None and response.text:
-            await on_text(response.text)
-        return response
-    return await stream(request, api_key=api_key, base_url=base_url, on_text=on_text)
+    for attempt in range(retries + 1):
+        try:
+            if on_text is None or stream is None:
+                response = await provider.chat(request, api_key=api_key, base_url=base_url)
+                if on_text is not None and response.text:
+                    await relay(response.text)
+                return response
+            return await stream(request, api_key=api_key, base_url=base_url, on_text=relay)
+        except ProviderError as exc:
+            if not exc.retryable or streamed or attempt >= retries:
+                raise
+            await asyncio.sleep(RETRY_BASE_SECONDS * (3**attempt) * (0.75 + random.random() / 2))
+    raise AssertionError("unreachable")
+
+
+DEFAULT_RETRIES = 2
+RETRY_BASE_SECONDS = 0.5
 
 
 async def sse_data(lines: AsyncIterator[str]) -> AsyncIterator[str]:

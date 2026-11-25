@@ -22,6 +22,18 @@ DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
 MIN_OUTPUT_TOKENS = 4096
 
 
+#: Gemini 3+ ``thinkingConfig.thinkingLevel``; there is no "off", MINIMAL is "little to no thinking".
+_THINKING_LEVEL = {
+    "none": "MINIMAL",
+    "minimal": "MINIMAL",
+    "low": "LOW",
+    "medium": "MEDIUM",
+    "high": "HIGH",
+    "xhigh": "XHIGH",
+    "max": "XHIGH",
+}
+
+
 def _tool_response(content: str | None) -> dict[str, Any]:
     try:
         value = json.loads(content or "null")
@@ -72,6 +84,8 @@ def build_body(request: ChatRequest) -> dict[str, Any]:
             "maxOutputTokens": max(request.max_tokens, MIN_OUTPUT_TOKENS),
         },
     }
+    if request.reasoning_effort:
+        body["generationConfig"]["thinkingConfig"] = {"thinkingLevel": _THINKING_LEVEL[request.reasoning_effort]}
     if request.system:
         body["systemInstruction"] = {"parts": [{"text": request.system}]}
     if request.tools:

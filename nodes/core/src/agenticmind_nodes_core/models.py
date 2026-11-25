@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import re
-from typing import Literal
+from typing import Any, Literal
 
 from agenticmind_node_sdk import (
     VISION_MEDIA_TYPES,
@@ -42,6 +42,22 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .io import PACKAGE
 
+EffortSetting = Literal["default", "none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+
+def reasoning_effort_field() -> Any:
+    """How hard a reasoning model thinks per call. Lower = much faster turns (ADR-0041)."""
+    return Field(
+        default="default",
+        description="Thinking effort for reasoning models: default keeps the model's own setting; none/minimal/low "
+        "answer fastest. Applied on OpenRouter, OpenAI, Azure OpenAI, Anthropic and Gemini 3+.",
+        json_schema_extra=ui(advanced=True),
+    )
+
+
+def effort(value: str) -> Any:
+    return None if value == "default" else value
+
 
 async def _chat(
     ctx: NodeContext,
@@ -55,6 +71,7 @@ async def _chat(
     api_key_ref: SecretRef | None,
     base_url: str | None,
     images: list[ImagePart] | None = None,
+    reasoning_effort: str = "default",
 ):
     try:
         provider = get_provider(provider_name)
@@ -71,6 +88,7 @@ async def _chat(
                 messages=[ChatMessage(role="user", content=prompt, images=images or [])],
                 temperature=temperature,
                 max_tokens=max_tokens,
+                reasoning_effort=effort(reasoning_effort),
             ),
             api_key=api_key,
             base_url=base_url,
@@ -97,6 +115,7 @@ class LLMConfig(NodeConfig):
     system_prompt: str = Field(default="", json_schema_extra=ui(widget="textarea"))
     temperature: float = Field(default=0.2, ge=0, le=2, json_schema_extra=ui(advanced=True))
     max_tokens: int = Field(default=1024, ge=16, le=200_000, json_schema_extra=ui(advanced=True))
+    reasoning_effort: EffortSetting = reasoning_effort_field()
     base_url: str | None = Field(
         default=None,
         description=f"API base URL (openai_compatible; default for openrouter is {OPENROUTER_BASE_URL}).",
@@ -167,6 +186,7 @@ async def _run_llm(ctx: NodeContext, inputs, config: LLMConfig, *, images: list[
         api_key_ref=config.api_key,
         base_url=config.base_url,
         images=images,
+        reasoning_effort=config.reasoning_effort,
     )
     if not response.text.strip():
         raise NodeError(
@@ -445,7 +465,8 @@ async def model_router(ctx: NodeContext, inputs, config: ModelRouterConfig) -> N
         try:
             provider = get_provider(config.provider)
             api_key = ctx.secret(config.api_key) if config.api_key else None
-            answer = await provider.chat(
+            answer = await chat_stream(  # retries transient failures (ADR-0041)
+                provider,
                 classifier_request(prompt, config.routes, config.classifier_model),
                 api_key=api_key,
                 base_url=config.base_url,

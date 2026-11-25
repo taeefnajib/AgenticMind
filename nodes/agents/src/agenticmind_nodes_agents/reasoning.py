@@ -51,12 +51,14 @@ from agenticmind_node_sdk import (
     secret_field,
     ui,
 )
+from agenticmind_nodes_core.models import EffortSetting, effort, reasoning_effort_field
 from agenticmind_providers import (
     CHAT_PROVIDER_HELP,
     ChatMessage,
     ChatProviderName,
     ChatRequest,
     ProviderError,
+    chat_stream,
     check_chat_provider,
     get_provider,
 )
@@ -135,6 +137,7 @@ class ReasoningConfig(NodeConfig):
     max_tokens: int = Field(
         default=1200, ge=64, le=100_000, description="Per call.", json_schema_extra=ui(advanced=True)
     )
+    reasoning_effort: EffortSetting = reasoning_effort_field()
     base_url: str | None = Field(default=None, json_schema_extra=ui(advanced=True))
 
     @model_validator(mode="after")
@@ -191,13 +194,15 @@ class _Engine:
             raise _OutOfBudget
         self.calls += 1
         try:
-            resp = await self.provider.chat(
+            resp = await chat_stream(  # retries transient failures (ADR-0041)
+                self.provider,
                 ChatRequest(
                     model=model or self.config.model,
                     system=self.system,
                     messages=[ChatMessage(role="user", content=prompt)],
                     temperature=self.config.temperature if creative else 0.0,
                     max_tokens=self.config.max_tokens,
+                    reasoning_effort=effort(self.config.reasoning_effort),
                 ),  # fmt: skip
                 api_key=self.api_key,
                 base_url=self.config.base_url,

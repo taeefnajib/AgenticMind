@@ -140,6 +140,9 @@ class ChatMessage(BaseModel):
     provider_state: Any = None
 
 
+ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+
+
 class ChatRequest(BaseModel):
     model: str
     messages: list[ChatMessage]
@@ -148,6 +151,9 @@ class ChatRequest(BaseModel):
     max_tokens: int = Field(default=1024, ge=1)
     tools: list[ToolSpec] = Field(default_factory=list)
     tool_choice: Literal["auto", "none", "required"] | None = None
+    #: How hard a reasoning model thinks before answering (None = the model's default). Mapped per provider to
+    #: its documented control; providers without one ignore it. Lower effort = faster, cheaper turns.
+    reasoning_effort: ReasoningEffort | None = None
 
 
 class ChatResponse(BaseModel):

@@ -143,6 +143,10 @@ Model output streams: LLM and Agent nodes send text as it is written (OpenAI-com
 Gemini; others in one piece), the Chat panel types answers out live, run event streams carry `token` events, and
 `POST /api/projects/{id}/runs/stream` starts a run and streams tokens, then the result, in one call. See ADR-0040.
 
+Speed: set **Reasoning effort** (advanced settings) on LLM, Agent, Sub-agent and Reasoning nodes to trade thinking
+time for speed per node; a tool that fails permanently (e.g. a site refusing bots) is not retried by any agent in the
+same run; transient provider errors are retried automatically. See ADR-0041.
+
 To start workflows from events: **Webhook Trigger** (token or HMAC protected; can wait and return the outputs),
 **Schedule Trigger** (cron with a time zone, or every N minutes), **Queue Trigger** (Redis Streams, Amazon SQS) and
 **Chat Trigger** (Slack, Telegram, WhatsApp, email), which replies with a run output. Tick *Enabled* and save:

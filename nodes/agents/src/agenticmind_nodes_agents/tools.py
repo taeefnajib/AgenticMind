@@ -39,7 +39,20 @@ PACKAGE = "agenticmind-nodes-agents"
 
 
 class ToolError(Exception):
-    """A tool failure reported back to the model (not a node failure)."""
+    """A tool failure reported back to the model (not a node failure).
+
+    ``permanent=True`` means retrying cannot help during this run (a site refusing bots, missing access). The
+    agent loop then answers further calls to that tool instantly with the reason, for every agent of the run,
+    instead of letting models spend a turn (and seconds) on each retry (ADR-0041).
+    """
+
+    def __init__(self, message: str, *, permanent: bool = False) -> None:
+        super().__init__(message)
+        self.permanent = permanent
+
+
+def tool_key(tool: ToolHandle) -> str:
+    return f"{tool.tool_type}:{tool.name}"
 
 
 ToolFn = Callable[[NodeContext, ToolHandle, dict[str, Any]], Awaitable[Any]]
@@ -480,9 +493,10 @@ async def _web_fetch(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]) -
         raise ToolError("Too many redirects")
     if resp.status_code in (403, 429) and "robot policy" in resp.text[:2000].lower():
         raise ToolError(
-            f"The site refused the request (HTTP {resp.status_code}) under its bot policy, which requires a "
-            "User-Agent with contact details. The operator can set AGENTICMIND_HTTP_USER_AGENT. "
-            "Do not retry this site; report that the page could not be read."
+            f"{parsed.hostname} refused the request (HTTP {resp.status_code}) under its bot policy, which requires "
+            "a User-Agent with contact details (the operator sets AGENTICMIND_HTTP_USER_AGENT). Rephrasing or other "
+            "pages will not help; answer from what you know and say the source was unavailable.",
+            permanent=True,
         )
     if resp.status_code >= 400:
         raise ToolError(f"The page returned HTTP {resp.status_code}")

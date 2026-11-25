@@ -196,3 +196,52 @@ async def test_fallback_and_mock():
     assert "".join(deltas) == resp.text and len(deltas) > 1  # word by word
     plain = await chat_stream(get_provider("mock"), REQ)  # no listener: a normal call
     assert plain.text == resp.text
+
+
+async def test_transient_failures_are_retried_before_any_text(monkeypatch):
+    from agenticmind_node_sdk import ModelUsage
+    from agenticmind_providers import ChatResponse, ProviderError
+    from agenticmind_providers import streaming as streaming_mod
+
+    monkeypatch.setattr(streaming_mod, "RETRY_BASE_SECONDS", 0)
+
+    class Flaky:
+        def __init__(self, fail_times, error, text_before_fail=""):
+            self.calls, self.fail_times, self.error, self.text_before_fail = 0, fail_times, error, text_before_fail
+
+        async def stream(self, request, *, api_key=None, base_url=None, on_text=None):
+            self.calls += 1
+            if self.calls <= self.fail_times:
+                if self.text_before_fail:
+                    await on_text(self.text_before_fail)
+                raise self.error
+            await on_text("fine")
+            return ChatResponse(text="fine", usage=ModelUsage(provider="x", model="m"))
+
+        async def chat(self, request, *, api_key=None, base_url=None):
+            return await self.stream(request, on_text=_noop)
+
+    async def _noop(_):
+        return None
+
+    dropped = ProviderError("PROVIDER_UNAVAILABLE", "Chat stream failed: ReadTimeout", retryable=True)
+    p = Flaky(2, dropped)
+    resp, deltas = await collect(p)
+    assert p.calls == 3 and resp.text == "fine" and deltas == ["fine"]  # two retries, then success
+    p = Flaky(1, dropped)
+    assert (await chat_stream(p, REQ)).text == "fine" and p.calls == 2  # non-streamed calls retry too
+
+    out_of_retries = Flaky(3, dropped)
+    not_transient = Flaky(1, ProviderError("PROVIDER_BAD_REQUEST", "bad", retryable=False))
+    text_shown = Flaky(1, dropped, text_before_fail="Hel")  # retrying would show the text twice
+    for flaky in (out_of_retries, not_transient, text_shown):
+        try:
+            await collect(flaky)
+            raise AssertionError("should have raised")
+        except ProviderError:
+            pass
+    assert [out_of_retries.calls, not_transient.calls, text_shown.calls] == [3, 1, 1]
+
+    from agenticmind_providers.anthropic_chat import AnthropicChat
+
+    assert AnthropicChat.retries_internally is True  # its SDK retries; no second layer

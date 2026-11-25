@@ -168,6 +168,11 @@ class OpenAICompatibleChat:
         if api_key:
             headers.update(auth_headers(self.name, api_key))
         body = build_body(request, max_tokens_field=_MAX_TOKENS_FIELD.get(self.name, "max_completion_tokens"))
+        effort = request.reasoning_effort
+        if effort and self.name == "openrouter":  # {"effort": "none"} disables reasoning
+            body["reasoning"] = {"effort": effort}
+        elif effort and self.name in ("openai", "azure_openai"):
+            body["reasoning_effort"] = effort
         return base_url.rstrip("/") + "/chat/completions", headers, body
 
     def _status_error(self, status: int, text: str) -> ProviderError | None:
@@ -214,7 +219,9 @@ class OpenAICompatibleChat:
                 "PROVIDER_UNAVAILABLE", f"Could not connect to the provider.{hint}", retryable=True
             ) from exc
         except httpx.HTTPError as exc:
-            raise ProviderError("PROVIDER_UNAVAILABLE", f"Chat stream failed: {exc}", retryable=True) from exc
+            raise ProviderError(
+                "PROVIDER_UNAVAILABLE", f"Chat stream failed: {type(exc).__name__} {exc}".rstrip(), retryable=True
+            ) from exc
         return parse_response(acc.payload(), self.name, request.model)
 
     async def chat(
@@ -245,7 +252,9 @@ class OpenAICompatibleChat:
                 "PROVIDER_UNAVAILABLE", f"Could not connect to {base_url}.{hint}", retryable=True
             ) from exc
         except httpx.HTTPError as exc:
-            raise ProviderError("PROVIDER_UNAVAILABLE", f"Chat request failed: {exc}", retryable=True) from exc
+            raise ProviderError(
+                "PROVIDER_UNAVAILABLE", f"Chat request failed: {type(exc).__name__} {exc}".rstrip(), retryable=True
+            ) from exc
         if resp.status_code in (401, 403):
             raise ProviderError("PROVIDER_AUTH_FAILED", f"The provider rejected the API key ({resp.status_code})")
         if resp.status_code == 402:

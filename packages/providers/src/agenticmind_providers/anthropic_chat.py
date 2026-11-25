@@ -86,7 +86,13 @@ def build_params(request: ChatRequest) -> dict[str, Any]:
         if request.tool_choice == "required":
             forced = not _NO_FORCED_TOOL.search(request.model)
             params["tool_choice"] = {"type": "any" if forced else "auto"}
+    if request.reasoning_effort:
+        params["output_config"] = {"effort": _EFFORT.get(request.reasoning_effort, request.reasoning_effort)}
     return params
+
+
+#: ``output_config.effort`` takes low | medium | high | xhigh | max; thinking cannot be disabled on current models.
+_EFFORT = {"none": "low", "minimal": "low"}
 
 
 def parse_message(msg: Any, requested_model: str) -> ChatResponse:
@@ -121,6 +127,7 @@ def parse_message(msg: Any, requested_model: str) -> ChatResponse:
 
 class AnthropicChat:
     name = "anthropic"
+    retries_internally = True  # the SDK retries 429/5xx/connection errors itself (max_retries=2)
 
     async def chat(
         self, request: ChatRequest, *, api_key: str | None = None, base_url: str | None = None

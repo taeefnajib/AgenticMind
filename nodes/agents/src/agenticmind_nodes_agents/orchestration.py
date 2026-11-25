@@ -45,8 +45,8 @@ from agenticmind_providers import (
 from agenticmind_providers.chat import DEFAULT_OPENROUTER_MODEL
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .agent import CURRENT_AGENT, AgentConfig, emit_agent, load_tools, run_agent_loop
-from .tools import PACKAGE, ToolError, _description_field, _name_field, implementation
+from .agent import CURRENT_AGENT, UNAVAILABLE, AgentConfig, emit_agent, load_tools, run_agent_loop
+from .tools import PACKAGE, ToolError, _description_field, _name_field, implementation, tool_key
 
 #: Supervisor > subagent > sub-subagent ... at most this many agents deep.
 MAX_AGENT_DEPTH = 3
@@ -167,6 +167,15 @@ async def subagent(ctx: NodeContext, inputs, config: SubagentConfig) -> NodeResu
     return NodeResult(outputs={"tool": handle_value(handle)})
 
 
+def _dead_tools(tools: list[ToolHandle]) -> str:
+    """'tool: reason; …' when the agent has tools and all of them failed permanently in this run, else ''."""
+    unavailable = UNAVAILABLE.get() or {}
+    reasons = [unavailable.get(tool_key(t)) for t in tools]
+    if not tools or not all(reasons):
+        return ""
+    return "; ".join(f"{t.name}: {r}" for t, r in zip(tools, reasons, strict=True))
+
+
 @implementation("subagent")
 async def _run_subagent(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]) -> Any:
     path = CURRENT_AGENT.get()
@@ -176,6 +185,11 @@ async def _run_subagent(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]
         raise ToolError(f"Delegation depth limit ({MAX_AGENT_DEPTH} agents) reached; answer yourself")
     config = AgentConfig.model_validate(tool.binding["agent"])
     tools = load_tools(tool.binding.get("tools"))
+    dead = _dead_tools(tools)
+    if dead:  # every tool it has failed permanently in this run: it cannot do better than the supervisor
+        raise ToolError(
+            f"{tool.name} cannot help in this run because its tools are unavailable ({dead})", permanent=True
+        )
     await emit_agent(ctx, "handoff", {"to": tool.name, "task": str(args["task"])[:1000]})
     token = CURRENT_AGENT.set((*path, tool.name))
     try:
@@ -189,9 +203,12 @@ async def _run_subagent(ctx: NodeContext, tool: ToolHandle, args: dict[str, Any]
         "handoff_result",
         {"from": tool.name, "stop_reason": out.report["stop_reason"], "answer": out.answer[:300]},
     )
+    dead = _dead_tools(tools)
     return {
         "answer": out.answer,
         "stop_reason": out.report["stop_reason"],
+        # the real cause, so the supervisor does not re-delegate the same task in other words
+        **({"unavailable_tools": dead, "note": f"Do not delegate to {tool.name} again in this run."} if dead else {}),
         "_steps": out.steps,
         "_report": out.report,
         "_usage": {"input_tokens": out.input_tokens, "output_tokens": out.output_tokens, "cost_usd": out.cost_usd},
